@@ -4,15 +4,28 @@ Goods Shed mission control UI for [Beyond Stage Zero](https://www.beyondstagezer
 
 Octopus moves data into mission control. It is not the flight computer.
 
-## Develop
+## Run
+
+First time (or after a pull):
 
 ```bash
 npm install
-npm run dev
+npm start
 ```
+
+Or one shot:
+
+```bash
+./start.sh
+```
+
+That opens **http://127.0.0.1:5173** in your browser.
+
+Requires Node.js 20+.
 
 ## Build
 
 ```bash
 npm run build
+npm run preview
 ```
