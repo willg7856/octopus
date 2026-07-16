@@ -27,6 +27,16 @@ function fromB64url(input: string) {
   return Buffer.from(padded + pad, 'base64').toString('utf8')
 }
 
+function passwordsMatch(a: string, b: string) {
+  const left = Buffer.from(a)
+  const right = Buffer.from(b)
+  if (left.length !== right.length) {
+    timingSafeEqual(left, left)
+    return false
+  }
+  return timingSafeEqual(left, right)
+}
+
 export function signSession(payload: SessionPayload) {
   const body = b64url(JSON.stringify(payload))
   const sig = createHmac('sha256', secret()).update(body).digest('base64url')
@@ -79,8 +89,7 @@ export function checkCredentials(email: string, password: string) {
 
   const emailOk =
     allowed.length === 0 || allowed.includes(email.trim().toLowerCase())
-  const passOk = safeEqual(password, expected)
-  return emailOk && passOk
+  return emailOk && passwordsMatch(password, expected)
 }
 
 export function displayName(email: string) {
@@ -88,18 +97,6 @@ export function displayName(email: string) {
   return local
     .replace(/[._-]+/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-const safe = {
-  equal(a: string, b: string) {
-    const left = Buffer.from(a)
-    const right = Buffer.from(b)
-    if (left.length !== right.length) {
-      timingSafeEqual(left, left)
-      return false
-    }
-    return timingSafeEqual(left, right)
-  },
 }
 
 export { COOKIE, MAX_AGE_SEC }

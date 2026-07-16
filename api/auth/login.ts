@@ -5,7 +5,7 @@ import {
   MAX_AGE_SEC,
   sessionCookie,
   signSession,
-} from '../_lib/session'
+} from '../_lib/session.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
