@@ -1,4 +1,5 @@
-:root {
+:root,
+[data-theme='light'] {
   --ink-900: #0b0d0f;
   --ink-800: #14181c;
   --ink-700: #1e242b;
@@ -16,12 +17,54 @@
   --telem-green: #18a957;
   --telem-red: #e33636;
   --telem-cyan: #2dc2d9;
+  --fg: var(--ink-900);
+  --fg-muted: var(--ink-500);
+  --fg-faint: var(--ink-400);
+  --bg: var(--paper-100);
+  --bg-elev: var(--paper-200);
+  --bg-panel: rgba(250, 250, 247, 0.78);
+  --bg-panel-solid: var(--paper-100);
+  --bg-inverse: var(--ink-900);
+  --fg-inverse: var(--paper-100);
+  --line: var(--ink-300);
+  --hover: rgba(11, 13, 15, 0.04);
+  --grid-line: rgba(11, 13, 15, 0.045);
+  --chart-grid: rgba(11, 13, 15, 0.08);
+  --glow-ignition: rgba(255, 90, 31, 0.09);
+  --glow-cyan: rgba(45, 194, 217, 0.06);
   --font-display: 'JetBrains Mono', ui-monospace, monospace;
   --font-body: 'IBM Plex Sans', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --line: var(--ink-300);
   --r: 2px;
+}
+
+[data-theme='dark'] {
+  --ink-900: #fafaf7;
+  --ink-800: #e4e4dd;
+  --ink-700: #b8bfc7;
+  --ink-600: #7b8590;
+  --ink-500: #9aa3ad;
+  --ink-400: #7b8590;
+  --ink-300: #2a323b;
+  --paper-100: #0b0d0f;
+  --paper-200: #14181c;
+  --paper-300: #1e242b;
+  --fg: #fafaf7;
+  --fg-muted: #9aa3ad;
+  --fg-faint: #7b8590;
+  --bg: #0b0d0f;
+  --bg-elev: #14181c;
+  --bg-panel: rgba(20, 24, 28, 0.88);
+  --bg-panel-solid: #14181c;
+  --bg-inverse: #fafaf7;
+  --fg-inverse: #0b0d0f;
+  --line: #2a323b;
+  --hover: rgba(250, 250, 247, 0.05);
+  --grid-line: rgba(250, 250, 247, 0.04);
+  --chart-grid: rgba(250, 250, 247, 0.08);
+  --glow-ignition: rgba(255, 90, 31, 0.16);
+  --glow-cyan: rgba(45, 194, 217, 0.1);
 }
 
 *,
@@ -39,9 +82,10 @@ body,
 body {
   margin: 0;
   font-family: var(--font-body);
-  color: var(--ink-900);
-  background: var(--paper-100);
+  color: var(--fg);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
 }
 
 button {
@@ -64,9 +108,9 @@ button {
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(ellipse 70% 45% at 100% 0%, rgba(255, 90, 31, 0.09), transparent 55%),
-    radial-gradient(ellipse 55% 40% at 0% 100%, rgba(45, 194, 217, 0.06), transparent 50%),
-    linear-gradient(180deg, var(--paper-100) 0%, var(--paper-200) 100%);
+    radial-gradient(ellipse 70% 45% at 100% 0%, var(--glow-ignition), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 0% 100%, var(--glow-cyan), transparent 50%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-elev) 100%);
 }
 
 .app::after {
@@ -77,8 +121,8 @@ button {
   pointer-events: none;
   opacity: 0.45;
   background-image:
-    linear-gradient(rgba(11, 13, 15, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(11, 13, 15, 0.045) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 40px 40px;
   mask-image: linear-gradient(180deg, black 0%, transparent 92%);
 }
@@ -117,7 +161,7 @@ button {
   font-size: 0.68rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-500);
+  color: var(--fg-muted);
 }
 
 .brand {
@@ -127,7 +171,7 @@ button {
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 0.92;
-  color: var(--ink-900);
+  color: var(--fg);
 }
 
 .brand em {
@@ -139,7 +183,7 @@ button {
   margin: 0;
   max-width: 34rem;
   font-size: 0.95rem;
-  color: var(--ink-500);
+  color: var(--fg-muted);
   line-height: 1.4;
 }
 
@@ -151,7 +195,7 @@ button {
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ink-500);
+  color: var(--fg-muted);
   animation: rise 0.55s var(--ease) 0.08s both;
 }
 
@@ -165,9 +209,37 @@ button {
 .meta-item strong {
   font-size: 0.92rem;
   font-weight: 600;
-  color: var(--ink-900);
+  color: var(--fg);
   letter-spacing: 0;
   text-transform: none;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg);
+  border-radius: var(--r);
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+}
+
+.theme-toggle:hover {
+  background: var(--hover);
+  transform: translateY(-1px);
+}
+
+.theme-toggle-icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  display: block;
 }
 
 .live-dot {
@@ -195,7 +267,7 @@ button {
 }
 
 .live-dot[data-state='standby'] {
-  color: var(--ink-400);
+  color: var(--fg-faint);
 }
 
 /* ——— Ops strip ——— */
@@ -209,7 +281,7 @@ button {
 
 .ops-cell {
   border: 1px solid var(--line);
-  background: rgba(250, 250, 247, 0.72);
+  background: var(--bg-panel);
   padding: 0.75rem 0.9rem;
 }
 
@@ -219,7 +291,7 @@ button {
   font-size: 0.62rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-500);
+  color: var(--fg-muted);
 }
 
 .ops-value {
@@ -227,7 +299,7 @@ button {
   font-family: var(--font-mono);
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--ink-900);
+  color: var(--fg);
 }
 
 .ops-value[data-accent='true'] {
@@ -246,7 +318,7 @@ button {
 
 .panel {
   border: 1px solid var(--line);
-  background: rgba(250, 250, 247, 0.78);
+  background: var(--bg-panel);
   backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
@@ -268,13 +340,13 @@ button {
   font-size: 0.68rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-500);
+  color: var(--fg-muted);
 }
 
 .panel-note {
   font-family: var(--font-mono);
   font-size: 0.65rem;
-  color: var(--ink-400);
+  color: var(--fg-faint);
 }
 
 .panel-body {
@@ -300,12 +372,12 @@ button {
 }
 
 .mode-btn:hover {
-  background: rgba(11, 13, 15, 0.03);
+  background: var(--hover);
 }
 
 .mode-btn[aria-pressed='true'] {
-  border-color: var(--ink-900);
-  background: rgba(11, 13, 15, 0.04);
+  border-color: var(--fg);
+  background: var(--hover);
 }
 
 .mode-top {
@@ -325,7 +397,7 @@ button {
 .mode-desc {
   margin: 0;
   font-size: 0.8rem;
-  color: var(--ink-500);
+  color: var(--fg-muted);
   line-height: 1.35;
 }
 
@@ -353,7 +425,7 @@ button {
   color: var(--telem-cyan);
 }
 .chip[data-tone='ink'] {
-  color: var(--ink-500);
+  color: var(--fg-muted);
 }
 .chip[data-tone='ignition'] {
   color: var(--ignition);
@@ -382,7 +454,7 @@ button {
 
 .channel:hover,
 .channel[aria-pressed='true'] {
-  background: rgba(11, 13, 15, 0.035);
+  background: var(--hover);
 }
 
 .channel[aria-pressed='true'] {
@@ -398,7 +470,7 @@ button {
   grid-column: 1 / -1;
   font-family: var(--font-mono);
   font-size: 0.65rem;
-  color: var(--ink-400);
+  color: var(--fg-faint);
 }
 
 /* Center stage */
@@ -424,7 +496,7 @@ button {
 .readout {
   border: 1px solid var(--line);
   padding: 0.65rem 0.7rem;
-  background: var(--paper-100);
+  background: var(--bg-panel-solid);
 }
 
 .readout-label {
@@ -433,7 +505,7 @@ button {
   font-size: 0.58rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-500);
+  color: var(--fg-muted);
 }
 
 .readout-value {
@@ -442,12 +514,12 @@ button {
   font-size: clamp(1.1rem, 2.2vw, 1.45rem);
   font-weight: 650;
   letter-spacing: -0.02em;
-  color: var(--ink-900);
+  color: var(--fg);
 }
 
 .readout-unit {
   font-size: 0.7rem;
-  color: var(--ink-400);
+  color: var(--fg-faint);
   font-weight: 500;
   margin-left: 0.2rem;
 }
@@ -455,8 +527,8 @@ button {
 .chart-wrap {
   border: 1px solid var(--line);
   background:
-    linear-gradient(180deg, rgba(11, 13, 15, 0.02), transparent 40%),
-    var(--paper-100);
+    linear-gradient(180deg, var(--hover), transparent 40%),
+    var(--bg-panel-solid);
   position: relative;
   min-height: 220px;
   overflow: hidden;
@@ -478,7 +550,7 @@ button {
   font-size: 0.62rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--ink-500);
+  color: var(--fg-muted);
 }
 
 .legend-item {
@@ -509,12 +581,12 @@ button {
 .stage-note {
   margin: 0;
   font-size: 0.8rem;
-  color: var(--ink-500);
+  color: var(--fg-muted);
   line-height: 1.4;
 }
 
 .stage-note strong {
-  color: var(--ink-900);
+  color: var(--fg);
   font-weight: 600;
 }
 
@@ -539,7 +611,7 @@ button {
 .detail-copy {
   margin: 0.35rem 0 0;
   font-size: 0.85rem;
-  color: var(--ink-500);
+  color: var(--fg-muted);
   line-height: 1.4;
 }
 
@@ -559,7 +631,7 @@ button {
 }
 
 .stat-row span:first-child {
-  color: var(--ink-500);
+  color: var(--fg-muted);
 }
 
 .stat-row span:last-child {
@@ -581,9 +653,9 @@ button {
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  border: 1.5px solid var(--ink-900);
+  border: 1.5px solid var(--fg);
   border-radius: var(--r);
-  transition: background 0.15s, color 0.15s, transform 0.12s;
+  transition: background 0.15s, color 0.15s, transform 0.12s, border-color 0.15s;
 }
 
 .btn:hover:not(:disabled) {
@@ -591,12 +663,12 @@ button {
 }
 
 .btn-primary {
-  background: var(--ink-900);
-  color: var(--paper-100);
+  background: var(--fg);
+  color: var(--bg);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--ink-700);
+  opacity: 0.92;
 }
 
 .btn-accent {
@@ -611,7 +683,7 @@ button {
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background: rgba(11, 13, 15, 0.04);
+  background: var(--hover);
 }
 
 .btn:disabled {
@@ -650,7 +722,7 @@ button {
   gap: 0.55rem;
   padding: 0.45rem 0.7rem;
   border: 1px solid var(--line);
-  background: rgba(250, 250, 247, 0.85);
+  background: var(--bg-panel);
   font-size: 0.8rem;
   white-space: nowrap;
 }
@@ -659,7 +731,7 @@ button {
 .event-source {
   font-family: var(--font-mono);
   font-size: 0.68rem;
-  color: var(--ink-400);
+  color: var(--fg-faint);
 }
 
 .event-level {
@@ -690,8 +762,8 @@ button {
   z-index: 40;
   max-width: min(360px, calc(100vw - 2rem));
   padding: 0.8rem 1rem;
-  background: var(--ink-900);
-  color: var(--paper-100);
+  background: var(--bg-inverse);
+  color: var(--fg-inverse);
   font-family: var(--font-display);
   font-size: 0.8rem;
   animation: rise 0.3s var(--ease);

@@ -7,6 +7,7 @@ import {
   buildVehicleCurve,
 } from './data'
 import type { Channel, EventItem, OpMode } from './types'
+import { applyTheme, getPreferredTheme, type Theme } from './theme'
 import { Header } from './components/Header'
 import { ModePanel } from './components/ModePanel'
 import { TelemetryStage } from './components/TelemetryStage'
@@ -14,6 +15,7 @@ import { LinkDetail } from './components/LinkDetail'
 import { EventStream } from './components/EventStream'
 
 export default function App() {
+  const [theme, setTheme] = useState<Theme>(() => getPreferredTheme())
   const [mode, setMode] = useState<OpMode>('static-fire')
   const [channels, setChannels] = useState(CHANNELS)
   const [selectedChannelId, setSelectedChannelId] = useState('pad-thrust')
@@ -35,6 +37,10 @@ export default function App() {
 
   const sample = thrustCurve[Math.min(burnIndex, thrustCurve.length - 1)]
   const vehicle = vehicleCurve[Math.min(burnIndex, vehicleCurve.length - 1)]
+
+  useEffect(() => {
+    applyTheme(theme)
+  }, [theme])
 
   useEffect(() => {
     const id = window.setInterval(() => setClock(formatClock(new Date())), 1000)
@@ -80,6 +86,9 @@ export default function App() {
     return () => window.clearInterval(id)
   }, [])
 
+  function handleToggleTheme() {
+    setTheme((t) => (t === 'light' ? 'dark' : 'light'))
+  }
   function handleModeChange(next: OpMode) {
     setMode(next)
     setArmed(false)
@@ -149,6 +158,8 @@ export default function App() {
           clock={clock}
           linkState={linkState}
           sessionId={OPERATION.id}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
         />
 
         <div className="ops-strip" aria-label="Operation summary">

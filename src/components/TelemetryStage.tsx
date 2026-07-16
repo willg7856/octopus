@@ -90,7 +90,7 @@ export function TelemetryStage({
             )}
           </div>
           <svg viewBox="0 0 640 240" preserveAspectRatio="none">
-            <g stroke="rgba(11,13,15,0.08)" strokeWidth="1">
+            <g stroke="var(--chart-grid)" strokeWidth="1">
               {[40, 80, 120, 160, 200].map((y) => (
                 <line key={y} x1="0" y1={y} x2="640" y2={y} />
               ))}
@@ -98,12 +98,12 @@ export function TelemetryStage({
             <path
               className="chart-line"
               d={chart.primary}
-              stroke={isLaunch || isFire ? '#ff5a1f' : '#7b8590'}
+              stroke={isLaunch || isFire ? 'var(--ignition)' : 'var(--fg-faint)'}
             />
             <path
               className="chart-line"
               d={chart.secondary}
-              stroke="#2dc2d9"
+              stroke="var(--telem-cyan)"
               style={{ animationDelay: '0.15s' }}
             />
           </svg>
