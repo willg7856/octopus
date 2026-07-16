@@ -8,14 +8,25 @@ import {
 } from './data'
 import type { Channel, EventItem, OpMode } from './types'
 import { applyTheme, getPreferredTheme, type Theme } from './theme'
+import {
+  fetchSession,
+  login as authLogin,
+  logout as authLogout,
+  type AuthUser,
+} from './auth'
 import { Header } from './components/Header'
 import { ModePanel } from './components/ModePanel'
 import { TelemetryStage } from './components/TelemetryStage'
 import { LinkDetail } from './components/LinkDetail'
 import { EventStream } from './components/EventStream'
+import { SignIn } from './components/SignIn'
 
 export default function App() {
   const [theme, setTheme] = useState<Theme>(() => getPreferredTheme())
+  const [authState, setAuthState] = useState<'loading' | 'signed-out' | 'signed-in'>(
+    'loading',
+  )
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [mode, setMode] = useState<OpMode>('static-fire')
   const [channels, setChannels] = useState(CHANNELS)
   const [selectedChannelId, setSelectedChannelId] = useState('pad-thrust')
@@ -43,6 +54,22 @@ export default function App() {
   }, [theme])
 
   useEffect(() => {
+    let alive = true
+    fetchSession().then((sessionUser) => {
+      if (!alive) return
+      if (sessionUser) {
+        setUser(sessionUser)
+        setAuthState('signed-in')
+      } else {
+        setAuthState('signed-out')
+      }
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
     const id = window.setInterval(() => setClock(formatClock(new Date())), 1000)
     return () => window.clearInterval(id)
   }, [])
@@ -53,8 +80,8 @@ export default function App() {
     return () => window.clearTimeout(id)
   }, [toast])
 
-  // Animate burn / trajectory playhead
   useEffect(() => {
+    if (authState !== 'signed-in') return
     if (mode === 'idle') {
       setBurnIndex(0)
       return
@@ -64,10 +91,10 @@ export default function App() {
       setBurnIndex((i) => (i >= max ? (mode === 'static-fire' ? 8 : 0) : i + 1))
     }, mode === 'launch' ? 120 : 90)
     return () => window.clearInterval(id)
-  }, [mode, thrustCurve.length, vehicleCurve.length])
+  }, [authState, mode, thrustCurve.length, vehicleCurve.length])
 
-  // Soft latency jitter on live pad channels
   useEffect(() => {
+    if (authState !== 'signed-in') return
     const id = window.setInterval(() => {
       setChannels((prev) =>
         prev.map((ch) => {
@@ -78,17 +105,36 @@ export default function App() {
             ...ch,
             latencyMs,
             lastPacket: `${(latencyMs / 1000).toFixed(2)}s`,
-            status: latencyMs > 150 ? 'degraded' : ch.id === 'pad-video' && latencyMs > 120 ? 'degraded' : 'nominal',
+            status:
+              latencyMs > 150
+                ? 'degraded'
+                : ch.id === 'pad-video' && latencyMs > 120
+                  ? 'degraded'
+                  : 'nominal',
           }
         }),
       )
     }, 1800)
     return () => window.clearInterval(id)
-  }, [])
+  }, [authState])
 
   function handleToggleTheme() {
     setTheme((t) => (t === 'light' ? 'dark' : 'light'))
   }
+
+  function handleSignedIn(next: AuthUser) {
+    setUser(next)
+    setAuthState('signed-in')
+    setToast(`Welcome, ${next.name}`)
+  }
+
+  async function handleSignOut() {
+    await authLogout()
+    setUser(null)
+    setAuthState('signed-out')
+    setArmed(false)
+  }
+
   function handleModeChange(next: OpMode) {
     setMode(next)
     setArmed(false)
@@ -128,7 +174,11 @@ export default function App() {
   }
 
   function handleMarkEvent() {
-    pushEvent('info', 'MC', `Manual mark · T+${(burnIndex / 20).toFixed(2)}s · ${selectedChannel?.name ?? 'channel'}`)
+    pushEvent(
+      'info',
+      'MC',
+      `Manual mark · T+${(burnIndex / 20).toFixed(2)}s · ${selectedChannel?.name ?? 'channel'}`,
+    )
     setToast('Timeline event marked')
   }
 
@@ -139,16 +189,45 @@ export default function App() {
 
   function pushEvent(level: EventItem['level'], source: string, message: string) {
     const time = formatClock(new Date())
-    setEvents((prev) => [
-      {
-        id: `e-${Date.now()}`,
-        time,
-        level,
-        source,
-        message,
-      },
-      ...prev,
-    ].slice(0, 12))
+    setEvents((prev) =>
+      [
+        {
+          id: `e-${Date.now()}`,
+          time,
+          level,
+          source,
+          message,
+        },
+        ...prev,
+      ].slice(0, 12),
+    )
+  }
+
+  if (authState === 'loading') {
+    return (
+      <div className="app">
+        <div className="auth-screen auth-loading">
+          <p className="brand-kicker">Beyond Stage Zero · Goods Shed</p>
+          <h1 className="brand auth-brand">
+            Octopus<em>.</em>
+          </h1>
+          <p className="auth-copy">Checking session…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (authState === 'signed-out') {
+    return (
+      <div className="app">
+        <SignIn
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+          onSignedIn={handleSignedIn}
+          login={authLogin}
+        />
+      </div>
+    )
   }
 
   return (
@@ -159,7 +238,9 @@ export default function App() {
           linkState={linkState}
           sessionId={OPERATION.id}
           theme={theme}
+          user={user}
           onToggleTheme={handleToggleTheme}
+          onSignOut={handleSignOut}
         />
 
         <div className="ops-strip" aria-label="Operation summary">

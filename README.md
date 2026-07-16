@@ -10,6 +10,18 @@ Octopus moves data into mission control. It is not the flight computer.
 
 Deployed on Vercel as `beyondstagezero/octopus`.
 
+## Sign in
+
+The console is gated behind team sign-in.
+
+Set these Vercel env vars on the `octopus` project:
+
+- `OPS_PASSWORD` — shared Goods Shed password
+- `AUTH_SECRET` — random string used to sign session cookies
+- `OPS_USERS` _(optional)_ — comma-separated allowed emails; if empty, any email + correct password works
+
+Local Vite uses password `goods-shed` (or `VITE_OPS_PASSWORD`) when `/api` isn’t available.
+
 ## Run locally
 
 ```bash

@@ -1,11 +1,14 @@
 import type { Theme } from '../theme'
+import type { AuthUser } from '../auth'
 
 type HeaderProps = {
   clock: string
   linkState: 'nominal' | 'degraded' | 'lost' | 'standby'
   sessionId: string
   theme: Theme
+  user: AuthUser | null
   onToggleTheme: () => void
+  onSignOut: () => void
 }
 
 export function Header({
@@ -13,7 +16,9 @@ export function Header({
   linkState,
   sessionId,
   theme,
+  user,
   onToggleTheme,
+  onSignOut,
 }: HeaderProps) {
   const linkLabel =
     linkState === 'nominal'
@@ -63,6 +68,15 @@ export function Header({
           <span>Local</span>
           <strong>{clock}</strong>
         </div>
+        {user ? (
+          <div className="meta-item meta-user">
+            <span>Operator</span>
+            <strong title={user.email}>{user.name}</strong>
+            <button type="button" className="sign-out" onClick={onSignOut}>
+              Sign out
+            </button>
+          </div>
+        ) : null}
       </div>
     </header>
   )

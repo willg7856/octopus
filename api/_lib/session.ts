@@ -1,0 +1,105 @@
+import { createHmac, timingSafeEqual } from 'node:crypto'
+
+const COOKIE = 'octopus_session'
+const MAX_AGE_SEC = 60 * 60 * 24 * 7 // 7 days
+
+export type SessionPayload = {
+  email: string
+  name: string
+  exp: number
+}
+
+function secret() {
+  return process.env.AUTH_SECRET || process.env.OPS_PASSWORD || 'dev-octopus-secret'
+}
+
+function b64url(input: string | Buffer) {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '')
+}
+
+function fromB64url(input: string) {
+  const padded = input.replace(/-/g, '+').replace(/_/g, '/')
+  const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4))
+  return Buffer.from(padded + pad, 'base64').toString('utf8')
+}
+
+export function signSession(payload: SessionPayload) {
+  const body = b64url(JSON.stringify(payload))
+  const sig = createHmac('sha256', secret()).update(body).digest('base64url')
+  return `${body}.${sig}`
+}
+
+export function verifySession(token: string | undefined): SessionPayload | null {
+  if (!token) return null
+  const [body, sig] = token.split('.')
+  if (!body || !sig) return null
+  const expected = createHmac('sha256', secret()).update(body).digest('base64url')
+  try {
+    const a = Buffer.from(sig)
+    const b = Buffer.from(expected)
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null
+  } catch {
+    return null
+  }
+  try {
+    const payload = JSON.parse(fromB64url(body)) as SessionPayload
+    if (!payload?.email || !payload?.exp || Date.now() > payload.exp) return null
+    return payload
+  } catch {
+    return null
+  }
+}
+
+export function readCookie(req: { headers?: { cookie?: string } }, name = COOKIE) {
+  const raw = req.headers?.cookie || ''
+  const match = raw.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`))
+  return match ? decodeURIComponent(match[1]) : undefined
+}
+
+export function sessionCookie(token: string) {
+  const secure = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1'
+  return `${COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${MAX_AGE_SEC}${secure ? '; Secure' : ''}`
+}
+
+export function clearSessionCookie() {
+  const secure = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1'
+  return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? '; Secure' : ''}`
+}
+
+export function checkCredentials(email: string, password: string) {
+  const expected = process.env.OPS_PASSWORD || 'goods-shed'
+  const allowed = (process.env.OPS_USERS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+
+  const emailOk =
+    allowed.length === 0 || allowed.includes(email.trim().toLowerCase())
+  const passOk = safeEqual(password, expected)
+  return emailOk && passOk
+}
+
+export function displayName(email: string) {
+  const local = email.split('@')[0] || 'operator'
+  return local
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+const safe = {
+  equal(a: string, b: string) {
+    const left = Buffer.from(a)
+    const right = Buffer.from(b)
+    if (left.length !== right.length) {
+      timingSafeEqual(left, left)
+      return false
+    }
+    return timingSafeEqual(left, right)
+  },
+}
+
+export { COOKIE, MAX_AGE_SEC }

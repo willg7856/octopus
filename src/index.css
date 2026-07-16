@@ -956,3 +956,118 @@ button {
     display: block;
   }
 }
+
+/* ——— Auth / sign-in ——— */
+
+.auth-screen {
+  height: 100%;
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  position: relative;
+}
+
+.auth-loading {
+  text-align: center;
+}
+
+.auth-theme {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+.auth-panel {
+  width: min(100%, 26rem);
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  backdrop-filter: blur(10px);
+  padding: 1.75rem 1.5rem 1.35rem;
+}
+
+.auth-brand {
+  font-size: clamp(2.4rem, 8vw, 3.4rem);
+  margin: 0.15rem 0 0.55rem;
+}
+
+.auth-copy {
+  margin: 0 0 1.35rem;
+  color: var(--fg-muted);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.auth-field input {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg);
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 0.7rem 0.8rem;
+  outline: none;
+}
+
+.auth-field input:focus {
+  border-color: var(--fg);
+}
+
+.auth-error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--telem-red);
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.auth-footnote {
+  margin: 1.1rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  color: var(--fg-faint);
+}
+
+.meta-user {
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.sign-out {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sign-out:hover {
+  color: var(--fg);
+}
+
