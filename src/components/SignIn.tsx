@@ -61,7 +61,7 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="willg@beyondstagezero.com"
+              placeholder="Email"
             />
           </label>
           <label className="auth-field">
