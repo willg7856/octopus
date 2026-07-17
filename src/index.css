@@ -991,10 +991,7 @@ button {
   width: 100%;
   overflow: hidden;
   border: 1px solid var(--line);
-  background:
-    radial-gradient(ellipse 80% 60% at 30% 40%, rgba(255, 90, 31, 0.22), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 70% 70%, rgba(45, 194, 217, 0.16), transparent 50%),
-    linear-gradient(160deg, #1a1f24 0%, #0d1014 55%, #151a1f 100%);
+  background: #000;
 }
 
 /* Large feeds keep 16:10 and cover the cell (crop, no letterbox bars) */
