@@ -507,8 +507,8 @@ button {
 .stage-body {
   flex: 1;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 0.65rem;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 0.55rem;
   padding: 0.75rem;
   min-height: 0;
   overflow: hidden;
@@ -518,6 +518,10 @@ button {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.45rem;
+}
+
+.readouts-dense {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .readout {
@@ -845,6 +849,75 @@ button {
   animation: draw-line 1.4s var(--ease) both;
 }
 
+.chart-line-ghost {
+  opacity: 0.22;
+  animation: none;
+  stroke-dasharray: none;
+}
+
+.scrub-cursor {
+  stroke: var(--fg);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+  opacity: 0.55;
+}
+
+.scrubber {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: end;
+  min-width: 0;
+}
+
+.scrubber-play {
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--line);
+  background: var(--bg-panel-solid);
+  color: var(--fg);
+  border-radius: var(--r);
+}
+
+.scrubber-play:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.scrubber-play:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.scrubber-track {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.scrubber-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.scrubber-track input[type='range'] {
+  width: 100%;
+  accent-color: var(--ignition);
+  cursor: pointer;
+}
+
+.scrubber-track input[type='range']:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 @media (max-width: 1100px) {
   .console {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -947,9 +1020,17 @@ button {
     grid-template-columns: 1fr 1fr;
   }
 
+  .readouts-dense {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .stage,
   .chart-wrap {
     min-height: 240px;
+  }
+
+  .scrubber {
+    grid-template-columns: 1fr;
   }
 
   .brand-sub {

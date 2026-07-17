@@ -128,7 +128,8 @@ export const EVENTS: EventItem[] = [
   },
 ]
 
-/** Simulated residual from a prior B1M-class burn profile (~3.5 s). */
+/** Simulated residual from a prior B1M-class burn profile (~3.5 s).
+ *  thrust is stored in kgf; pressure is stored in psi. */
 export function buildThrustCurve(): TelemetryPoint[] {
   const points: TelemetryPoint[] = []
   for (let i = 0; i <= 70; i++) {
@@ -139,13 +140,14 @@ export function buildThrustCurve(): TelemetryPoint[] {
         : t > 3.2
           ? Math.max(0, 1 - (t - 3.2) / 0.3)
           : 1
-    const thrust = 150 * envelope * (0.92 + 0.08 * Math.sin(t * 9))
-    const pressure = 4.8 * envelope * (0.94 + 0.06 * Math.cos(t * 7))
+    const thrustKgf = 150 * envelope * (0.92 + 0.08 * Math.sin(t * 9))
+    // ~4.8 MPa peak ≈ 696 psi
+    const pressurePsi = 696 * envelope * (0.94 + 0.06 * Math.cos(t * 7))
     const temp = 22 + 180 * Math.min(1, t / 1.2) * envelope
     points.push({
       t,
-      thrust: Math.max(0, thrust),
-      pressure: Math.max(0, pressure),
+      thrust: Math.max(0, thrustKgf),
+      pressure: Math.max(0, pressurePsi),
       temp,
     })
   }

@@ -35,6 +35,7 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null)
   const [clock, setClock] = useState(() => formatClock(new Date()))
   const [burnIndex, setBurnIndex] = useState(12)
+  const [playing, setPlaying] = useState(true)
 
   const thrustCurve = useMemo(() => buildThrustCurve(), [])
   const vehicleCurve = useMemo(() => buildVehicleCurve(), [])
@@ -84,14 +85,22 @@ export default function App() {
     if (authState !== 'signed-in') return
     if (mode === 'idle') {
       setBurnIndex(0)
+      setPlaying(false)
       return
     }
+    if (!playing) return
     const max = mode === 'launch' ? vehicleCurve.length - 1 : thrustCurve.length - 1
     const id = window.setInterval(() => {
-      setBurnIndex((i) => (i >= max ? (mode === 'static-fire' ? 8 : 0) : i + 1))
+      setBurnIndex((i) => {
+        if (i >= max) {
+          setPlaying(false)
+          return max
+        }
+        return i + 1
+      })
     }, mode === 'launch' ? 120 : 90)
     return () => window.clearInterval(id)
-  }, [authState, mode, thrustCurve.length, vehicleCurve.length])
+  }, [authState, mode, playing, thrustCurve.length, vehicleCurve.length])
 
   useEffect(() => {
     if (authState !== 'signed-in') return
@@ -138,6 +147,8 @@ export default function App() {
   function handleModeChange(next: OpMode) {
     setMode(next)
     setArmed(false)
+    setBurnIndex(0)
+    setPlaying(next !== 'idle')
     if (next === 'launch') {
       setSelectedChannelId('veh-avionics')
       setChannels((prev) =>
@@ -162,6 +173,23 @@ export default function App() {
       setArmed(false)
       setToast('Idle — Octopus on bench')
     }
+  }
+
+  function handleSeek(index: number) {
+    setBurnIndex(index)
+    setPlaying(false)
+  }
+
+  function handleTogglePlay() {
+    if (mode === 'idle') return
+    setPlaying((prev) => {
+      const next = !prev
+      if (next) {
+        const max = mode === 'launch' ? vehicleCurve.length - 1 : thrustCurve.length - 1
+        if (burnIndex >= max) setBurnIndex(0)
+      }
+      return next
+    })
   }
 
   function handleArm() {
@@ -275,6 +303,7 @@ export default function App() {
           <TelemetryStage
             mode={mode}
             burnIndex={burnIndex}
+            playing={playing}
             thrustCurve={thrustCurve}
             vehicleCurve={vehicleCurve}
             liveThrust={mode === 'idle' ? 0 : sample.thrust}
@@ -282,6 +311,8 @@ export default function App() {
             liveTemp={mode === 'idle' ? 22 : sample.temp}
             liveAltitude={mode === 'launch' ? vehicle.altitude : 0}
             liveVelocity={mode === 'launch' ? vehicle.velocity : 0}
+            onSeek={handleSeek}
+            onTogglePlay={handleTogglePlay}
           />
           <LinkDetail
             channel={selectedChannel}
