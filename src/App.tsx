@@ -18,7 +18,7 @@ import { Header } from './components/Header'
 import { ModePanel } from './components/ModePanel'
 import { TelemetryStage } from './components/TelemetryStage'
 import { LinkDetail } from './components/LinkDetail'
-import { EventStream } from './components/EventStream'
+import { EventStream, readStoredDownlinkOpen } from './components/EventStream'
 import { SignIn } from './components/SignIn'
 
 export default function App() {
@@ -36,6 +36,7 @@ export default function App() {
   const [clock, setClock] = useState(() => formatClock(new Date()))
   const [burnIndex, setBurnIndex] = useState(12)
   const [playing, setPlaying] = useState(true)
+  const [downlinkOpen, setDownlinkOpen] = useState(readStoredDownlinkOpen)
 
   const thrustCurve = useMemo(() => buildThrustCurve(), [])
   const vehicleCurve = useMemo(() => buildVehicleCurve(), [])
@@ -259,7 +260,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app" data-downlink-open={downlinkOpen ? 'true' : 'false'}>
       <div className="shell">
         <Header
           clock={clock}
@@ -324,7 +325,11 @@ export default function App() {
           />
         </main>
 
-        <EventStream events={events} />
+        <EventStream
+          events={events}
+          open={downlinkOpen}
+          onOpenChange={setDownlinkOpen}
+        />
       </div>
 
       {toast ? (

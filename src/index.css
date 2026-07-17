@@ -802,7 +802,42 @@ button {
 }
 
 .downlink[data-open='true'] {
-  max-height: 9.25rem;
+  max-height: none;
+  overflow: visible;
+}
+
+/* When expanded, grow the page instead of compressing the console */
+.app[data-downlink-open='true'] {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.app[data-downlink-open='true'] .shell {
+  height: auto;
+  max-height: none;
+  min-height: 100%;
+  overflow: visible;
+  grid-template-rows: auto auto auto auto;
+}
+
+.app[data-downlink-open='true'] .console {
+  height: calc(100dvh - 11.75rem);
+  min-height: 22rem;
+}
+
+.app[data-downlink-open='true'] .downlink-rows {
+  overflow: visible;
+}
+
+.app[data-downlink-open='true'] .downlink-msg {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.app[data-downlink-open='true'] .downlink-row {
+  align-items: start;
+  white-space: normal;
 }
 
 .downlink-head {
@@ -1353,7 +1388,12 @@ button {
   }
 
   .downlink[data-open='true'] {
-    max-height: 12rem;
+    max-height: none;
+  }
+
+  .app[data-downlink-open='true'] .console {
+    height: auto;
+    min-height: 0;
   }
 
   .downlink-preview {

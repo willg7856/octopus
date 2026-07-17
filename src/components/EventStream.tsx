@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import type { EventItem } from '../types'
 
 const STORAGE_KEY = 'octopus-downlink-open'
 
 type EventStreamProps = {
   events: EventItem[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-function readStoredOpen(): boolean {
+export function readStoredDownlinkOpen(): boolean {
   try {
     const value = localStorage.getItem(STORAGE_KEY)
     if (value === '1') return true
@@ -18,8 +20,7 @@ function readStoredOpen(): boolean {
   return false
 }
 
-export function EventStream({ events }: EventStreamProps) {
-  const [open, setOpen] = useState(readStoredOpen)
+export function EventStream({ events, open, onOpenChange }: EventStreamProps) {
   const latest = events[0]
 
   useEffect(() => {
@@ -41,7 +42,7 @@ export function EventStream({ events }: EventStreamProps) {
         className="downlink-head"
         aria-expanded={open}
         aria-controls="downlink-panel"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => onOpenChange(!open)}
       >
         <div className="downlink-title-row">
           <span className="downlink-chevron" aria-hidden="true">
