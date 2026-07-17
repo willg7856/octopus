@@ -507,8 +507,8 @@ button {
 .stage-body {
   flex: 1;
   display: grid;
-  grid-template-rows: auto minmax(110px, 170px) auto auto;
-  gap: 0.55rem;
+  grid-template-rows: auto auto minmax(110px, 170px) auto auto;
+  gap: 0.5rem;
   padding: 0.75rem;
   min-height: 0;
   overflow: auto;
@@ -565,6 +565,9 @@ button {
   height: 100%;
   max-height: 170px;
   overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
 }
 
 .chart-wrap svg {
@@ -575,15 +578,19 @@ button {
 
 .chart-legend {
   position: absolute;
-  top: 0.65rem;
-  left: 0.75rem;
+  top: 0.5rem;
+  left: 0.65rem;
+  right: 0.65rem;
+  z-index: 2;
   display: flex;
   gap: 0.85rem;
+  align-items: center;
   font-family: var(--font-mono);
   font-size: 0.62rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--fg-muted);
+  pointer-events: none;
 }
 
 .legend-item {
@@ -966,12 +973,119 @@ button {
   opacity: 0.55;
 }
 
+.legend-hint {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+.chart-fill {
+  fill: color-mix(in srgb, var(--ignition) 22%, transparent);
+  stroke: none;
+}
+
+.burn-marker line {
+  stroke: var(--fg-faint);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.burn-marker circle {
+  fill: var(--bg-panel-solid);
+  stroke: var(--fg-muted);
+  stroke-width: 1.25;
+}
+
+.burn-marker text {
+  fill: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.motor-stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.motor-stat {
+  border: 1px solid var(--line);
+  background: var(--bg-panel-solid);
+  padding: 0.4rem 0.5rem;
+  min-width: 0;
+}
+
+.motor-stat-accent {
+  border-color: color-mix(in srgb, var(--ignition) 45%, var(--line));
+}
+
+.motor-stat-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  margin-bottom: 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.motor-stat-value {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+
+.motor-stat-accent .motor-stat-value {
+  color: var(--ignition);
+}
+
+.motor-stat-unit {
+  margin-left: 0.2rem;
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--fg-faint);
+}
+
 .scrubber {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.65rem;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 0.55rem;
   align-items: end;
   min-width: 0;
+}
+
+.scrubber-jumps {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.scrubber-jump {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg-muted);
+  border-radius: var(--r);
+}
+
+.scrubber-jump:hover {
+  color: var(--fg);
+  background: var(--hover);
 }
 
 .scrubber-play {
@@ -1132,6 +1246,10 @@ button {
   .chart-wrap {
     min-height: 120px;
     max-height: 160px;
+  }
+
+  .motor-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .scrubber {

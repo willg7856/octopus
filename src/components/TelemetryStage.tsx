@@ -1,7 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import type { OpMode, TelemetryPoint, VehicleSample } from '../types'
-
-const KGF_TO_N = 9.80665
+import { computeBurnStats, impulseToIndex, KGF_TO_N } from '../motorStats'
 
 type TelemetryStageProps = {
   mode: OpMode
@@ -32,11 +31,18 @@ export function TelemetryStage({
   onSeek,
   onTogglePlay,
 }: TelemetryStageProps) {
+  const chartRef = useRef<SVGSVGElement>(null)
   const series = mode === 'launch' ? vehicleCurve : thrustCurve
   const maxIndex = Math.max(series.length - 1, 1)
   const tPlus =
     mode === 'idle' ? 0 : mode === 'launch' ? burnIndex / 2 : burnIndex / 20
   const tMax = mode === 'launch' ? (vehicleCurve.length - 1) / 2 : 3.5
+
+  const stats = useMemo(() => computeBurnStats(thrustCurve), [thrustCurve])
+  const impulseSoFar = useMemo(
+    () => (mode === 'static-fire' ? impulseToIndex(thrustCurve, burnIndex) : 0),
+    [mode, thrustCurve, burnIndex],
+  )
 
   const chart = useMemo(() => {
     if (mode === 'launch') {
@@ -45,9 +51,27 @@ export function TelemetryStage({
     return buildPath(thrustCurve, 'thrust', 'pressure', burnIndex)
   }, [mode, thrustCurve, vehicleCurve, burnIndex])
 
+  const fullBurn = useMemo(
+    () => buildPath(thrustCurve, 'thrust', 'pressure', maxIndex),
+    [thrustCurve, maxIndex],
+  )
+
+  const thrustFill = useMemo(() => {
+    if (mode !== 'static-fire') return ''
+    return buildFill(thrustCurve, 'thrust', burnIndex)
+  }, [mode, thrustCurve, burnIndex])
+
   const isFire = mode === 'static-fire'
   const isLaunch = mode === 'launch'
   const thrustN = liveThrust * KGF_TO_N
+
+  function seekFromPointer(clientX: number) {
+    const svg = chartRef.current
+    if (!svg || mode === 'idle') return
+    const rect = svg.getBoundingClientRect()
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+    onSeek(Math.round(ratio * maxIndex))
+  }
 
   return (
     <section className="panel stage" aria-label="Live telemetry">
@@ -57,14 +81,30 @@ export function TelemetryStage({
         </h2>
         <span className="panel-note">
           {isFire
-            ? 'Thrust · pressure'
+            ? 'Thrust · pressure · impulse'
             : isLaunch
               ? 'Altitude · velocity'
               : 'No active burn'}
         </span>
       </div>
       <div className="stage-body">
-        <div className="readouts readouts-dense">
+        {isFire ? (
+          <div className="motor-stats" aria-label="Burn performance">
+            <Stat label="Total impulse" value={stats.totalImpulseNs.toFixed(0)} unit="N·s" />
+            <Stat label="Burn time" value={stats.burnTime.toFixed(2)} unit="s" />
+            <Stat label="Max thrust" value={stats.maxThrustN.toFixed(0)} unit="N" />
+            <Stat label="Avg thrust" value={stats.avgThrustN.toFixed(0)} unit="N" />
+            <Stat label="Max pressure" value={stats.maxPressurePsi.toFixed(0)} unit="psi" />
+            <Stat
+              label="Impulse @ cursor"
+              value={impulseSoFar.toFixed(0)}
+              unit="N·s"
+              accent
+            />
+          </div>
+        ) : null}
+
+        <div className={`readouts ${isFire ? 'readouts-dense' : ''}`}>
           {isLaunch ? (
             <>
               <Readout label="Altitude" value={liveAltitude.toFixed(0)} unit="m" />
@@ -83,7 +123,18 @@ export function TelemetryStage({
           )}
         </div>
 
-        <div className="chart-wrap" aria-hidden="true">
+        <div
+          className="chart-wrap"
+          onPointerDown={(e) => {
+            if (mode === 'idle') return
+            ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+            seekFromPointer(e.clientX)
+          }}
+          onPointerMove={(e) => {
+            if (mode === 'idle' || !(e.buttons & 1)) return
+            seekFromPointer(e.clientX)
+          }}
+        >
           <div className="chart-legend">
             {isLaunch ? (
               <>
@@ -102,38 +153,50 @@ export function TelemetryStage({
                 <span className="legend-item" data-series="pressure">
                   <span className="legend-swatch" /> Pressure
                 </span>
+                <span className="legend-hint">Click / drag to scrub</span>
               </>
             )}
           </div>
-          <svg viewBox="0 0 640 240" preserveAspectRatio="none">
+          <svg
+            ref={chartRef}
+            viewBox="0 0 640 240"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="Burn curve"
+          >
             <g stroke="var(--chart-grid)" strokeWidth="1">
               {[40, 80, 120, 160, 200].map((y) => (
                 <line key={y} x1="0" y1={y} x2="640" y2={y} />
               ))}
             </g>
-            {/* Full faint curve for context when scrubbing */}
+
+            {isFire && thrustFill ? (
+              <path className="chart-fill" d={thrustFill} />
+            ) : null}
+
             {mode !== 'idle' ? (
               <>
                 <path
                   className="chart-line chart-line-ghost"
                   d={
-                    mode === 'launch'
+                    isLaunch
                       ? buildPath(vehicleCurve, 'altitude', 'velocity', maxIndex).primary
-                      : buildPath(thrustCurve, 'thrust', 'pressure', maxIndex).primary
+                      : fullBurn.primary
                   }
                   stroke={isLaunch || isFire ? 'var(--ignition)' : 'var(--fg-faint)'}
                 />
                 <path
                   className="chart-line chart-line-ghost"
                   d={
-                    mode === 'launch'
+                    isLaunch
                       ? buildPath(vehicleCurve, 'altitude', 'velocity', maxIndex).secondary
-                      : buildPath(thrustCurve, 'thrust', 'pressure', maxIndex).secondary
+                      : fullBurn.secondary
                   }
                   stroke="var(--telem-cyan)"
                 />
               </>
             ) : null}
+
             <path
               className="chart-line"
               d={chart.primary}
@@ -145,6 +208,24 @@ export function TelemetryStage({
               stroke="var(--telem-cyan)"
               style={{ animationDelay: '0.15s' }}
             />
+
+            {isFire ? (
+              <>
+                <BurnMarker
+                  index={stats.maxThrustIndex}
+                  maxIndex={maxIndex}
+                  label="P"
+                  title="Max thrust"
+                />
+                <BurnMarker
+                  index={stats.burnoutIndex}
+                  maxIndex={maxIndex}
+                  label="B"
+                  title="Burnout"
+                />
+              </>
+            ) : null}
+
             {mode !== 'idle' ? (
               <line
                 className="scrub-cursor"
@@ -167,6 +248,29 @@ export function TelemetryStage({
           >
             {playing ? 'Pause' : 'Play'}
           </button>
+
+          {isFire ? (
+            <div className="scrubber-jumps" role="group" aria-label="Jump to burn event">
+              <button type="button" className="scrubber-jump" onClick={() => onSeek(0)}>
+                Ignition
+              </button>
+              <button
+                type="button"
+                className="scrubber-jump"
+                onClick={() => onSeek(stats.maxThrustIndex)}
+              >
+                Max thrust
+              </button>
+              <button
+                type="button"
+                className="scrubber-jump"
+                onClick={() => onSeek(stats.burnoutIndex)}
+              >
+                Burnout
+              </button>
+            </div>
+          ) : null}
+
           <label className="scrubber-track">
             <span className="scrubber-label">
               Scrub · T+{tPlus.toFixed(2)}s / {tMax.toFixed(1)}s
@@ -193,19 +297,64 @@ export function TelemetryStage({
           ) : isLaunch ? (
             <>
               <strong>Vehicle → mission control.</strong> Simulated B1M-class
-              trajectory for Goods Shed display rehearsals. Use the scrubber to
-              inspect any point on the flight.
+              trajectory. Click the plot or use the scrubber to inspect any
+              point.
             </>
           ) : (
             <>
-              <strong>Pad → Goods Shed.</strong> B1M burn profile (~150 kgf /
-              ~1470 N, ~3.5 s). Drag the scrubber to inspect any point on the
-              burn.
+              <strong>Pad → Goods Shed.</strong> OpenMotor-style burn readout —
+              impulse under the curve, jump to ignition / max thrust / burnout,
+              scrub any timestep.
             </>
           )}
         </p>
       </div>
     </section>
+  )
+}
+
+function BurnMarker({
+  index,
+  maxIndex,
+  label,
+  title,
+}: {
+  index: number
+  maxIndex: number
+  label: string
+  title: string
+}) {
+  const x = (index / maxIndex) * 640
+  return (
+    <g className="burn-marker" aria-label={title}>
+      <line x1={x} y1="28" x2={x} y2="230" />
+      <circle cx={x} cy="28" r="7" />
+      <text x={x} y="31" textAnchor="middle">
+        {label}
+      </text>
+    </g>
+  )
+}
+
+function Stat({
+  label,
+  value,
+  unit,
+  accent,
+}: {
+  label: string
+  value: string
+  unit: string
+  accent?: boolean
+}) {
+  return (
+    <div className={`motor-stat${accent ? ' motor-stat-accent' : ''}`}>
+      <span className="motor-stat-label">{label}</span>
+      <span className="motor-stat-value">
+        {value}
+        <span className="motor-stat-unit">{unit}</span>
+      </span>
+    </div>
   )
 }
 
@@ -270,4 +419,21 @@ function buildPath(
     primary: toPrimary(slice),
     secondary: toSecondary(slice),
   }
+}
+
+function buildFill(curve: TelemetryPoint[], key: 'thrust', upTo: number) {
+  const n = Math.max(curve.length - 1, 1)
+  const max = Math.max(...curve.map((p) => p.thrust), 1)
+  const end = Math.max(2, Math.min(upTo + 1, curve.length))
+  const pts = curve.slice(0, end)
+  if (pts.length < 2) return ''
+  const line = pts
+    .map((p, i) => {
+      const x = (i / n) * 640
+      const y = 220 - (p[key] / max) * 180
+      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+  const lastX = ((end - 1) / n) * 640
+  return `${line} L${lastX.toFixed(1)},220 L0,220 Z`
 }
