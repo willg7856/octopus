@@ -20,6 +20,8 @@ Set these Vercel env vars on the `octopus` project:
 - `AUTH_SECRET` — random string used to sign session cookies
 - `OPS_USERS` _(optional)_ — comma-separated allowed emails; if empty, any email + correct password works
 
+Production is locked to `willg@beyondstagezero.com` via `OPS_USERS`.
+
 Local Vite uses password `goods-shed` (or `VITE_OPS_PASSWORD`) when `/api` isn’t available.
 
 ## Run locally
