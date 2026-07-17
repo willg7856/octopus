@@ -81,8 +81,8 @@ export function ModePanel({
                 {ch.status}
               </span>
               <span className="channel-meta">
-                {ch.kind.toUpperCase()} · {ch.rateHz} Hz · {ch.latencyMs || '—'} ms ·{' '}
-                {ch.lastPacket}
+                {ch.kind.toUpperCase()} · {ch.latencyMs || '—'} ms · drop{' '}
+                {ch.dropPct.toFixed(1)}% · {ch.recording ? 'REC' : '—'}
               </span>
             </button>
           ))}

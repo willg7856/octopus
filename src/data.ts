@@ -1,4 +1,11 @@
-import type { Channel, EventItem, Operation, TelemetryPoint, VehicleSample } from './types'
+import type {
+  CameraFeed,
+  Channel,
+  EventItem,
+  Operation,
+  TelemetryPoint,
+  VehicleSample,
+} from './types'
 
 export const OPERATION: Operation = {
   id: 'SF-B1M-01',
@@ -19,6 +26,9 @@ export const CHANNELS: Channel[] = [
     rateHz: 200,
     latencyMs: 42,
     lastPacket: '0.04s',
+    dropPct: 0.1,
+    packetAgeMs: 42,
+    recording: true,
   },
   {
     id: 'pad-chamber',
@@ -28,6 +38,9 @@ export const CHANNELS: Channel[] = [
     rateHz: 200,
     latencyMs: 38,
     lastPacket: '0.04s',
+    dropPct: 0.0,
+    packetAgeMs: 38,
+    recording: true,
   },
   {
     id: 'pad-case',
@@ -37,6 +50,9 @@ export const CHANNELS: Channel[] = [
     rateHz: 20,
     latencyMs: 55,
     lastPacket: '0.05s',
+    dropPct: 0.2,
+    packetAgeMs: 55,
+    recording: true,
   },
   {
     id: 'pad-video',
@@ -46,6 +62,9 @@ export const CHANNELS: Channel[] = [
     rateHz: 30,
     latencyMs: 180,
     lastPacket: '0.18s',
+    dropPct: 2.4,
+    packetAgeMs: 180,
+    recording: true,
   },
   {
     id: 'veh-avionics',
@@ -55,6 +74,9 @@ export const CHANNELS: Channel[] = [
     rateHz: 50,
     latencyMs: 0,
     lastPacket: '—',
+    dropPct: 0,
+    packetAgeMs: 0,
+    recording: false,
   },
   {
     id: 'veh-gps',
@@ -64,6 +86,9 @@ export const CHANNELS: Channel[] = [
     rateHz: 10,
     latencyMs: 0,
     lastPacket: '—',
+    dropPct: 0,
+    packetAgeMs: 0,
+    recording: false,
   },
   {
     id: 'shed-log',
@@ -73,6 +98,26 @@ export const CHANNELS: Channel[] = [
     rateHz: 1,
     latencyMs: 12,
     lastPacket: '0.01s',
+    dropPct: 0,
+    packetAgeMs: 12,
+    recording: true,
+  },
+]
+
+export const CAMERA_FEEDS: CameraFeed[] = [
+  {
+    id: 'cam-wide',
+    name: 'Pad wide',
+    spot: 'North fence · full pad',
+    status: 'nominal',
+    latencyMs: 96,
+  },
+  {
+    id: 'cam-close',
+    name: 'Pad close',
+    spot: 'Stand · nozzle / plume',
+    status: 'degraded',
+    latencyMs: 180,
   },
 ]
 

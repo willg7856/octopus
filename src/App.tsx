@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  CAMERA_FEEDS,
   CHANNELS,
   EVENTS,
   OPERATION,
   buildThrustCurve,
   buildVehicleCurve,
 } from './data'
-import type { Channel, EventItem, OpMode } from './types'
+import type { Channel, EventItem, OpMode, RangeState } from './types'
 import { applyTheme, getPreferredTheme, type Theme } from './theme'
 import {
   fetchSession,
@@ -18,6 +19,7 @@ import { Header } from './components/Header'
 import { ModePanel } from './components/ModePanel'
 import { TelemetryStage } from './components/TelemetryStage'
 import { LinkDetail } from './components/LinkDetail'
+import { RangeBar } from './components/RangeBar'
 import { EventStream, readStoredDownlinkOpen } from './components/EventStream'
 import { SignIn } from './components/SignIn'
 
@@ -32,6 +34,8 @@ export default function App() {
   const [selectedChannelId, setSelectedChannelId] = useState('pad-thrust')
   const [events, setEvents] = useState(EVENTS)
   const [armed, setArmed] = useState(false)
+  const [range, setRange] = useState<RangeState>('hold')
+  const [cameras, setCameras] = useState(CAMERA_FEEDS)
   const [toast, setToast] = useState<string | null>(null)
   const [clock, setClock] = useState(() => formatClock(new Date()))
   const [burnIndex, setBurnIndex] = useState(12)
@@ -108,19 +112,41 @@ export default function App() {
     const id = window.setInterval(() => {
       setChannels((prev) =>
         prev.map((ch) => {
-          if (ch.status === 'standby' || ch.status === 'lost') return ch
+          if (ch.status === 'standby' || ch.status === 'lost') {
+            return { ...ch, packetAgeMs: 0, lastPacket: '—', dropPct: 0 }
+          }
           const delta = Math.round((Math.random() - 0.45) * 10)
           const latencyMs = Math.max(12, ch.latencyMs + delta)
+          const dropPct = Math.max(
+            0,
+            Math.min(8, ch.dropPct + (Math.random() - 0.5) * 0.35),
+          )
+          const packetAgeMs = latencyMs + Math.round(Math.random() * 18)
           return {
             ...ch,
             latencyMs,
-            lastPacket: `${(latencyMs / 1000).toFixed(2)}s`,
+            packetAgeMs,
+            dropPct: Number(dropPct.toFixed(1)),
+            lastPacket: `${(packetAgeMs / 1000).toFixed(2)}s`,
             status:
-              latencyMs > 150
+              latencyMs > 150 || dropPct > 2
                 ? 'degraded'
                 : ch.id === 'pad-video' && latencyMs > 120
                   ? 'degraded'
                   : 'nominal',
+          }
+        }),
+      )
+      setCameras((prev) =>
+        prev.map((cam) => {
+          const latencyMs = Math.max(
+            40,
+            cam.latencyMs + Math.round((Math.random() - 0.45) * 14),
+          )
+          return {
+            ...cam,
+            latencyMs,
+            status: latencyMs > 150 ? 'degraded' : 'nominal',
           }
         }),
       )
@@ -148,6 +174,7 @@ export default function App() {
   function handleModeChange(next: OpMode) {
     setMode(next)
     setArmed(false)
+    setRange('hold')
     setBurnIndex(0)
     setPlaying(next !== 'idle')
     if (next === 'launch') {
@@ -195,11 +222,49 @@ export default function App() {
 
   function handleArm() {
     setArmed((v) => {
+      if (!v && range !== 'go') {
+        setToast('Cannot arm — range is not GO')
+        pushEvent('warn', 'RANGE', 'Arm blocked — range not GO')
+        return v
+      }
       const next = !v
       setToast(next ? 'Ignition enable armed on MC side' : 'Ignition enable disarmed')
       pushEvent(next ? 'ok' : 'info', 'MC', next ? 'Ignition enable ARMED' : 'Ignition enable SAFE')
       return next
     })
+  }
+
+  function handleRangeChange(next: RangeState) {
+    setRange(next)
+    if (next === 'nogo') {
+      setArmed(false)
+      setToast('NO-GO — ignition enable safed')
+      pushEvent('crit', 'RANGE', 'Range NO-GO · ignition enable safed')
+      return
+    }
+    if (next === 'hold') {
+      setToast('HOLD — range paused')
+      pushEvent('warn', 'RANGE', 'Range HOLD')
+      return
+    }
+    setToast('GO — range clear')
+    pushEvent('ok', 'RANGE', 'Range GO')
+  }
+
+  function handleToggleRecording() {
+    const shed = channels.find((c) => c.id === 'shed-log')
+    const next = !(shed?.recording ?? false)
+    setChannels((prev) =>
+      prev.map((ch) =>
+        ch.kind === 'pad' || ch.id === 'shed-log' ? { ...ch, recording: next } : ch,
+      ),
+    )
+    setToast(next ? 'Shed recording ON' : 'Shed recording OFF')
+    pushEvent(
+      next ? 'ok' : 'warn',
+      'SHED',
+      next ? 'Goods Shed logger recording' : 'Goods Shed logger stopped',
+    )
   }
 
   function handleMarkEvent() {
@@ -289,10 +354,14 @@ export default function App() {
               <p className="ops-value">{OPERATION.site}</p>
             </div>
             <div className="ops-cell">
-              <p className="ops-label">Window</p>
-              <p className="ops-value">{OPERATION.window}</p>
+              <p className="ops-label">Range</p>
+              <p className="ops-value" data-range={range}>
+                {range === 'go' ? 'GO' : range === 'hold' ? 'HOLD' : 'NO-GO'}
+              </p>
             </div>
           </div>
+
+          <RangeBar range={range} onChange={handleRangeChange} armed={armed} />
 
           <main className="console">
             <ModePanel
@@ -320,9 +389,13 @@ export default function App() {
               channel={selectedChannel}
               operation={OPERATION}
               armed={armed}
+              clock={clock}
+              cameras={cameras}
               onArm={handleArm}
               onMarkEvent={handleMarkEvent}
               onClear={handleClear}
+              onToggleRecording={handleToggleRecording}
+              onSelectCameras={() => setSelectedChannelId('pad-video')}
             />
           </main>
         </div>

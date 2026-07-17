@@ -1,6 +1,7 @@
 export type LinkStatus = 'nominal' | 'degraded' | 'lost' | 'standby'
 export type OpMode = 'static-fire' | 'launch' | 'idle'
 export type ChannelKind = 'pad' | 'vehicle' | 'shed'
+export type RangeState = 'go' | 'hold' | 'nogo'
 
 export interface Channel {
   id: string
@@ -10,6 +11,9 @@ export interface Channel {
   rateHz: number
   latencyMs: number
   lastPacket: string
+  dropPct: number
+  packetAgeMs: number
+  recording: boolean
 }
 
 export interface TelemetryPoint {
@@ -42,4 +46,12 @@ export interface Operation {
   site: string
   status: string
   window: string
+}
+
+export interface CameraFeed {
+  id: string
+  name: string
+  spot: string
+  status: LinkStatus
+  latencyMs: number
 }
