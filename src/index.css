@@ -997,30 +997,28 @@ button {
     linear-gradient(160deg, #1a1f24 0%, #0d1014 55%, #151a1f 100%);
 }
 
-/* Large feeds keep 16:10 and letterbox inside the cell instead of stretching */
+/* Large feeds keep 16:10 and cover the cell (crop, no letterbox bars) */
 .camera-tile[data-large='true'] {
   container-type: size;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--ink-900, #0b0d0f) 55%, transparent);
+  background: #0d1014;
   border: 1px solid var(--line);
   overflow: hidden;
 }
 
 .camera-tile[data-large='true'] .camera-frame {
   aspect-ratio: var(--cam-aspect);
-  width: min(100cqw, calc(100cqh * 16 / 10));
-  height: min(100cqh, calc(100cqw * 10 / 16));
-  max-width: 100%;
-  max-height: 100%;
+  width: max(100cqw, calc(100cqh * 16 / 10));
+  height: max(100cqh, calc(100cqw * 10 / 16));
   border: none;
 }
 
 @supports not (width: 1cqw) {
   .camera-tile[data-large='true'] .camera-frame {
     width: 100%;
-    height: auto;
-    max-height: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 }
 
