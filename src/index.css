@@ -1136,6 +1136,20 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .downlink {
+    max-height: 12rem;
+  }
+
+  .downlink-cols,
+  .downlink-row {
+    grid-template-columns: 4.2rem 2.8rem minmax(0, 1fr);
+  }
+
+  .downlink-cols span:nth-child(3),
+  .downlink-source {
+    display: none;
+  }
+
   .brand-sub {
     display: block;
   }
