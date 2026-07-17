@@ -188,6 +188,36 @@ button {
   flex: 1 1 auto;
 }
 
+.view-nav {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.view-nav-btn {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  border-radius: var(--r);
+}
+
+.view-nav-btn:hover {
+  background: var(--hover);
+  transform: none;
+}
+
+.view-nav-btn[aria-pressed='true'] {
+  border-color: var(--ignition);
+  color: var(--ignition);
+  background: color-mix(in srgb, var(--ignition) 10%, transparent);
+}
+
 .brand-kicker {
   margin: 0;
   font-family: var(--font-display);
@@ -915,6 +945,23 @@ button {
   color: var(--fg-muted);
 }
 
+.camera-open-page {
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ignition);
+}
+
+.camera-open-page:hover {
+  transform: none;
+  opacity: 0.85;
+}
+
 .camera-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -927,7 +974,9 @@ button {
   background: none;
   text-align: left;
   width: 100%;
+  height: 100%;
   border-radius: 0;
+  min-height: 0;
 }
 
 .camera-tile:hover {
@@ -938,12 +987,18 @@ button {
 .camera-frame {
   position: relative;
   aspect-ratio: 16 / 10;
+  height: 100%;
   overflow: hidden;
   border: 1px solid var(--line);
   background:
     radial-gradient(ellipse 80% 60% at 30% 40%, rgba(255, 90, 31, 0.22), transparent 55%),
     radial-gradient(ellipse 70% 50% at 70% 70%, rgba(45, 194, 217, 0.16), transparent 50%),
     linear-gradient(160deg, #1a1f24 0%, #0d1014 55%, #151a1f 100%);
+}
+
+.camera-tile[data-large='true'] .camera-frame {
+  aspect-ratio: auto;
+  min-height: 100%;
 }
 
 .camera-frame[data-cam='cam-close'] {
@@ -1042,6 +1097,122 @@ button {
 
 .camera-clock {
   font-family: var(--font-mono);
+}
+
+/* ——— Camera page ——— */
+
+.camera-page {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  animation: rise 0.45s var(--ease) both;
+}
+
+.camera-page-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.camera-page-title {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 2vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.camera-page-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-shrink: 0;
+}
+
+.camera-page-range {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.camera-page-range[data-range='go'] {
+  color: var(--telem-green);
+}
+
+.camera-page-range[data-range='hold'] {
+  color: var(--telem-amber);
+}
+
+.camera-page-range[data-range='nogo'] {
+  color: var(--telem-red);
+}
+
+.camera-page-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  min-height: 0;
+  height: 100%;
+}
+
+.camera-page-focus {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+}
+
+.camera-page-hint {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--fg-faint);
+}
+
+.camera-tile[data-large='true'] .camera-hud {
+  font-size: 0.7rem;
+  top: 0.65rem;
+  left: 0.75rem;
+  right: 0.75rem;
+}
+
+.camera-tile[data-large='true'] .camera-meta {
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.65rem;
+  gap: 0.15rem;
+}
+
+.camera-tile[data-large='true'] .camera-meta strong {
+  font-size: 1.15rem;
+}
+
+.camera-tile[data-large='true'] .camera-meta span {
+  font-size: 0.78rem;
+}
+
+.camera-tile[data-large='true'] .camera-live-dot {
+  width: 7px;
+  height: 7px;
+}
+
+.app[data-view='cameras'] .shell {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.app[data-view='cameras'] .shell-main {
+  height: auto;
+  flex: 1 1 auto;
+}
+
+.app[data-view='cameras'] .brand-sub {
+  display: none;
 }
 
 .actions {
@@ -1708,8 +1879,14 @@ button {
     white-space: normal;
   }
 
-  .camera-grid {
+  .camera-grid,
+  .camera-page-grid {
     grid-template-columns: 1fr;
+  }
+
+  .camera-page-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .ops-cell,

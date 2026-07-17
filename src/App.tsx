@@ -15,11 +15,12 @@ import {
   logout as authLogout,
   type AuthUser,
 } from './auth'
-import { Header } from './components/Header'
+import { Header, type AppView } from './components/Header'
 import { ModePanel } from './components/ModePanel'
 import { TelemetryStage } from './components/TelemetryStage'
 import { LinkDetail } from './components/LinkDetail'
 import { RangeBar } from './components/RangeBar'
+import { CameraPage } from './components/CameraPage'
 import { EventStream, readStoredDownlinkOpen } from './components/EventStream'
 import { SignIn } from './components/SignIn'
 
@@ -41,6 +42,7 @@ export default function App() {
   const [burnIndex, setBurnIndex] = useState(12)
   const [playing, setPlaying] = useState(true)
   const [downlinkOpen, setDownlinkOpen] = useState(readStoredDownlinkOpen)
+  const [view, setView] = useState<AppView>('console')
 
   const thrustCurve = useMemo(() => buildThrustCurve(), [])
   const vehicleCurve = useMemo(() => buildVehicleCurve(), [])
@@ -325,7 +327,11 @@ export default function App() {
   }
 
   return (
-    <div className="app" data-downlink-open={downlinkOpen ? 'true' : 'false'}>
+    <div
+      className="app"
+      data-downlink-open={downlinkOpen ? 'true' : 'false'}
+      data-view={view}
+    >
       <div className="shell">
         <div className="shell-main">
           <Header
@@ -333,9 +339,11 @@ export default function App() {
             linkState={linkState}
             sessionId={OPERATION.id}
             theme={theme}
+            view={view}
             user={user}
             onToggleTheme={handleToggleTheme}
             onSignOut={handleSignOut}
+            onViewChange={setView}
           />
 
           <div className="ops-strip" aria-label="Operation summary">
@@ -363,48 +371,63 @@ export default function App() {
 
           <RangeBar range={range} onChange={handleRangeChange} armed={armed} />
 
-          <main className="console">
-            <ModePanel
-              mode={mode}
-              onModeChange={handleModeChange}
-              channels={channels}
-              selectedChannelId={selectedChannelId}
-              onSelectChannel={setSelectedChannelId}
-            />
-            <TelemetryStage
-              mode={mode}
-              burnIndex={burnIndex}
-              playing={playing}
-              thrustCurve={thrustCurve}
-              vehicleCurve={vehicleCurve}
-              liveThrust={mode === 'idle' ? 0 : sample.thrust}
-              livePressure={mode === 'idle' ? 0 : sample.pressure}
-              liveTemp={mode === 'idle' ? 22 : sample.temp}
-              liveAltitude={mode === 'launch' ? vehicle.altitude : 0}
-              liveVelocity={mode === 'launch' ? vehicle.velocity : 0}
-              onSeek={handleSeek}
-              onTogglePlay={handleTogglePlay}
-            />
-            <LinkDetail
-              channel={selectedChannel}
-              operation={OPERATION}
-              armed={armed}
+          {view === 'console' ? (
+            <main className="console">
+              <ModePanel
+                mode={mode}
+                onModeChange={handleModeChange}
+                channels={channels}
+                selectedChannelId={selectedChannelId}
+                onSelectChannel={setSelectedChannelId}
+              />
+              <TelemetryStage
+                mode={mode}
+                burnIndex={burnIndex}
+                playing={playing}
+                thrustCurve={thrustCurve}
+                vehicleCurve={vehicleCurve}
+                liveThrust={mode === 'idle' ? 0 : sample.thrust}
+                livePressure={mode === 'idle' ? 0 : sample.pressure}
+                liveTemp={mode === 'idle' ? 22 : sample.temp}
+                liveAltitude={mode === 'launch' ? vehicle.altitude : 0}
+                liveVelocity={mode === 'launch' ? vehicle.velocity : 0}
+                onSeek={handleSeek}
+                onTogglePlay={handleTogglePlay}
+              />
+              <LinkDetail
+                channel={selectedChannel}
+                operation={OPERATION}
+                armed={armed}
+                clock={clock}
+                cameras={cameras}
+                onArm={handleArm}
+                onMarkEvent={handleMarkEvent}
+                onClear={handleClear}
+                onToggleRecording={handleToggleRecording}
+                onSelectCameras={() => setSelectedChannelId('pad-video')}
+                onOpenCameraPage={() => {
+                  setSelectedChannelId('pad-video')
+                  setView('cameras')
+                }}
+              />
+            </main>
+          ) : (
+            <CameraPage
+              feeds={cameras}
               clock={clock}
-              cameras={cameras}
-              onArm={handleArm}
-              onMarkEvent={handleMarkEvent}
-              onClear={handleClear}
-              onToggleRecording={handleToggleRecording}
-              onSelectCameras={() => setSelectedChannelId('pad-video')}
+              range={range}
+              onBack={() => setView('console')}
             />
-          </main>
+          )}
         </div>
 
-        <EventStream
-          events={events}
-          open={downlinkOpen}
-          onOpenChange={setDownlinkOpen}
-        />
+        {view === 'console' ? (
+          <EventStream
+            events={events}
+            open={downlinkOpen}
+            onOpenChange={setDownlinkOpen}
+          />
+        ) : null}
       </div>
 
       {toast ? (

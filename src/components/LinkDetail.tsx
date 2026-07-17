@@ -12,6 +12,7 @@ type LinkDetailProps = {
   onClear: () => void
   onToggleRecording: () => void
   onSelectCameras: () => void
+  onOpenCameraPage: () => void
 }
 
 export function LinkDetail({
@@ -25,6 +26,7 @@ export function LinkDetail({
   onClear,
   onToggleRecording,
   onSelectCameras,
+  onOpenCameraPage,
 }: LinkDetailProps) {
   return (
     <aside className="panel detail-panel" aria-label="Link detail">
@@ -38,6 +40,7 @@ export function LinkDetail({
           clock={clock}
           active={channel?.id === 'pad-video'}
           onSelect={onSelectCameras}
+          onOpenPage={onOpenCameraPage}
         />
 
         {channel ? (

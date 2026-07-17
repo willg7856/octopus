@@ -1,14 +1,18 @@
 import type { Theme } from '../theme'
 import type { AuthUser } from '../auth'
 
+export type AppView = 'console' | 'cameras'
+
 type HeaderProps = {
   clock: string
   linkState: 'nominal' | 'degraded' | 'lost' | 'standby'
   sessionId: string
   theme: Theme
+  view: AppView
   user: AuthUser | null
   onToggleTheme: () => void
   onSignOut: () => void
+  onViewChange: (view: AppView) => void
 }
 
 export function Header({
@@ -16,9 +20,11 @@ export function Header({
   linkState,
   sessionId,
   theme,
+  view,
   user,
   onToggleTheme,
   onSignOut,
+  onViewChange,
 }: HeaderProps) {
   const linkLabel =
     linkState === 'nominal'
@@ -38,10 +44,24 @@ export function Header({
         <h1 className="brand">
           Octopus<em>.</em>
         </h1>
-        <p className="brand-sub">
-          Pad and vehicle data link into mission control — for static fires and
-          launches. Not the flight computer.
-        </p>
+        <nav className="view-nav" aria-label="Octopus views">
+          <button
+            type="button"
+            className="view-nav-btn"
+            aria-pressed={view === 'console'}
+            onClick={() => onViewChange('console')}
+          >
+            Console
+          </button>
+          <button
+            type="button"
+            className="view-nav-btn"
+            aria-pressed={view === 'cameras'}
+            onClick={() => onViewChange('cameras')}
+          >
+            Cameras
+          </button>
+        </nav>
       </div>
       <div className="header-meta">
         <button
