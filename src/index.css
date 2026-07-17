@@ -730,68 +730,171 @@ button {
 
 /* Telemetry stream */
 
-.ticker {
-  border-top: 1px solid var(--line);
-  padding-top: 0.5rem;
+.downlink {
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  backdrop-filter: blur(8px);
   min-width: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 9.5rem;
   animation: rise 0.55s var(--ease) 0.22s both;
 }
 
-.ticker-head {
+.downlink-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 0.35rem;
+  gap: 0.75rem;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--line);
 }
 
-.ticker-list {
+.downlink-title-row {
   display: flex;
-  gap: 0.55rem;
-  overflow-x: auto;
-  max-width: 100%;
-  padding-bottom: 0.15rem;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.downlink-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--telem-green);
+}
+
+.downlink-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.downlink-table {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.downlink-cols {
+  display: grid;
+  grid-template-columns: 4.6rem 3.2rem 4.2rem minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.3rem 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  border-bottom: 1px solid var(--line);
+}
+
+.downlink-rows {
+  overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: thin;
 }
 
-.event {
-  flex: 0 0 auto;
-  display: flex;
+.downlink-row {
+  display: grid;
+  grid-template-columns: 4.6rem 3.2rem 4.2rem minmax(0, 1fr);
+  gap: 0.65rem;
   align-items: baseline;
-  gap: 0.55rem;
-  padding: 0.45rem 0.7rem;
-  border: 1px solid var(--line);
-  background: var(--bg-panel);
-  font-size: 0.8rem;
-  white-space: nowrap;
+  padding: 0.38rem 0.75rem;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  transition: background 0.15s;
 }
 
-.event-time,
-.event-source {
+.downlink-row:last-child {
+  border-bottom: none;
+}
+
+.downlink-row:hover {
+  background: var(--hover);
+}
+
+.downlink-row[data-level='ok'] {
+  border-left-color: var(--telem-green);
+}
+
+.downlink-row[data-level='info'] {
+  border-left-color: var(--telem-cyan);
+}
+
+.downlink-row[data-level='warn'] {
+  border-left-color: var(--telem-amber);
+}
+
+.downlink-row[data-level='crit'] {
+  border-left-color: var(--telem-red);
+  background: color-mix(in srgb, var(--telem-red) 6%, transparent);
+}
+
+.downlink-time {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
 }
 
-.event-level {
+.downlink-level {
   font-family: var(--font-mono);
-  font-size: 0.6rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.event-level[data-level='ok'] {
+.downlink-level[data-level='ok'] {
   color: var(--telem-green);
 }
-.event-level[data-level='info'] {
+
+.downlink-level[data-level='info'] {
   color: var(--telem-cyan);
 }
-.event-level[data-level='warn'] {
+
+.downlink-level[data-level='warn'] {
   color: var(--telem-amber);
 }
-.event-level[data-level='crit'] {
+
+.downlink-level[data-level='crit'] {
   color: var(--telem-red);
+}
+
+.downlink-source {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.downlink-msg {
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* legacy ticker kept unused */
+.ticker {
+  display: none;
 }
 
 .toast {
