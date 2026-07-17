@@ -262,68 +262,70 @@ export default function App() {
   return (
     <div className="app" data-downlink-open={downlinkOpen ? 'true' : 'false'}>
       <div className="shell">
-        <Header
-          clock={clock}
-          linkState={linkState}
-          sessionId={OPERATION.id}
-          theme={theme}
-          user={user}
-          onToggleTheme={handleToggleTheme}
-          onSignOut={handleSignOut}
-        />
+        <div className="shell-main">
+          <Header
+            clock={clock}
+            linkState={linkState}
+            sessionId={OPERATION.id}
+            theme={theme}
+            user={user}
+            onToggleTheme={handleToggleTheme}
+            onSignOut={handleSignOut}
+          />
 
-        <div className="ops-strip" aria-label="Operation summary">
-          <div className="ops-cell">
-            <p className="ops-label">Operation</p>
-            <p className="ops-value" data-accent="true">
-              {OPERATION.label}
-            </p>
+          <div className="ops-strip" aria-label="Operation summary">
+            <div className="ops-cell">
+              <p className="ops-label">Operation</p>
+              <p className="ops-value" data-accent="true">
+                {OPERATION.label}
+              </p>
+            </div>
+            <div className="ops-cell">
+              <p className="ops-label">Vehicle</p>
+              <p className="ops-value">{OPERATION.vehicle}</p>
+            </div>
+            <div className="ops-cell">
+              <p className="ops-label">Site</p>
+              <p className="ops-value">{OPERATION.site}</p>
+            </div>
+            <div className="ops-cell">
+              <p className="ops-label">Window</p>
+              <p className="ops-value">{OPERATION.window}</p>
+            </div>
           </div>
-          <div className="ops-cell">
-            <p className="ops-label">Vehicle</p>
-            <p className="ops-value">{OPERATION.vehicle}</p>
-          </div>
-          <div className="ops-cell">
-            <p className="ops-label">Site</p>
-            <p className="ops-value">{OPERATION.site}</p>
-          </div>
-          <div className="ops-cell">
-            <p className="ops-label">Window</p>
-            <p className="ops-value">{OPERATION.window}</p>
-          </div>
+
+          <main className="console">
+            <ModePanel
+              mode={mode}
+              onModeChange={handleModeChange}
+              channels={channels}
+              selectedChannelId={selectedChannelId}
+              onSelectChannel={setSelectedChannelId}
+            />
+            <TelemetryStage
+              mode={mode}
+              burnIndex={burnIndex}
+              playing={playing}
+              thrustCurve={thrustCurve}
+              vehicleCurve={vehicleCurve}
+              liveThrust={mode === 'idle' ? 0 : sample.thrust}
+              livePressure={mode === 'idle' ? 0 : sample.pressure}
+              liveTemp={mode === 'idle' ? 22 : sample.temp}
+              liveAltitude={mode === 'launch' ? vehicle.altitude : 0}
+              liveVelocity={mode === 'launch' ? vehicle.velocity : 0}
+              onSeek={handleSeek}
+              onTogglePlay={handleTogglePlay}
+            />
+            <LinkDetail
+              channel={selectedChannel}
+              operation={OPERATION}
+              armed={armed}
+              onArm={handleArm}
+              onMarkEvent={handleMarkEvent}
+              onClear={handleClear}
+            />
+          </main>
         </div>
-
-        <main className="console">
-          <ModePanel
-            mode={mode}
-            onModeChange={handleModeChange}
-            channels={channels}
-            selectedChannelId={selectedChannelId}
-            onSelectChannel={setSelectedChannelId}
-          />
-          <TelemetryStage
-            mode={mode}
-            burnIndex={burnIndex}
-            playing={playing}
-            thrustCurve={thrustCurve}
-            vehicleCurve={vehicleCurve}
-            liveThrust={mode === 'idle' ? 0 : sample.thrust}
-            livePressure={mode === 'idle' ? 0 : sample.pressure}
-            liveTemp={mode === 'idle' ? 22 : sample.temp}
-            liveAltitude={mode === 'launch' ? vehicle.altitude : 0}
-            liveVelocity={mode === 'launch' ? vehicle.velocity : 0}
-            onSeek={handleSeek}
-            onTogglePlay={handleTogglePlay}
-          />
-          <LinkDetail
-            channel={selectedChannel}
-            operation={OPERATION}
-            armed={armed}
-            onArm={handleArm}
-            onMarkEvent={handleMarkEvent}
-            onClear={handleClear}
-          />
-        </main>
 
         <EventStream
           events={events}

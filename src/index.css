@@ -103,12 +103,17 @@ button {
 }
 
 .app {
+  --shell-pad-top: 0.85rem;
+  --shell-pad-bottom: 0.75rem;
+  --shell-gap: 0.7rem;
+  --downlink-bar: 2.35rem;
   height: 100%;
   max-height: 100dvh;
   max-height: 100vh;
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  scrollbar-gutter: stable;
 }
 
 .app::before {
@@ -143,13 +148,23 @@ button {
   max-height: 100dvh;
   max-height: 100vh;
   margin: 0;
-  padding: 0.85rem clamp(0.85rem, 1.6vw, 1.4rem) 0.75rem;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: 0.7rem;
+  padding: var(--shell-pad-top) clamp(0.85rem, 1.6vw, 1.4rem) var(--shell-pad-bottom);
+  display: flex;
+  flex-direction: column;
+  gap: var(--shell-gap);
   min-width: 0;
   overflow: hidden;
   box-sizing: border-box;
+}
+
+.shell-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: var(--shell-gap);
+  overflow: hidden;
 }
 
 /* ——— Header ——— */
@@ -796,33 +811,37 @@ button {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  max-height: 2.35rem;
-  transition: max-height 0.22s var(--ease);
+  flex: 0 0 auto;
+  height: var(--downlink-bar);
+  overflow-anchor: none;
   animation: rise 0.55s var(--ease) 0.22s both;
 }
 
 .downlink[data-open='true'] {
-  max-height: none;
+  height: auto;
   overflow: visible;
 }
 
-/* When expanded, grow the page instead of compressing the console */
+/* Expand downward: lock the console block, scroll the page for the log */
 .app[data-downlink-open='true'] {
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .app[data-downlink-open='true'] .shell {
   height: auto;
   max-height: none;
-  min-height: 100%;
   overflow: visible;
-  grid-template-rows: auto auto auto auto;
 }
 
-.app[data-downlink-open='true'] .console {
-  height: calc(100dvh - 11.75rem);
-  min-height: 22rem;
+.app[data-downlink-open='true'] .shell-main {
+  flex: 0 0 auto;
+  height: calc(
+    100dvh - var(--shell-pad-top) - var(--shell-pad-bottom) - var(--shell-gap) -
+      var(--downlink-bar)
+  );
+  overflow: hidden;
 }
 
 .app[data-downlink-open='true'] .downlink-rows {
@@ -846,7 +865,8 @@ button {
   align-items: center;
   gap: 0.75rem;
   width: 100%;
-  padding: 0.4rem 0.75rem;
+  height: calc(var(--downlink-bar) - 2px);
+  padding: 0 0.75rem;
   border: none;
   border-bottom: 1px solid transparent;
   background: transparent;
@@ -855,6 +875,8 @@ button {
   cursor: pointer;
   font: inherit;
   border-radius: 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
   transition: background 0.15s, border-color 0.15s;
 }
 
@@ -1345,6 +1367,11 @@ button {
     min-height: 100dvh;
   }
 
+  .shell-main {
+    height: auto;
+    overflow: visible;
+  }
+
   .header {
     flex-direction: column;
     align-items: flex-start;
@@ -1389,8 +1416,10 @@ button {
 
   .downlink[data-open='true'] {
     max-height: none;
+    height: auto;
   }
 
+  .app[data-downlink-open='true'] .shell-main,
   .app[data-downlink-open='true'] .console {
     height: auto;
     min-height: 0;

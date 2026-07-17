@@ -31,6 +31,17 @@ export function EventStream({ events, open, onOpenChange }: EventStreamProps) {
     }
   }, [open])
 
+  function handleToggle() {
+    const app = document.querySelector('.app')
+    onOpenChange(!open)
+    // Opening can trigger scroll-into-view; pin the console in place.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (app instanceof HTMLElement) app.scrollTop = 0
+      })
+    })
+  }
+
   return (
     <footer
       className="downlink"
@@ -42,7 +53,7 @@ export function EventStream({ events, open, onOpenChange }: EventStreamProps) {
         className="downlink-head"
         aria-expanded={open}
         aria-controls="downlink-panel"
-        onClick={() => onOpenChange(!open)}
+        onClick={handleToggle}
       >
         <div className="downlink-title-row">
           <span className="downlink-chevron" aria-hidden="true">
