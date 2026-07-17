@@ -21,9 +21,15 @@ export function CameraFrame({
       <div className="camera-hud">
         <span className="camera-live" data-status={feed.status}>
           <span className="camera-live-dot" aria-hidden="true" />
-          {feed.status === 'nominal' ? 'Live' : feed.status}
+          {feed.status === 'nominal'
+            ? 'Live'
+            : feed.status === 'standby'
+              ? 'Standby'
+              : feed.status}
         </span>
-        <span className="camera-latency">{feed.latencyMs} ms</span>
+        <span className="camera-latency">
+          {feed.status === 'standby' ? '—' : `${feed.latencyMs} ms`}
+        </span>
       </div>
       <div className="camera-meta">
         <strong>{feed.name}</strong>

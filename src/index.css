@@ -1001,11 +1001,39 @@ button {
   min-height: 100%;
 }
 
-.camera-frame[data-cam='cam-close'] {
+.camera-frame[data-cam='pad-close'],
+.camera-frame[data-cam='pad-flame'] {
   background:
     radial-gradient(circle at 50% 62%, rgba(255, 90, 31, 0.45), transparent 28%),
     radial-gradient(ellipse 90% 40% at 50% 100%, rgba(255, 196, 0, 0.18), transparent 45%),
     linear-gradient(180deg, #12161a 0%, #0a0c0e 100%);
+}
+
+.camera-frame[data-cam='pad-tower'] {
+  background:
+    radial-gradient(ellipse 50% 35% at 50% 70%, rgba(255, 90, 31, 0.2), transparent 50%),
+    linear-gradient(200deg, #1c232a 0%, #0b0e12 60%, #14191e 100%);
+}
+
+.camera-frame[data-cam='shed-ops'],
+.camera-frame[data-cam='shed-rack'],
+.camera-frame[data-cam='shed-door'] {
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 30%, rgba(45, 194, 217, 0.18), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 80% 80%, rgba(255, 90, 31, 0.12), transparent 50%),
+    linear-gradient(145deg, #1a1e22 0%, #0e1114 55%, #171b20 100%);
+}
+
+.camera-frame[data-cam='veh-avionics'],
+.camera-frame[data-cam='veh-fin'],
+.camera-frame[data-cam='veh-nose'] {
+  background:
+    radial-gradient(ellipse 40% 30% at 50% 45%, rgba(45, 194, 217, 0.22), transparent 50%),
+    linear-gradient(180deg, #15181c 0%, #090b0d 100%);
+}
+
+.camera-tile[data-status='standby'] .camera-frame {
+  filter: grayscale(0.55) brightness(0.75);
 }
 
 .camera-scan {
@@ -1105,9 +1133,131 @@ button {
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 0.55rem;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.5rem;
   animation: rise 0.45s var(--ease) both;
+}
+
+.camera-page-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.camera-group-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.camera-group-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--line);
+  background: var(--bg-panel-solid);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  border-radius: var(--r);
+}
+
+.camera-group-tab:hover {
+  background: var(--hover);
+  transform: none;
+}
+
+.camera-group-tab[aria-selected='true'] {
+  border-color: var(--ignition);
+  color: var(--ignition);
+  background: color-mix(in srgb, var(--ignition) 10%, transparent);
+}
+
+.camera-group-count {
+  font-size: 0.58rem;
+  color: var(--fg-faint);
+}
+
+.camera-group-tab[aria-selected='true'] .camera-group-count {
+  color: color-mix(in srgb, var(--ignition) 70%, var(--fg-faint));
+}
+
+.camera-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.camera-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.6rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+  border-radius: var(--r);
+}
+
+.camera-picker:hover {
+  background: var(--hover);
+  transform: none;
+}
+
+.camera-picker[data-on='true'] {
+  border-color: color-mix(in srgb, var(--telem-cyan) 50%, var(--line));
+  color: var(--fg);
+  background: color-mix(in srgb, var(--telem-cyan) 10%, transparent);
+}
+
+.camera-picker-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+}
+
+.camera-picker[data-on='true'] .camera-picker-dot {
+  background: var(--telem-green);
+}
+
+.camera-picker[data-on='true'][data-status='degraded'] .camera-picker-dot {
+  background: var(--telem-amber);
+}
+
+.camera-picker[data-on='true'][data-status='standby'] .camera-picker-dot,
+.camera-picker[data-status='standby'] .camera-picker-dot {
+  background: var(--fg-faint);
+}
+
+.camera-page-grid-1 {
+  grid-template-columns: 1fr;
+}
+
+.camera-page-grid-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.camera-page-grid-3 {
+  grid-template-columns: 1.2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.camera-page-grid-3 > :first-child {
+  grid-row: 1 / -1;
+}
+
+.camera-page-grid-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
 }
 
 .camera-page-head {
@@ -1880,8 +2030,16 @@ button {
   }
 
   .camera-grid,
-  .camera-page-grid {
+  .camera-page-grid,
+  .camera-page-grid-2,
+  .camera-page-grid-3,
+  .camera-page-grid-4 {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .camera-page-grid-3 > :first-child {
+    grid-row: auto;
   }
 
   .camera-page-head {

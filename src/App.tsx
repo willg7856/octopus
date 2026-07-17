@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   CAMERA_FEEDS,
+  CAMERA_GROUPS,
   CHANNELS,
   EVENTS,
   OPERATION,
@@ -53,6 +54,10 @@ export default function App() {
   )
 
   const linkState = useMemo(() => aggregateLink(channels, mode), [channels, mode])
+  const padCameras = useMemo(
+    () => cameras.filter((c) => c.group === 'pad').slice(0, 2),
+    [cameras],
+  )
 
   const sample = thrustCurve[Math.min(burnIndex, thrustCurve.length - 1)]
   const vehicle = vehicleCurve[Math.min(burnIndex, vehicleCurve.length - 1)]
@@ -141,9 +146,13 @@ export default function App() {
       )
       setCameras((prev) =>
         prev.map((cam) => {
+          if (cam.group === 'vehicle' && mode !== 'launch') {
+            return { ...cam, status: 'standby', latencyMs: 0 }
+          }
+          const base = cam.latencyMs || (cam.group === 'shed' ? 48 : 90)
           const latencyMs = Math.max(
-            40,
-            cam.latencyMs + Math.round((Math.random() - 0.45) * 14),
+            28,
+            base + Math.round((Math.random() - 0.45) * 14),
           )
           return {
             ...cam,
@@ -154,7 +163,7 @@ export default function App() {
       )
     }, 1800)
     return () => window.clearInterval(id)
-  }, [authState])
+  }, [authState, mode])
 
   function handleToggleTheme() {
     setTheme((t) => (t === 'light' ? 'dark' : 'light'))
@@ -184,8 +193,21 @@ export default function App() {
       setChannels((prev) =>
         prev.map((ch) =>
           ch.kind === 'vehicle'
-            ? { ...ch, status: 'nominal', latencyMs: 64, lastPacket: '0.06s' }
+            ? {
+                ...ch,
+                status: 'nominal',
+                latencyMs: 64,
+                lastPacket: '0.06s',
+                packetAgeMs: 64,
+              }
             : ch,
+        ),
+      )
+      setCameras((prev) =>
+        prev.map((cam) =>
+          cam.group === 'vehicle'
+            ? { ...cam, status: 'nominal', latencyMs: 72 }
+            : cam,
         ),
       )
       setToast('Launch day mode — vehicle path enabled')
@@ -194,13 +216,32 @@ export default function App() {
       setChannels((prev) =>
         prev.map((ch) =>
           ch.kind === 'vehicle'
-            ? { ...ch, status: 'standby', latencyMs: 0, lastPacket: '—' }
+            ? {
+                ...ch,
+                status: 'standby',
+                latencyMs: 0,
+                lastPacket: '—',
+                packetAgeMs: 0,
+              }
             : ch,
+        ),
+      )
+      setCameras((prev) =>
+        prev.map((cam) =>
+          cam.group === 'vehicle'
+            ? { ...cam, status: 'standby', latencyMs: 0 }
+            : cam,
         ),
       )
       setToast('Static fire mode — pad → Goods Shed')
     } else {
-      setArmed(false)
+      setCameras((prev) =>
+        prev.map((cam) =>
+          cam.group === 'vehicle'
+            ? { ...cam, status: 'standby', latencyMs: 0 }
+            : cam,
+        ),
+      )
       setToast('Idle — Octopus on bench')
     }
   }
@@ -399,7 +440,7 @@ export default function App() {
                 operation={OPERATION}
                 armed={armed}
                 clock={clock}
-                cameras={cameras}
+                cameras={padCameras}
                 onArm={handleArm}
                 onMarkEvent={handleMarkEvent}
                 onClear={handleClear}
@@ -414,6 +455,7 @@ export default function App() {
           ) : (
             <CameraPage
               feeds={cameras}
+              groups={CAMERA_GROUPS}
               clock={clock}
               range={range}
               onBack={() => setView('console')}

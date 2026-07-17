@@ -1,5 +1,6 @@
 import type {
   CameraFeed,
+  CameraGroup,
   Channel,
   EventItem,
   Operation,
@@ -104,20 +105,104 @@ export const CHANNELS: Channel[] = [
   },
 ]
 
+export const CAMERA_GROUPS: CameraGroup[] = [
+  {
+    id: 'pad',
+    label: 'Pad',
+    blurb: 'Static fire pad · Creswick',
+  },
+  {
+    id: 'shed',
+    label: 'Goods Shed',
+    blurb: 'Mission control bay cameras',
+  },
+  {
+    id: 'vehicle',
+    label: 'Vehicle',
+    blurb: 'STRAVOX airframe / bay (flight day)',
+  },
+]
+
 export const CAMERA_FEEDS: CameraFeed[] = [
   {
-    id: 'cam-wide',
+    id: 'pad-wide',
+    group: 'pad',
     name: 'Pad wide',
     spot: 'North fence · full pad',
     status: 'nominal',
     latencyMs: 96,
   },
   {
-    id: 'cam-close',
+    id: 'pad-close',
+    group: 'pad',
     name: 'Pad close',
     spot: 'Stand · nozzle / plume',
     status: 'degraded',
     latencyMs: 180,
+  },
+  {
+    id: 'pad-flame',
+    group: 'pad',
+    name: 'Flame trench',
+    spot: 'Downstream · trench / blast',
+    status: 'nominal',
+    latencyMs: 110,
+  },
+  {
+    id: 'pad-tower',
+    group: 'pad',
+    name: 'Tower',
+    spot: 'West mast · high angle',
+    status: 'nominal',
+    latencyMs: 88,
+  },
+  {
+    id: 'shed-ops',
+    group: 'shed',
+    name: 'Ops floor',
+    spot: 'Goods Shed · console row',
+    status: 'nominal',
+    latencyMs: 42,
+  },
+  {
+    id: 'shed-rack',
+    group: 'shed',
+    name: 'Rack / RF',
+    spot: 'Back wall · link gear',
+    status: 'nominal',
+    latencyMs: 51,
+  },
+  {
+    id: 'shed-door',
+    group: 'shed',
+    name: 'Bay door',
+    spot: 'Entry · pad sightline',
+    status: 'nominal',
+    latencyMs: 60,
+  },
+  {
+    id: 'veh-avionics',
+    group: 'vehicle',
+    name: 'Avionics bay',
+    spot: 'STRAVOX · internal bay',
+    status: 'standby',
+    latencyMs: 0,
+  },
+  {
+    id: 'veh-fin',
+    group: 'vehicle',
+    name: 'Fin can',
+    spot: 'Aft · fin / nozzle fairing',
+    status: 'standby',
+    latencyMs: 0,
+  },
+  {
+    id: 'veh-nose',
+    group: 'vehicle',
+    name: 'Nose / tip',
+    spot: 'Forward · rail view',
+    status: 'standby',
+    latencyMs: 0,
   },
 ]
 

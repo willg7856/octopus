@@ -48,8 +48,17 @@ export interface Operation {
   window: string
 }
 
+export type CameraGroupId = 'pad' | 'shed' | 'vehicle'
+
+export interface CameraGroup {
+  id: CameraGroupId
+  label: string
+  blurb: string
+}
+
 export interface CameraFeed {
   id: string
+  group: CameraGroupId
   name: string
   spot: string
   status: LinkStatus
