@@ -1,7 +1,6 @@
 export type LinkStatus = 'nominal' | 'degraded' | 'lost' | 'standby'
 export type OpMode = 'static-fire' | 'launch' | 'idle'
 export type ChannelKind = 'pad' | 'vehicle' | 'shed'
-export type RangeState = 'go' | 'hold' | 'nogo'
 
 export interface Channel {
   id: string
@@ -67,15 +66,44 @@ export interface CameraFeed {
   latencyMs: number
 }
 
-export interface ChecklistItem {
+export type ResourceCategory =
+  | 'cad'
+  | 'drive'
+  | 'planning'
+  | 'web'
+  | 'ops'
+
+export interface ResourceLink {
   id: string
-  label: string
-  /** When true, state is derived in App (not manually toggled). */
-  auto: boolean
+  category: ResourceCategory
+  title: string
+  description: string
+  href: string
+  external?: boolean
 }
 
-export interface LinkHop {
+export interface Contact {
   id: string
-  label: string
+  name: string
+  role: string
+  email: string
+  phone?: string
+  notes?: string
+}
+
+export type MilestoneStatus = 'done' | 'active' | 'upcoming' | 'blocked'
+
+export interface Milestone {
+  id: string
+  date: string
+  title: string
   detail: string
+  status: MilestoneStatus
+}
+
+export interface Notice {
+  id: string
+  level: 'info' | 'warn' | 'crit'
+  title: string
+  body: string
 }

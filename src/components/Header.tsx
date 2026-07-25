@@ -2,15 +2,27 @@ import type { Theme } from '../theme'
 import type { AuthUser } from '../auth'
 import type { LinkStatus } from '../types'
 
-export type AppView = 'console' | 'cameras'
+export type AppView =
+  | 'home'
+  | 'live'
+  | 'cameras'
+  | 'resources'
+  | 'team'
+  | 'timeline'
+
+const NAV: { id: AppView; label: string }[] = [
+  { id: 'home', label: 'Home' },
+  { id: 'live', label: 'Live' },
+  { id: 'cameras', label: 'Cameras' },
+  { id: 'resources', label: 'Resources' },
+  { id: 'team', label: 'Team' },
+  { id: 'timeline', label: 'Timeline' },
+]
 
 type HeaderProps = {
   clock: string
-  missionClock: string
-  missionState: 'hold' | 'live' | 'safe' | 'idle'
   linkState: LinkStatus
-  sessionId: string
-  vehicle: string
+  sessionLabel: string
   theme: Theme
   view: AppView
   user: AuthUser | null
@@ -21,11 +33,8 @@ type HeaderProps = {
 
 export function Header({
   clock,
-  missionClock,
-  missionState,
   linkState,
-  sessionId,
-  vehicle,
+  sessionLabel,
   theme,
   view,
   user,
@@ -47,38 +56,26 @@ export function Header({
   return (
     <header className="header">
       <div className="brand-block">
-        <p className="brand-kicker">Beyond Stage Zero · Goods Shed</p>
+        <p className="brand-kicker">Beyond Stage Zero</p>
         <h1 className="brand">
           Octopus<em>.</em>
         </h1>
         <p className="brand-sub">
-          Pad and vehicle data link into mission control — for static fires and
-          launches. Not the flight computer.
+          Team hub — live data, cameras, docs, contacts, and timelines.
         </p>
-        <nav className="view-nav" aria-label="Octopus views">
-          <button
-            type="button"
-            className="view-nav-btn"
-            aria-pressed={view === 'console'}
-            onClick={() => onViewChange('console')}
-          >
-            Console
-          </button>
-          <button
-            type="button"
-            className="view-nav-btn"
-            aria-pressed={view === 'cameras'}
-            onClick={() => onViewChange('cameras')}
-          >
-            Cameras
-          </button>
+        <nav className="view-nav" aria-label="Hub sections">
+          {NAV.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="view-nav-btn"
+              aria-pressed={view === item.id}
+              onClick={() => onViewChange(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
-      </div>
-
-      <div className="mission-clock" data-state={missionState} aria-label="Mission clock">
-        <span className="mission-clock-label">Mission</span>
-        <strong className="mission-clock-value">{missionClock}</strong>
-        <span className="mission-clock-vehicle">{vehicle}</span>
       </div>
 
       <div className="header-meta">
@@ -99,8 +96,8 @@ export function Header({
           </strong>
         </div>
         <div className="meta-item">
-          <span>Session</span>
-          <strong>{sessionId}</strong>
+          <span>Focus</span>
+          <strong>{sessionLabel}</strong>
         </div>
         <div className="meta-item">
           <span>Local</span>
@@ -108,7 +105,7 @@ export function Header({
         </div>
         {user ? (
           <div className="meta-item meta-user">
-            <span>Operator</span>
+            <span>Signed in</span>
             <strong title={user.email}>{user.name}</strong>
             <button type="button" className="sign-out" onClick={onSignOut}>
               Sign out

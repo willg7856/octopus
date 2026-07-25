@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { CameraFeed, CameraGroup, CameraGroupId, RangeState } from '../types'
+import type { CameraFeed, CameraGroup, CameraGroupId } from '../types'
 import { CameraFrame } from './CameraFrame'
 
 type CameraPageProps = {
   feeds: CameraFeed[]
   groups: CameraGroup[]
   clock: string
-  range: RangeState
   onBack: () => void
 }
 
@@ -20,7 +19,6 @@ export function CameraPage({
   feeds,
   groups,
   clock,
-  range,
   onBack,
 }: CameraPageProps) {
   const [groupId, setGroupId] = useState<CameraGroupId>('pad')
@@ -78,11 +76,9 @@ export function CameraPage({
           <h2 className="camera-page-title">Cameras</h2>
         </div>
         <div className="camera-page-meta">
-          <span className="camera-page-range" data-range={range}>
-            Range {range === 'go' ? 'GO' : range === 'hold' ? 'HOLD' : 'NO-GO'}
-          </span>
+          <span className="camera-page-clock">{clock}</span>
           <button type="button" className="btn btn-ghost" onClick={onBack}>
-            Back to console
+            Back to hub
           </button>
         </div>
       </div>

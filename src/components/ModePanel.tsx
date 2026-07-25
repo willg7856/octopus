@@ -12,21 +12,21 @@ const MODES: { id: OpMode; name: string; desc: string; tone: string; tag: string
   {
     id: 'static-fire',
     name: 'Static fire',
-    desc: 'Pad instruments into the Goods Shed during ground burns.',
+    desc: 'View pad instruments as they arrive during ground burns.',
     tone: 'ignition',
     tag: 'Primary',
   },
   {
     id: 'launch',
     name: 'Launch day',
-    desc: 'Pad path plus vehicle telemetry into mission control.',
+    desc: 'View pad path plus vehicle telemetry on flight day.',
     tone: 'cyan',
     tag: 'Flight',
   },
   {
     id: 'idle',
     name: 'Idle / bench',
-    desc: 'Link up for integration checks without a live fire.',
+    desc: 'Bench / integration view when nothing is live.',
     tone: 'ink',
     tag: 'Standby',
   },
@@ -40,10 +40,10 @@ export function ModePanel({
   onSelectChannel,
 }: ModePanelProps) {
   return (
-    <aside className="panel" aria-label="Operations">
+    <aside className="panel" aria-label="Live feeds">
       <div className="panel-head">
-        <h2 className="panel-title">Mode & channels</h2>
-        <span className="panel-note">Select</span>
+        <h2 className="panel-title">Feed & channels</h2>
+        <span className="panel-note">View</span>
       </div>
       <div className="panel-body">
         <div className="mode-list" role="group" aria-label="Octopus modes">

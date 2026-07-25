@@ -48,7 +48,8 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
           Octopus<em>.</em>
         </h1>
         <p className="auth-copy">
-          Sign in to mission control for static fires and launches.
+          Sign in to the Beyond Stage Zero team hub — live data, cameras, docs,
+          and contacts.
         </p>
 
         <form className="auth-form" onSubmit={handleSubmit}>

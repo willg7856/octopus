@@ -3,7 +3,6 @@ import type {
   Channel,
   EventItem,
   OpMode,
-  RangeState,
   TelemetryPoint,
   VehicleSample,
 } from '../types'
@@ -26,9 +25,7 @@ type TelemetryStageProps = {
   channels: Channel[]
   events: EventItem[]
   selectedChannelId: string
-  armed: boolean
   recording: boolean
-  range: RangeState
   onSeek: (index: number) => void
   onTogglePlay: () => void
   onSelectChannel: (id: string) => void
@@ -51,9 +48,7 @@ export function TelemetryStage({
   channels,
   events,
   selectedChannelId,
-  armed,
   recording,
-  range,
   onSeek,
   onTogglePlay,
   onSelectChannel,
@@ -335,15 +330,12 @@ export function TelemetryStage({
         </div>
 
         <div className="stage-fill" aria-label="Live context">
-          <div className="stage-status" aria-label="Console status">
-            <span className="stage-pill" data-on={armed ? 'true' : 'false'}>
-              {armed ? 'Armed' : 'Safe'}
+          <div className="stage-status" aria-label="Feed status">
+            <span className="stage-pill" data-on="true">
+              View only
             </span>
             <span className="stage-pill" data-on={recording ? 'true' : 'false'}>
-              {recording ? 'Rec on' : 'Rec off'}
-            </span>
-            <span className="stage-pill" data-range={range}>
-              Range {range === 'go' ? 'GO' : range === 'hold' ? 'HOLD' : 'NO-GO'}
+              {recording ? 'Logger on' : 'Logger off'}
             </span>
             <span className="stage-pill" data-on={playing ? 'true' : 'false'}>
               {playing ? 'Playing' : 'Paused'}

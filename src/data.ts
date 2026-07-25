@@ -2,9 +2,7 @@ import type {
   CameraFeed,
   CameraGroup,
   Channel,
-  ChecklistItem,
   EventItem,
-  LinkHop,
   Operation,
   TelemetryPoint,
   VehicleSample,
@@ -12,12 +10,12 @@ import type {
 
 export const OPERATION: Operation = {
   id: 'SF-B1M-01',
-  label: 'B1M static fire rehearsal',
+  label: 'B1M static fire campaign',
   mode: 'static-fire',
   vehicle: 'STRAVOX B1M',
   site: 'Creswick Goods Shed · Pad link',
-  status: 'ARMED',
-  window: 'Q4 2026 – Q1 2027',
+  status: 'ACTIVE',
+  window: 'Q3 2026 – Q1 2027',
 }
 
 export const CHANNELS: Channel[] = [
@@ -228,7 +226,7 @@ export const EVENTS: EventItem[] = [
     time: '14:21:31',
     level: 'info',
     source: 'THRUST',
-    message: 'Load cell zeroed · awaiting ignition enable',
+    message: 'Load cell zeroed · pad instruments streaming',
   },
   {
     id: 'e4',
@@ -256,7 +254,7 @@ export const EVENTS: EventItem[] = [
     time: '14:18:03',
     level: 'crit',
     source: 'NOTE',
-    message: 'Reminder: Octopus moves data — flight computer is separate',
+    message: 'Reminder: Octopus is the team hub — control systems are separate',
   },
 ]
 
@@ -302,18 +300,3 @@ export function buildVehicleCurve(): VehicleSample[] {
   return points
 }
 
-export const CHECKLIST: ChecklistItem[] = [
-  { id: 'loadcell', label: 'Load cell zeroed', auto: true },
-  { id: 'chamber', label: 'Chamber P path nominal', auto: true },
-  { id: 'recording', label: 'Shed logger recording', auto: true },
-  { id: 'cams', label: 'Pad cameras nominal', auto: true },
-  { id: 'range', label: 'Range is GO', auto: true },
-  { id: 'crew', label: 'Crew brief complete', auto: false },
-]
-
-export const LINK_HOPS: LinkHop[] = [
-  { id: 'pad', label: 'Pad', detail: 'Instruments / mux' },
-  { id: 'rf', label: 'RF path', detail: 'Pad → Shed' },
-  { id: 'shed', label: 'Goods Shed', detail: 'Logger / MC' },
-  { id: 'vehicle', label: 'Vehicle', detail: 'Flight-day only' },
-]
