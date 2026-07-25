@@ -515,8 +515,15 @@ export default function App() {
                 liveAccel={mode === 'launch' ? vehicle.accel : 0}
                 liveBattery={mode === 'launch' ? vehicle.batteryV : 0}
                 liveSats={mode === 'launch' ? vehicle.gpsSats : 0}
+                channels={channels}
+                events={events}
+                selectedChannelId={selectedChannelId}
+                armed={armed}
+                recording={recording}
+                range={range}
                 onSeek={handleSeek}
                 onTogglePlay={handleTogglePlay}
+                onSelectChannel={setSelectedChannelId}
               />
               <LinkDetail
                 channel={selectedChannel}

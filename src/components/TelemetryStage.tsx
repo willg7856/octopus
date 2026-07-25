@@ -1,5 +1,12 @@
 import { useMemo, useRef } from 'react'
-import type { OpMode, TelemetryPoint, VehicleSample } from '../types'
+import type {
+  Channel,
+  EventItem,
+  OpMode,
+  RangeState,
+  TelemetryPoint,
+  VehicleSample,
+} from '../types'
 import { computeBurnStats, impulseToIndex, KGF_TO_N } from '../motorStats'
 
 type TelemetryStageProps = {
@@ -16,8 +23,15 @@ type TelemetryStageProps = {
   liveAccel: number
   liveBattery: number
   liveSats: number
+  channels: Channel[]
+  events: EventItem[]
+  selectedChannelId: string
+  armed: boolean
+  recording: boolean
+  range: RangeState
   onSeek: (index: number) => void
   onTogglePlay: () => void
+  onSelectChannel: (id: string) => void
 }
 
 export function TelemetryStage({
@@ -34,8 +48,15 @@ export function TelemetryStage({
   liveAccel,
   liveBattery,
   liveSats,
+  channels,
+  events,
+  selectedChannelId,
+  armed,
+  recording,
+  range,
   onSeek,
   onTogglePlay,
+  onSelectChannel,
 }: TelemetryStageProps) {
   const chartRef = useRef<SVGSVGElement>(null)
   const series = mode === 'launch' ? vehicleCurve : thrustCurve
@@ -70,6 +91,12 @@ export function TelemetryStage({
   const isFire = mode === 'static-fire'
   const isLaunch = mode === 'launch'
   const thrustN = liveThrust * KGF_TO_N
+  const visibleChannels = channels.filter((ch) => {
+    if (mode === 'launch') return true
+    if (mode === 'static-fire') return ch.kind !== 'vehicle'
+    return ch.kind === 'pad' || ch.kind === 'shed'
+  })
+  const recentEvents = events.slice(0, 6)
 
   function seekFromPointer(clientX: number) {
     const svg = chartRef.current
@@ -304,29 +331,73 @@ export function TelemetryStage({
           </label>
         </div>
 
-        <p className="stage-note">
-          {mode === 'idle' ? (
-            <>
-              <strong>Bench mode.</strong> Octopus is up for integration checks.
-              Switch to static fire or launch day when the range is live.
-            </>
-          ) : isLaunch ? (
-            <>
-              <strong>Vehicle → mission control.</strong> Simulated B1M-class
-              trajectory. Click the plot or use the scrubber to inspect any
-              point.
-            </>
-          ) : (
-            <>
-              <strong>Pad → Goods Shed.</strong> OpenMotor-style burn readout —
-              impulse under the curve, jump to ignition / max thrust / burnout,
-              scrub any timestep.
-            </>
-          )}
-        </p>
+        <div className="stage-fill" aria-label="Live context">
+          <div className="stage-status" aria-label="Console status">
+            <span className="stage-pill" data-on={armed ? 'true' : 'false'}>
+              {armed ? 'Armed' : 'Safe'}
+            </span>
+            <span className="stage-pill" data-on={recording ? 'true' : 'false'}>
+              {recording ? 'Rec on' : 'Rec off'}
+            </span>
+            <span className="stage-pill" data-range={range}>
+              Range {range === 'go' ? 'GO' : range === 'hold' ? 'HOLD' : 'NO-GO'}
+            </span>
+            <span className="stage-pill" data-on={playing ? 'true' : 'false'}>
+              {playing ? 'Playing' : 'Paused'}
+            </span>
+          </div>
+
+          <div className="stage-fill-grid">
+            <section className="stage-card" aria-label="Channel health">
+              <h3 className="section-label">Channel health</h3>
+              <ul className="stage-channel-list">
+                {visibleChannels.map((ch) => (
+                  <li key={ch.id}>
+                    <button
+                      type="button"
+                      className="stage-channel"
+                      data-status={ch.status}
+                      aria-pressed={selectedChannelId === ch.id}
+                      onClick={() => onSelectChannel(ch.id)}
+                    >
+                      <span className="stage-channel-name">{ch.name}</span>
+                      <span className="stage-channel-meta">
+                        {ch.latencyMs ? `${ch.latencyMs} ms` : '—'} ·{' '}
+                        {ch.dropPct.toFixed(1)}%
+                      </span>
+                      <span className="chip" data-tone={statusTone(ch.status)}>
+                        {ch.status}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="stage-card" aria-label="Recent downlink">
+              <h3 className="section-label">Recent downlink</h3>
+              <ul className="stage-event-list">
+                {recentEvents.map((event) => (
+                  <li key={event.id} className="stage-event" data-level={event.level}>
+                    <span className="stage-event-time">{event.time}</span>
+                    <span className="stage-event-src">{event.source}</span>
+                    <span className="stage-event-msg">{event.message}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
+        </div>
       </div>
     </section>
   )
+}
+
+function statusTone(status: Channel['status']) {
+  if (status === 'nominal') return 'green'
+  if (status === 'degraded') return 'amber'
+  if (status === 'lost') return 'red'
+  return 'ink'
 }
 
 function BurnMarker({
