@@ -2700,12 +2700,10 @@ button {
   gap: 1.65rem;
 }
 
-.hub-home {
-  max-width: 58rem;
-}
-
+.hub-home,
 .hub-page-inner {
-  max-width: 48rem;
+  width: 100%;
+  max-width: none;
 }
 
 .hub-intro {
@@ -2725,7 +2723,7 @@ button {
 .hub-intro-copy,
 .hub-page-lede {
   margin: 0;
-  max-width: 34rem;
+  max-width: 42rem;
   font-size: 1rem;
   line-height: 1.45;
   color: var(--fg-muted);
