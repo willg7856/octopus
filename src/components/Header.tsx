@@ -56,19 +56,17 @@ export function Header({
   return (
     <header className="header">
       <div className="brand-block">
-        <div className="brand-row">
-          <button
-            type="button"
-            className="brand-mark"
-            onClick={() => onViewChange('home')}
-            aria-label="Octopus home"
-          >
-            <span className="brand">
-              Octopus<em>.</em>
-            </span>
-          </button>
-          <span className="brand-tool-tag">BSZ ops</span>
-        </div>
+        <button
+          type="button"
+          className="brand-mark"
+          onClick={() => onViewChange('home')}
+          aria-label="Octopus home"
+        >
+          <span className="brand">
+            Octopus<em>.</em>
+          </span>
+          <span className="brand-sub">Beyond Stage Zero</span>
+        </button>
         <nav className="view-nav" aria-label="Sections">
           {NAV.map((item) => (
             <button
@@ -111,8 +109,7 @@ export function Header({
         </div>
         {user ? (
           <div className="meta-item meta-user">
-            <span>User</span>
-            <strong title={user.email}>{user.name}</strong>
+            <span>{user.name}</span>
             <button type="button" className="sign-out" onClick={onSignOut}>
               Sign out
             </button>

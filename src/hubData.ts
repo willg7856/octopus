@@ -163,13 +163,13 @@ export const NOTICES: Notice[] = [
   {
     id: 'n1',
     level: 'info',
-    title: 'View-only live feeds',
-    body: 'Live and Cameras are for monitoring. Control systems and the flight computer are separate.',
+    title: 'Live feeds are view-only',
+    body: 'Use Live and Cameras to watch the pad and vehicle. Control stays on the dedicated systems.',
   },
   {
     id: 'n2',
     level: 'warn',
-    title: 'Links need updating',
-    body: 'Onshape, Drive, calendar, and some emails in hubData.ts are still placeholders.',
+    title: 'Some links are placeholders',
+    body: 'Replace Onshape, Drive, calendar, and contact emails in hubData.ts with the real team links.',
   },
 ]

@@ -9,12 +9,31 @@ type HubHomeProps = {
   onNavigate: (view: AppView) => void
 }
 
-const SHORTCUTS: { view: AppView; label: string; hint: string }[] = [
-  { view: 'live', label: 'Live', hint: 'Telemetry & link health' },
-  { view: 'cameras', label: 'Cameras', hint: 'Pad / shed / vehicle' },
-  { view: 'resources', label: 'Resources', hint: 'Onshape, Drive, calendars' },
-  { view: 'team', label: 'Team', hint: 'Contacts' },
-  { view: 'timeline', label: 'Timeline', hint: 'Milestones & notes' },
+const DESTINATIONS: {
+  view: AppView
+  label: string
+  hint: string
+  primary?: boolean
+}[] = [
+  {
+    view: 'live',
+    label: 'Live data',
+    hint: 'Pad and vehicle telemetry, link health',
+    primary: true,
+  },
+  {
+    view: 'cameras',
+    label: 'Cameras',
+    hint: 'Pad, Goods Shed, and vehicle feeds',
+    primary: true,
+  },
+  {
+    view: 'resources',
+    label: 'Resources',
+    hint: 'Onshape, Drive, calendars, web links',
+  },
+  { view: 'team', label: 'Team', hint: 'Who to contact' },
+  { view: 'timeline', label: 'Timeline', hint: 'Milestones and standing notes' },
 ]
 
 export function HubHome({
@@ -28,16 +47,23 @@ export function HubHome({
     MILESTONES.find((m) => m.status === 'upcoming')
   const quickResources = RESOURCES.filter((r) =>
     ['cad', 'drive', 'planning', 'web'].includes(r.category),
-  ).slice(0, 5)
+  ).slice(0, 4)
 
   return (
     <main className="hub-page hub-home" aria-label="Hub home">
-      <section className="hub-status" aria-label="Current status">
+      <header className="hub-intro">
+        <h2 className="hub-intro-title">Home</h2>
+        <p className="hub-intro-copy">
+          Watch live feeds, open cameras, and find files, people, and dates.
+        </p>
+      </header>
+
+      <section className="hub-status" aria-label="Current focus">
         <div className="hub-status-main">
-          <p className="hub-kicker">{operation.id}</p>
-          <h2 className="hub-status-title">{operation.label}</h2>
+          <p className="hub-kicker">Current focus · {operation.id}</p>
+          <p className="hub-status-title">{operation.label}</p>
           <p className="hub-status-meta">
-            {operation.vehicle} · {operation.site} · {operation.window}
+            {operation.vehicle} · {operation.site}
           </p>
         </div>
         <dl className="hub-status-stats">
@@ -56,40 +82,53 @@ export function HubHome({
         </dl>
       </section>
 
-      <section className="hub-section" aria-label="Sections">
+      <section className="hub-section" aria-label="Go to">
         <header className="hub-section-head">
-          <h3>Sections</h3>
+          <h3>Go to</h3>
         </header>
-        <div className="hub-shortcuts">
-          {SHORTCUTS.map((item) => (
+        <div className="hub-destinations">
+          {DESTINATIONS.map((item) => (
             <button
               key={item.view}
               type="button"
-              className="hub-shortcut"
+              className="hub-destination"
+              data-primary={item.primary ? 'true' : 'false'}
               onClick={() => onNavigate(item.view)}
             >
-              <span className="hub-shortcut-label">{item.label}</span>
-              <span className="hub-shortcut-hint">{item.hint}</span>
+              <span className="hub-destination-label">{item.label}</span>
+              <span className="hub-destination-hint">{item.hint}</span>
+              <span className="hub-destination-go" aria-hidden="true">
+                →
+              </span>
             </button>
           ))}
         </div>
       </section>
 
-      <section className="hub-section" aria-label="Notices">
-        <header className="hub-section-head">
-          <h3>Notices</h3>
-        </header>
-        <ul className="hub-notice-list">
-          {NOTICES.map((notice) => (
-            <NoticeRow key={notice.id} notice={notice} />
-          ))}
-        </ul>
-      </section>
+      {NOTICES.length > 0 ? (
+        <section className="hub-section" aria-label="Notices">
+          <header className="hub-section-head">
+            <h3>Notes</h3>
+          </header>
+          <ul className="hub-notice-list">
+            {NOTICES.map((notice) => (
+              <NoticeRow key={notice.id} notice={notice} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="hub-section hub-section-split" aria-label="Links and schedule">
         <div>
           <header className="hub-section-head">
-            <h3>Links</h3>
+            <h3>Useful links</h3>
+            <button
+              type="button"
+              className="hub-text-btn"
+              onClick={() => onNavigate('resources')}
+            >
+              All resources
+            </button>
           </header>
           <ul className="hub-link-list">
             {quickResources.map((resource) => (
@@ -116,28 +155,46 @@ export function HubHome({
             ))}
           </ul>
         </div>
-        <div>
-          <header className="hub-section-head">
-            <h3>Upcoming</h3>
-          </header>
-          <ul className="hub-milestone-list">
-            {MILESTONES.filter((m) => m.status !== 'done')
-              .slice(0, 3)
-              .map((m) => (
-                <MilestoneRow key={m.id} milestone={m} />
+        <div className="hub-side-stack">
+          <div>
+            <header className="hub-section-head">
+              <h3>Upcoming</h3>
+              <button
+                type="button"
+                className="hub-text-btn"
+                onClick={() => onNavigate('timeline')}
+              >
+                Timeline
+              </button>
+            </header>
+            <ul className="hub-milestone-list">
+              {MILESTONES.filter((m) => m.status !== 'done')
+                .slice(0, 3)
+                .map((m) => (
+                  <MilestoneRow key={m.id} milestone={m} />
+                ))}
+            </ul>
+          </div>
+          <div>
+            <header className="hub-section-head">
+              <h3>People</h3>
+              <button
+                type="button"
+                className="hub-text-btn"
+                onClick={() => onNavigate('team')}
+              >
+                Team
+              </button>
+            </header>
+            <ul className="hub-contact-preview">
+              {CONTACTS.slice(0, 4).map((c) => (
+                <li key={c.id}>
+                  <strong>{c.name}</strong>
+                  <span>{c.role}</span>
+                </li>
               ))}
-          </ul>
-          <header className="hub-section-head hub-section-head-spaced">
-            <h3>People</h3>
-          </header>
-          <ul className="hub-contact-preview">
-            {CONTACTS.slice(0, 4).map((c) => (
-              <li key={c.id}>
-                <strong>{c.name}</strong>
-                <span>{c.role}</span>
-              </li>
-            ))}
-          </ul>
+            </ul>
+          </div>
         </div>
       </section>
     </main>

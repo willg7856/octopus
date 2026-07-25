@@ -14,8 +14,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
       <header className="hub-page-head">
         <h2 className="hub-page-title">Resources</h2>
         <p className="hub-page-lede">
-          Onshape, Drive, calendars, and related links. Edit in{' '}
-          <code>hubData.ts</code>.
+          Shared files and planning links. Update URLs in <code>hubData.ts</code>.
         </p>
       </header>
 

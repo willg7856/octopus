@@ -6,7 +6,7 @@ export function TeamPage() {
       <header className="hub-page-head">
         <h2 className="hub-page-title">Team</h2>
         <p className="hub-page-lede">
-          Contact list. Edit in <code>hubData.ts</code>.
+          Contact list for pad days and reviews. Edit in <code>hubData.ts</code>.
         </p>
       </header>
 

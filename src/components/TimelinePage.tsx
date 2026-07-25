@@ -7,7 +7,7 @@ export function TimelinePage() {
       <header className="hub-page-head">
         <h2 className="hub-page-title">Timeline</h2>
         <p className="hub-page-lede">
-          Milestones and standing notes. Day-to-day dates are on the team
+          Campaign milestones and notes. Day-to-day dates are on the team
           calendar under Resources.
         </p>
       </header>
