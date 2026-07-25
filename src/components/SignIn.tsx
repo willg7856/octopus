@@ -33,10 +33,6 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
 
   return (
     <div className="auth-screen">
-      <div className="auth-media" aria-hidden="true">
-        <img src="/hub-hero.jpg" alt="" width={1920} height={1080} />
-      </div>
-
       <button
         type="button"
         className="theme-toggle auth-theme"
@@ -51,9 +47,7 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
         <h1 className="brand auth-brand">
           Octopus<em>.</em>
         </h1>
-        <p className="auth-copy">
-          Team hub for live data, cameras, docs, and contacts.
-        </p>
+        <p className="auth-copy">Sign in to the ops hub.</p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-field">
@@ -65,7 +59,6 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@beyondstagezero.com"
             />
           </label>
           <label className="auth-field">
@@ -77,7 +70,6 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
             />
           </label>
 
@@ -88,11 +80,11 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
           ) : null}
 
           <button type="submit" className="btn btn-accent auth-submit" disabled={pending}>
-            {pending ? 'Signing in…' : 'Enter hub'}
+            {pending ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
 
-        <p className="auth-footnote">Team access · Creswick Goods Shed</p>
+        <p className="auth-footnote">Team access only</p>
       </div>
     </div>
   )

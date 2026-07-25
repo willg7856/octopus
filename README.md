@@ -1,8 +1,8 @@
 # Octopus
 
-Team hub for [Beyond Stage Zero](https://www.beyondstagezero.com) — live pad/vehicle data, camera walls, shared links (Onshape, Drive, calendars), contacts, and program timelines.
+Internal ops tool for [Beyond Stage Zero](https://www.beyondstagezero.com) — live pad/vehicle data, cameras, shared links (Onshape, Drive, calendars), contacts, and timelines.
 
-Octopus is an information hub. It is not the control system or the flight computer.
+Octopus is for looking things up and watching feeds. It is not the control system or the flight computer.
 
 ## Live site
 

@@ -9,6 +9,14 @@ type HubHomeProps = {
   onNavigate: (view: AppView) => void
 }
 
+const SHORTCUTS: { view: AppView; label: string; hint: string }[] = [
+  { view: 'live', label: 'Live', hint: 'Telemetry & link health' },
+  { view: 'cameras', label: 'Cameras', hint: 'Pad / shed / vehicle' },
+  { view: 'resources', label: 'Resources', hint: 'Onshape, Drive, calendars' },
+  { view: 'team', label: 'Team', hint: 'Contacts' },
+  { view: 'timeline', label: 'Timeline', hint: 'Milestones & notes' },
+]
+
 export function HubHome({
   operation,
   linkLabel,
@@ -20,89 +28,56 @@ export function HubHome({
     MILESTONES.find((m) => m.status === 'upcoming')
   const quickResources = RESOURCES.filter((r) =>
     ['cad', 'drive', 'planning', 'web'].includes(r.category),
-  ).slice(0, 4)
+  ).slice(0, 5)
 
   return (
     <main className="hub-page hub-home" aria-label="Hub home">
-      <section className="hub-landing" aria-label="Octopus">
-        <div className="hub-landing-media">
-          <img
-            src="/hub-hero.jpg"
-            alt="Creswick Goods Shed and pad at dusk"
-            width={1920}
-            height={1080}
-          />
-        </div>
-        <div className="hub-landing-copy">
-          <p className="hub-landing-kicker">Beyond Stage Zero</p>
-          <h2 className="hub-landing-brand">
-            Octopus<em>.</em>
-          </h2>
-          <p className="hub-landing-lede">
-            Live data, cameras, files, and people — the Goods Shed’s central
-            hub for everything stage-zero.
+      <section className="hub-status" aria-label="Current status">
+        <div className="hub-status-main">
+          <p className="hub-kicker">{operation.id}</p>
+          <h2 className="hub-status-title">{operation.label}</h2>
+          <p className="hub-status-meta">
+            {operation.vehicle} · {operation.site} · {operation.window}
           </p>
-          <div className="hub-actions">
-            <button
-              type="button"
-              className="hub-btn hub-btn-primary"
-              onClick={() => onNavigate('live')}
-            >
-              Open live data
-            </button>
-            <button
-              type="button"
-              className="hub-btn hub-btn-ghost"
-              onClick={() => onNavigate('cameras')}
-            >
-              Cameras
-            </button>
-            <button
-              type="button"
-              className="hub-btn hub-btn-ghost"
-              onClick={() => onNavigate('resources')}
-            >
-              Resources
-            </button>
-          </div>
         </div>
+        <dl className="hub-status-stats">
+          <div>
+            <dt>Link</dt>
+            <dd>{linkLabel}</dd>
+          </div>
+          <div>
+            <dt>Cameras</dt>
+            <dd>{cameraCount}</dd>
+          </div>
+          <div>
+            <dt>Next</dt>
+            <dd>{next ? next.date : '—'}</dd>
+          </div>
+        </dl>
       </section>
 
-      <section className="hub-section hub-section-now" aria-label="Current focus">
+      <section className="hub-section" aria-label="Sections">
         <header className="hub-section-head">
-          <h3>Now</h3>
-          <p>What the team is pointed at this campaign.</p>
+          <h3>Sections</h3>
         </header>
-        <div className="hub-now">
-          <div className="hub-now-main">
-            <p className="hub-kicker">{operation.id}</p>
-            <p className="hub-now-title">{operation.label}</p>
-            <p className="hub-now-meta">
-              {operation.vehicle} · {operation.site}
-            </p>
-            <p className="hub-now-window">{operation.window}</p>
-          </div>
-          <dl className="hub-now-stats">
-            <div>
-              <dt>Link</dt>
-              <dd>{linkLabel}</dd>
-            </div>
-            <div>
-              <dt>Cameras</dt>
-              <dd>{cameraCount}</dd>
-            </div>
-            <div>
-              <dt>Next</dt>
-              <dd>{next ? next.date : '—'}</dd>
-            </div>
-          </dl>
+        <div className="hub-shortcuts">
+          {SHORTCUTS.map((item) => (
+            <button
+              key={item.view}
+              type="button"
+              className="hub-shortcut"
+              onClick={() => onNavigate(item.view)}
+            >
+              <span className="hub-shortcut-label">{item.label}</span>
+              <span className="hub-shortcut-hint">{item.hint}</span>
+            </button>
+          ))}
         </div>
       </section>
 
-      <section className="hub-section" aria-label="Important notices">
+      <section className="hub-section" aria-label="Notices">
         <header className="hub-section-head">
           <h3>Notices</h3>
-          <p>Read once, then get to work.</p>
         </header>
         <ul className="hub-notice-list">
           {NOTICES.map((notice) => (
@@ -111,49 +86,39 @@ export function HubHome({
         </ul>
       </section>
 
-      <section className="hub-section" aria-label="Quick links">
-        <header className="hub-section-head">
-          <h3>Jump in</h3>
-          <p>Shared files and planning — full index under Resources.</p>
-        </header>
-        <ul className="hub-link-list">
-          {quickResources.map((resource) => (
-            <li key={resource.id}>
-              <a
-                className="hub-link-row"
-                href={resource.href}
-                target={resource.external ? '_blank' : undefined}
-                rel={resource.external ? 'noreferrer' : undefined}
-                onClick={(e) => {
-                  if (resource.href.startsWith('#')) {
-                    e.preventDefault()
-                    onNavigate(resource.href.slice(1) as AppView)
-                  }
-                }}
-              >
-                <span className="hub-link-title">{resource.title}</span>
-                <span className="hub-link-desc">{resource.description}</span>
-                <span className="hub-link-go" aria-hidden="true">
-                  →
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-        <button
-          type="button"
-          className="hub-text-btn"
-          onClick={() => onNavigate('resources')}
-        >
-          All resources
-        </button>
-      </section>
-
-      <section className="hub-section hub-section-split" aria-label="Coming up and team">
+      <section className="hub-section hub-section-split" aria-label="Links and schedule">
         <div>
           <header className="hub-section-head">
-            <h3>Coming up</h3>
-            <p>Program milestones.</p>
+            <h3>Links</h3>
+          </header>
+          <ul className="hub-link-list">
+            {quickResources.map((resource) => (
+              <li key={resource.id}>
+                <a
+                  className="hub-link-row"
+                  href={resource.href}
+                  target={resource.external ? '_blank' : undefined}
+                  rel={resource.external ? 'noreferrer' : undefined}
+                  onClick={(e) => {
+                    if (resource.href.startsWith('#')) {
+                      e.preventDefault()
+                      onNavigate(resource.href.slice(1) as AppView)
+                    }
+                  }}
+                >
+                  <span className="hub-link-title">{resource.title}</span>
+                  <span className="hub-link-desc">{resource.description}</span>
+                  <span className="hub-link-go" aria-hidden="true">
+                    {resource.external ? '↗' : '→'}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <header className="hub-section-head">
+            <h3>Upcoming</h3>
           </header>
           <ul className="hub-milestone-list">
             {MILESTONES.filter((m) => m.status !== 'done')
@@ -162,18 +127,8 @@ export function HubHome({
                 <MilestoneRow key={m.id} milestone={m} />
               ))}
           </ul>
-          <button
-            type="button"
-            className="hub-text-btn"
-            onClick={() => onNavigate('timeline')}
-          >
-            Full timeline
-          </button>
-        </div>
-        <div>
-          <header className="hub-section-head">
-            <h3>Team</h3>
-            <p>{CONTACTS.length} on the roster.</p>
+          <header className="hub-section-head hub-section-head-spaced">
+            <h3>People</h3>
           </header>
           <ul className="hub-contact-preview">
             {CONTACTS.slice(0, 4).map((c) => (
@@ -183,13 +138,6 @@ export function HubHome({
               </li>
             ))}
           </ul>
-          <button
-            type="button"
-            className="hub-text-btn"
-            onClick={() => onNavigate('team')}
-          >
-            Full contact list
-          </button>
         </div>
       </section>
     </main>

@@ -5,17 +5,16 @@ export function TimelinePage() {
   return (
     <main className="hub-page hub-page-inner" aria-label="Program timeline">
       <header className="hub-page-head">
-        <p className="hub-eyebrow">Program cadence</p>
         <h2 className="hub-page-title">Timeline</h2>
         <p className="hub-page-lede">
-          Campaign milestones and standing notes. Day-to-day dates live on the
-          team calendar under Resources.
+          Milestones and standing notes. Day-to-day dates are on the team
+          calendar under Resources.
         </p>
       </header>
 
       <section className="hub-section" aria-label="Standing notices">
         <header className="hub-section-head">
-          <h3>Standing notes</h3>
+          <h3>Notes</h3>
         </header>
         <ul className="hub-notice-list">
           {NOTICES.map((n) => (

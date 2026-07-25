@@ -35,8 +35,7 @@ export function LiveStatus({
 
       <div className="live-status-body">
         <p className="live-status-blurb">
-          Octopus shows pad and vehicle data as it arrives. Arming, range, and
-          ignition stay on the dedicated control path — not here.
+          Monitoring only. Arming and range control are not in this tool.
         </p>
 
         <div className="live-status-list" role="list">

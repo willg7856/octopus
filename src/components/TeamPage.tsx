@@ -4,10 +4,9 @@ export function TeamPage() {
   return (
     <main className="hub-page hub-page-inner" aria-label="Team contacts">
       <header className="hub-page-head">
-        <p className="hub-eyebrow">Who to ping</p>
         <h2 className="hub-page-title">Team</h2>
         <p className="hub-page-lede">
-          Roster for pad days, reviews, and logistics.
+          Contact list. Edit in <code>hubData.ts</code>.
         </p>
       </header>
 

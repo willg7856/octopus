@@ -12,10 +12,10 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
   return (
     <main className="hub-page hub-page-inner" aria-label="Resources">
       <header className="hub-page-head">
-        <p className="hub-eyebrow">Shared sources of truth</p>
         <h2 className="hub-page-title">Resources</h2>
         <p className="hub-page-lede">
-          Onshape, Drive, calendars, and ops views — one index for the team.
+          Onshape, Drive, calendars, and related links. Edit in{' '}
+          <code>hubData.ts</code>.
         </p>
       </header>
 

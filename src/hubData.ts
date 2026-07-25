@@ -163,13 +163,13 @@ export const NOTICES: Notice[] = [
   {
     id: 'n1',
     level: 'info',
-    title: 'Octopus is the team hub',
-    body: 'Use this site for live views, cameras, links, contacts, and timelines. Pad/vehicle control and the flight computer live elsewhere.',
+    title: 'View-only live feeds',
+    body: 'Live and Cameras are for monitoring. Control systems and the flight computer are separate.',
   },
   {
     id: 'n2',
     level: 'warn',
-    title: 'Placeholder links',
-    body: 'Onshape, Drive, calendar, and some contact emails are stubs — update hubData.ts with the real team URLs.',
+    title: 'Links need updating',
+    body: 'Onshape, Drive, calendar, and some emails in hubData.ts are still placeholders.',
   },
 ]

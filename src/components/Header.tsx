@@ -52,22 +52,24 @@ export function Header({
           : 'Standby'
 
   const nextLabel = theme === 'light' ? 'Dark' : 'Light'
-  const home = view === 'home'
 
   return (
-    <header className="header" data-home={home ? 'true' : 'false'}>
+    <header className="header">
       <div className="brand-block">
-        <button
-          type="button"
-          className="brand-mark"
-          onClick={() => onViewChange('home')}
-          aria-label="Octopus home"
-        >
-          <span className="brand">
-            Octopus<em>.</em>
-          </span>
-        </button>
-        <nav className="view-nav" aria-label="Hub sections">
+        <div className="brand-row">
+          <button
+            type="button"
+            className="brand-mark"
+            onClick={() => onViewChange('home')}
+            aria-label="Octopus home"
+          >
+            <span className="brand">
+              Octopus<em>.</em>
+            </span>
+          </button>
+          <span className="brand-tool-tag">BSZ ops</span>
+        </div>
+        <nav className="view-nav" aria-label="Sections">
           {NAV.map((item) => (
             <button
               key={item.id}
@@ -100,7 +102,7 @@ export function Header({
           </strong>
         </div>
         <div className="meta-item meta-focus">
-          <span>Focus</span>
+          <span>Vehicle</span>
           <strong>{sessionLabel}</strong>
         </div>
         <div className="meta-item">
@@ -109,7 +111,7 @@ export function Header({
         </div>
         {user ? (
           <div className="meta-item meta-user">
-            <span>Signed in</span>
+            <span>User</span>
             <strong title={user.email}>{user.name}</strong>
             <button type="button" className="sign-out" onClick={onSignOut}>
               Sign out
