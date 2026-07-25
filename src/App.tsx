@@ -3,12 +3,14 @@ import {
   CAMERA_FEEDS,
   CAMERA_GROUPS,
   CHANNELS,
+  CHECKLIST,
   EVENTS,
+  LINK_HOPS,
   OPERATION,
   buildThrustCurve,
   buildVehicleCurve,
 } from './data'
-import type { Channel, EventItem, OpMode, RangeState } from './types'
+import type { Channel, EventItem, LinkStatus, OpMode, RangeState } from './types'
 import { applyTheme, getPreferredTheme, type Theme } from './theme'
 import {
   fetchSession,
@@ -16,6 +18,7 @@ import {
   logout as authLogout,
   type AuthUser,
 } from './auth'
+import { downloadSessionExport } from './exportSession'
 import { Header, type AppView } from './components/Header'
 import { ModePanel } from './components/ModePanel'
 import { TelemetryStage } from './components/TelemetryStage'
@@ -44,6 +47,9 @@ export default function App() {
   const [playing, setPlaying] = useState(true)
   const [downlinkOpen, setDownlinkOpen] = useState(readStoredDownlinkOpen)
   const [view, setView] = useState<AppView>('console')
+  const [manualChecks, setManualChecks] = useState<Record<string, boolean>>({
+    crew: false,
+  })
 
   const thrustCurve = useMemo(() => buildThrustCurve(), [])
   const vehicleCurve = useMemo(() => buildVehicleCurve(), [])
@@ -54,13 +60,68 @@ export default function App() {
   )
 
   const linkState = useMemo(() => aggregateLink(channels, mode), [channels, mode])
-  const padCameras = useMemo(
-    () => cameras.filter((c) => c.group === 'pad').slice(0, 2),
-    [cameras],
-  )
+  const recording = channels.find((c) => c.id === 'shed-log')?.recording ?? false
 
   const sample = thrustCurve[Math.min(burnIndex, thrustCurve.length - 1)]
   const vehicle = vehicleCurve[Math.min(burnIndex, vehicleCurve.length - 1)]
+
+  const tPlus =
+    mode === 'idle' ? 0 : mode === 'launch' ? burnIndex / 2 : burnIndex / 20
+
+  const checks = useMemo(() => {
+    const padCamsOk = cameras
+      .filter((c) => c.group === 'pad')
+      .every((c) => c.status === 'nominal' || c.status === 'degraded')
+    const loadcell = channels.find((c) => c.id === 'pad-thrust')
+    const chamber = channels.find((c) => c.id === 'pad-chamber')
+    return {
+      loadcell: !!loadcell && loadcell.status !== 'lost' && loadcell.status !== 'standby',
+      chamber: !!chamber && chamber.status === 'nominal',
+      recording,
+      cams: padCamsOk,
+      range: range === 'go',
+      crew: !!manualChecks.crew,
+    } as Record<string, boolean>
+  }, [cameras, channels, recording, range, manualChecks])
+
+  const canArm = CHECKLIST.every((item) => checks[item.id]) && range === 'go'
+
+  const hopStatus = useMemo(() => {
+    const padCh = channels.filter((c) => c.kind === 'pad')
+    const shed = channels.find((c) => c.id === 'shed-log')
+    const veh = channels.filter((c) => c.kind === 'vehicle')
+    const padStatus = worstStatus(padCh.map((c) => c.status))
+    const video = channels.find((c) => c.id === 'pad-video')
+    const rfStatus: LinkStatus =
+      !video || video.status === 'standby'
+        ? 'standby'
+        : video.status === 'lost'
+          ? 'lost'
+          : video.latencyMs > 150 || video.dropPct > 2
+            ? 'degraded'
+            : 'nominal'
+    return {
+      pad: padStatus,
+      rf: rfStatus,
+      shed: shed?.status ?? 'standby',
+      vehicle:
+        mode === 'launch' ? worstStatus(veh.map((c) => c.status)) : ('standby' as LinkStatus),
+    } as Record<string, LinkStatus>
+  }, [channels, mode])
+
+  const { missionClock, missionState } = useMemo(() => {
+    if (mode === 'idle') return { missionClock: 'IDLE', missionState: 'idle' as const }
+    if (range === 'nogo') return { missionClock: 'SAFE', missionState: 'safe' as const }
+    if (playing || burnIndex > 0) {
+      return {
+        missionClock: `T+${tPlus.toFixed(mode === 'launch' ? 1 : 2)}s`,
+        missionState: 'live' as const,
+      }
+    }
+    if (range === 'hold') return { missionClock: 'HOLD', missionState: 'hold' as const }
+    if (armed) return { missionClock: 'T−0', missionState: 'live' as const }
+    return { missionClock: 'T−HOLD', missionState: 'hold' as const }
+  }, [mode, range, playing, burnIndex, tPlus, armed])
 
   useEffect(() => {
     applyTheme(theme)
@@ -188,6 +249,7 @@ export default function App() {
     setRange('hold')
     setBurnIndex(0)
     setPlaying(next !== 'idle')
+    setManualChecks({ crew: false })
     if (next === 'launch') {
       setSelectedChannelId('veh-avionics')
       setChannels((prev) =>
@@ -265,9 +327,9 @@ export default function App() {
 
   function handleArm() {
     setArmed((v) => {
-      if (!v && range !== 'go') {
-        setToast('Cannot arm — range is not GO')
-        pushEvent('warn', 'RANGE', 'Arm blocked — range not GO')
+      if (!v && !canArm) {
+        setToast('Cannot arm — checklist incomplete or range not GO')
+        pushEvent('warn', 'RANGE', 'Arm blocked — checklist / range')
         return v
       }
       const next = !v
@@ -295,8 +357,7 @@ export default function App() {
   }
 
   function handleToggleRecording() {
-    const shed = channels.find((c) => c.id === 'shed-log')
-    const next = !(shed?.recording ?? false)
+    const next = !recording
     setChannels((prev) =>
       prev.map((ch) =>
         ch.kind === 'pad' || ch.id === 'shed-log' ? { ...ch, recording: next } : ch,
@@ -314,7 +375,7 @@ export default function App() {
     pushEvent(
       'info',
       'MC',
-      `Manual mark · T+${(burnIndex / 20).toFixed(2)}s · ${selectedChannel?.name ?? 'channel'}`,
+      `Manual mark · T+${tPlus.toFixed(2)}s · ${selectedChannel?.name ?? 'channel'}`,
     )
     setToast('Timeline event marked')
   }
@@ -322,6 +383,24 @@ export default function App() {
   function handleClear() {
     pushEvent('warn', 'SHED', 'Goods Shed buffer cleared by operator')
     setToast('Shed buffer cleared')
+  }
+
+  function handleExport() {
+    downloadSessionExport({
+      operationId: OPERATION.id,
+      mode,
+      events,
+      thrustCurve,
+      vehicleCurve,
+    })
+    pushEvent('ok', 'SHED', 'Session CSV exported')
+    setToast('Session exported')
+  }
+
+  function handleToggleCheck(id: string) {
+    const item = CHECKLIST.find((c) => c.id === id)
+    if (!item || item.auto) return
+    setManualChecks((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
   function pushEvent(level: EventItem['level'], source: string, message: string) {
@@ -336,7 +415,7 @@ export default function App() {
           message,
         },
         ...prev,
-      ].slice(0, 12),
+      ].slice(0, 20),
     )
   }
 
@@ -377,8 +456,11 @@ export default function App() {
         <div className="shell-main">
           <Header
             clock={clock}
+            missionClock={missionClock}
+            missionState={missionState}
             linkState={linkState}
             sessionId={OPERATION.id}
+            vehicle={OPERATION.vehicle}
             theme={theme}
             view={view}
             user={user}
@@ -403,10 +485,8 @@ export default function App() {
               <p className="ops-value">{OPERATION.site}</p>
             </div>
             <div className="ops-cell">
-              <p className="ops-label">Range</p>
-              <p className="ops-value" data-range={range}>
-                {range === 'go' ? 'GO' : range === 'hold' ? 'HOLD' : 'NO-GO'}
-              </p>
+              <p className="ops-label">Window</p>
+              <p className="ops-value">{OPERATION.window}</p>
             </div>
           </div>
 
@@ -432,6 +512,9 @@ export default function App() {
                 liveTemp={mode === 'idle' ? 22 : sample.temp}
                 liveAltitude={mode === 'launch' ? vehicle.altitude : 0}
                 liveVelocity={mode === 'launch' ? vehicle.velocity : 0}
+                liveAccel={mode === 'launch' ? vehicle.accel : 0}
+                liveBattery={mode === 'launch' ? vehicle.batteryV : 0}
+                liveSats={mode === 'launch' ? vehicle.gpsSats : 0}
                 onSeek={handleSeek}
                 onTogglePlay={handleTogglePlay}
               />
@@ -439,17 +522,20 @@ export default function App() {
                 channel={selectedChannel}
                 operation={OPERATION}
                 armed={armed}
-                clock={clock}
-                cameras={padCameras}
+                rangeGo={range === 'go'}
+                checklist={CHECKLIST}
+                checks={checks}
+                hops={LINK_HOPS}
+                hopStatus={hopStatus}
+                canArm={canArm}
+                recording={recording}
+                onToggleCheck={handleToggleCheck}
                 onArm={handleArm}
                 onMarkEvent={handleMarkEvent}
                 onClear={handleClear}
                 onToggleRecording={handleToggleRecording}
-                onSelectCameras={() => setSelectedChannelId('pad-video')}
-                onOpenCameraPage={() => {
-                  setSelectedChannelId('pad-video')
-                  setView('cameras')
-                }}
+                onExport={handleExport}
+                onOpenCameras={() => setView('cameras')}
               />
             </main>
           ) : (
@@ -503,4 +589,12 @@ function aggregateLink(channels: Channel[], mode: OpMode) {
   if (mode === 'idle') return 'standby'
   if (relevant.every((c) => c.status === 'standby')) return 'standby'
   return 'nominal'
+}
+
+function worstStatus(statuses: LinkStatus[]): LinkStatus {
+  if (statuses.some((s) => s === 'lost')) return 'lost'
+  if (statuses.some((s) => s === 'degraded')) return 'degraded'
+  if (statuses.every((s) => s === 'standby')) return 'standby'
+  if (statuses.some((s) => s === 'nominal')) return 'nominal'
+  return 'standby'
 }

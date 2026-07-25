@@ -1,12 +1,16 @@
 import type { Theme } from '../theme'
 import type { AuthUser } from '../auth'
+import type { LinkStatus } from '../types'
 
 export type AppView = 'console' | 'cameras'
 
 type HeaderProps = {
   clock: string
-  linkState: 'nominal' | 'degraded' | 'lost' | 'standby'
+  missionClock: string
+  missionState: 'hold' | 'live' | 'safe' | 'idle'
+  linkState: LinkStatus
   sessionId: string
+  vehicle: string
   theme: Theme
   view: AppView
   user: AuthUser | null
@@ -17,8 +21,11 @@ type HeaderProps = {
 
 export function Header({
   clock,
+  missionClock,
+  missionState,
   linkState,
   sessionId,
+  vehicle,
   theme,
   view,
   user,
@@ -44,6 +51,10 @@ export function Header({
         <h1 className="brand">
           Octopus<em>.</em>
         </h1>
+        <p className="brand-sub">
+          Pad and vehicle data link into mission control — for static fires and
+          launches. Not the flight computer.
+        </p>
         <nav className="view-nav" aria-label="Octopus views">
           <button
             type="button"
@@ -63,6 +74,13 @@ export function Header({
           </button>
         </nav>
       </div>
+
+      <div className="mission-clock" data-state={missionState} aria-label="Mission clock">
+        <span className="mission-clock-label">Mission</span>
+        <strong className="mission-clock-value">{missionClock}</strong>
+        <span className="mission-clock-vehicle">{vehicle}</span>
+      </div>
+
       <div className="header-meta">
         <button
           type="button"
@@ -75,7 +93,7 @@ export function Header({
           {nextLabel}
         </button>
         <div className="meta-item">
-          <span>Octopus</span>
+          <span>Link</span>
           <strong className="live-dot" data-state={linkState}>
             {linkLabel}
           </strong>

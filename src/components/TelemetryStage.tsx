@@ -13,6 +13,9 @@ type TelemetryStageProps = {
   liveTemp: number
   liveAltitude: number
   liveVelocity: number
+  liveAccel: number
+  liveBattery: number
+  liveSats: number
   onSeek: (index: number) => void
   onTogglePlay: () => void
 }
@@ -28,6 +31,9 @@ export function TelemetryStage({
   liveTemp,
   liveAltitude,
   liveVelocity,
+  liveAccel,
+  liveBattery,
+  liveSats,
   onSeek,
   onTogglePlay,
 }: TelemetryStageProps) {
@@ -83,8 +89,8 @@ export function TelemetryStage({
           {isFire
             ? 'Thrust · pressure · impulse'
             : isLaunch
-              ? 'Altitude · velocity'
-              : 'No active burn'}
+              ? 'Altitude · velocity · vehicle health'
+              : 'Bench — no active burn'}
         </span>
       </div>
       <div className="stage-body">
@@ -104,21 +110,31 @@ export function TelemetryStage({
           </div>
         ) : null}
 
-        <div className={`readouts ${isFire ? 'readouts-dense' : ''}`}>
+        <div className={`readouts ${isLaunch || isFire ? 'readouts-dense' : ''}`}>
           {isLaunch ? (
             <>
               <Readout label="Altitude" value={liveAltitude.toFixed(0)} unit="m" />
               <Readout label="Velocity" value={liveVelocity.toFixed(0)} unit="m/s" />
-              <Readout label="Apogee tgt" value="3000" unit="m" />
+              <Readout label="Accel" value={liveAccel.toFixed(1)} unit="g" />
+              <Readout label="Battery" value={liveBattery.toFixed(1)} unit="V" />
+              <Readout label="GPS" value={String(liveSats)} unit="sats" />
               <Readout label="T+" value={tPlus.toFixed(1)} unit="s" />
             </>
-          ) : (
+          ) : isFire ? (
             <>
-              <Readout label="Thrust" value={thrustN.toFixed(0)} unit="N" />
-              <Readout label="Thrust" value={liveThrust.toFixed(1)} unit="kgf" />
+              <Readout
+                label="Thrust"
+                value={thrustN.toFixed(0)}
+                unit={`N · ${liveThrust.toFixed(1)} kgf`}
+              />
               <Readout label="Chamber P" value={livePressure.toFixed(0)} unit="psi" />
               <Readout label="Case temp" value={liveTemp.toFixed(0)} unit="°C" />
               <Readout label="T+" value={tPlus.toFixed(2)} unit="s" />
+            </>
+          ) : (
+            <>
+              <Readout label="Link" value="Idle" unit="" />
+              <Readout label="T+" value="0.00" unit="s" />
             </>
           )}
         </div>

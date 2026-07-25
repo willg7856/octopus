@@ -28,6 +28,8 @@ export interface VehicleSample {
   altitude: number
   velocity: number
   accel: number
+  batteryV: number
+  gpsSats: number
 }
 
 export interface EventItem {
@@ -63,4 +65,17 @@ export interface CameraFeed {
   spot: string
   status: LinkStatus
   latencyMs: number
+}
+
+export interface ChecklistItem {
+  id: string
+  label: string
+  /** When true, state is derived in App (not manually toggled). */
+  auto: boolean
+}
+
+export interface LinkHop {
+  id: string
+  label: string
+  detail: string
 }

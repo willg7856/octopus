@@ -2,7 +2,9 @@ import type {
   CameraFeed,
   CameraGroup,
   Channel,
+  ChecklistItem,
   EventItem,
+  LinkHop,
   Operation,
   TelemetryPoint,
   VehicleSample,
@@ -293,7 +295,25 @@ export function buildVehicleCurve(): VehicleSample[] {
     const altitude = Math.max(0, 3200 * Math.sin(Math.min(1, boost * 0.35 + coast) * Math.PI * 0.5))
     const velocity = t < 3.5 ? 280 * boost : Math.max(-80, 280 - (t - 3.5) * 9)
     const accel = t < 3.5 ? 8.2 : t < 45 ? -1.1 : -0.4
-    points.push({ t, altitude, velocity, accel })
+    const batteryV = Math.max(10.8, 12.4 - t * 0.012)
+    const gpsSats = t < 1 ? 6 : t < 8 ? 9 : 11
+    points.push({ t, altitude, velocity, accel, batteryV, gpsSats })
   }
   return points
 }
+
+export const CHECKLIST: ChecklistItem[] = [
+  { id: 'loadcell', label: 'Load cell zeroed', auto: true },
+  { id: 'chamber', label: 'Chamber P path nominal', auto: true },
+  { id: 'recording', label: 'Shed logger recording', auto: true },
+  { id: 'cams', label: 'Pad cameras nominal', auto: true },
+  { id: 'range', label: 'Range is GO', auto: true },
+  { id: 'crew', label: 'Crew brief complete', auto: false },
+]
+
+export const LINK_HOPS: LinkHop[] = [
+  { id: 'pad', label: 'Pad', detail: 'Instruments / mux' },
+  { id: 'rf', label: 'RF path', detail: 'Pad → Shed' },
+  { id: 'shed', label: 'Goods Shed', detail: 'Logger / MC' },
+  { id: 'vehicle', label: 'Vehicle', detail: 'Flight-day only' },
+]
