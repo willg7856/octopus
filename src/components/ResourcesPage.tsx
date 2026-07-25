@@ -10,7 +10,7 @@ type ResourcesPageProps = {
 
 export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
   return (
-    <main className="hub-page hub-page-inner" aria-label="Resources">
+    <main className="hub-page hub-page-inner resources-page" aria-label="Resources">
       <header className="hub-page-head">
         <h2 className="hub-page-title">Resources</h2>
         <p className="hub-page-lede">
@@ -18,28 +18,30 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
         </p>
       </header>
 
-      {ORDER.map((category) => {
-        const items = RESOURCES.filter((r) => r.category === category)
-        if (items.length === 0) return null
-        return (
-          <section
-            key={category}
-            className="hub-section"
-            aria-label={RESOURCE_CATEGORY_LABELS[category]}
-          >
-            <header className="hub-section-head">
-              <h3>{RESOURCE_CATEGORY_LABELS[category]}</h3>
-            </header>
-            <ul className="hub-link-list">
-              {items.map((resource) => (
-                <li key={resource.id}>
-                  <ResourceRow resource={resource} onNavigate={onNavigate} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        )
-      })}
+      <div className="resources-groups">
+        {ORDER.map((category) => {
+          const items = RESOURCES.filter((r) => r.category === category)
+          if (items.length === 0) return null
+          return (
+            <section
+              key={category}
+              className="resources-group"
+              aria-label={RESOURCE_CATEGORY_LABELS[category]}
+            >
+              <h3 className="resources-group-title">
+                {RESOURCE_CATEGORY_LABELS[category]}
+              </h3>
+              <ul className="resources-list">
+                {items.map((resource) => (
+                  <li key={resource.id}>
+                    <ResourceRow resource={resource} onNavigate={onNavigate} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )
+        })}
+      </div>
     </main>
   )
 }
@@ -54,7 +56,7 @@ function ResourceRow({
   const isInternal = resource.href.startsWith('#')
   return (
     <a
-      className="hub-link-row"
+      className="resources-item"
       href={resource.href}
       target={resource.external ? '_blank' : undefined}
       rel={resource.external ? 'noreferrer' : undefined}
@@ -64,10 +66,12 @@ function ResourceRow({
         onNavigate(resource.href.slice(1) as AppView)
       }}
     >
-      <span className="hub-link-title">{resource.title}</span>
-      <span className="hub-link-desc">{resource.description}</span>
-      <span className="hub-link-go" aria-hidden="true">
-        {resource.external ? '↗' : '→'}
+      <span className="resources-item-copy">
+        <span className="resources-item-title">{resource.title}</span>
+        <span className="resources-item-desc">{resource.description}</span>
+      </span>
+      <span className="resources-item-go" aria-hidden="true">
+        {resource.external ? 'Open ↗' : 'Open →'}
       </span>
     </a>
   )
