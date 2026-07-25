@@ -79,7 +79,7 @@ export function CameraPage({
         <div className="camera-page-meta">
           <span className="camera-page-clock">{clock}</span>
           <button type="button" className="btn btn-ghost" onClick={onBack}>
-            Home
+            Back to control
           </button>
         </div>
       </div>

@@ -3,6 +3,7 @@ import type {
   Channel,
   EventItem,
   OpMode,
+  RangeState,
   TelemetryPoint,
   VehicleSample,
 } from '../types'
@@ -26,6 +27,8 @@ type TelemetryStageProps = {
   events: EventItem[]
   selectedChannelId: string
   recording: boolean
+  armed: boolean
+  range: RangeState
   demo: boolean
   onSeek: (index: number) => void
   onTogglePlay: () => void
@@ -50,6 +53,8 @@ export function TelemetryStage({
   events,
   selectedChannelId,
   recording,
+  armed,
+  range,
   demo,
   onSeek,
   onTogglePlay,
@@ -331,18 +336,21 @@ export function TelemetryStage({
         </div>
 
         <div className="stage-fill" aria-label="Live context">
-          <div className="stage-status" aria-label="Feed status">
-            <span className="stage-pill" data-on="true">
-              View only
+          <div className="stage-status" aria-label="Console status">
+            <span className="stage-pill" data-on={armed ? 'true' : 'false'}>
+              {armed ? 'Armed' : 'Safe'}
             </span>
-            <span className="stage-pill" data-on={demo ? 'false' : 'true'}>
-              {demo ? 'Demo' : 'Connected'}
+            <span className="stage-pill" data-range={range}>
+              Range {range === 'go' ? 'GO' : range === 'hold' ? 'HOLD' : 'NO-GO'}
             </span>
             <span className="stage-pill" data-on={recording ? 'true' : 'false'}>
-              {recording ? 'Logger on' : 'Logger off'}
+              {recording ? 'Rec on' : 'Rec off'}
+            </span>
+            <span className="stage-pill" data-on={demo ? 'false' : 'true'}>
+              {demo ? 'Demo' : 'Live'}
             </span>
             <span className="stage-pill" data-on={playing ? 'true' : 'false'}>
-              {playing ? 'Sample playing' : 'Paused'}
+              {playing ? 'Playing' : 'Paused'}
             </span>
           </div>
 

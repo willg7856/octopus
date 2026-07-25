@@ -3,17 +3,17 @@ import type { AuthUser } from '../auth'
 import type { LinkStatus } from '../types'
 
 export type AppView =
-  | 'home'
-  | 'live'
+  | 'control'
   | 'cameras'
+  | 'home'
   | 'resources'
   | 'team'
   | 'timeline'
 
 const NAV: { id: AppView; label: string }[] = [
-  { id: 'home', label: 'Home' },
-  { id: 'live', label: 'Live data' },
+  { id: 'control', label: 'Control' },
   { id: 'cameras', label: 'Cameras' },
+  { id: 'home', label: 'Hub' },
   { id: 'resources', label: 'Resources' },
   { id: 'team', label: 'Team' },
   { id: 'timeline', label: 'Timeline' },
@@ -21,6 +21,8 @@ const NAV: { id: AppView; label: string }[] = [
 
 type HeaderProps = {
   clock: string
+  missionClock: string
+  missionState: 'hold' | 'live' | 'safe' | 'idle'
   linkState: LinkStatus
   sessionLabel: string
   theme: Theme
@@ -34,6 +36,8 @@ type HeaderProps = {
 
 export function Header({
   clock,
+  missionClock,
+  missionState,
   linkState,
   sessionLabel,
   theme,
@@ -46,7 +50,7 @@ export function Header({
 }: HeaderProps) {
   const linkLabel =
     linkState === 'nominal'
-      ? 'OK'
+      ? 'Link OK'
       : linkState === 'degraded'
         ? 'Degraded'
         : linkState === 'lost'
@@ -61,13 +65,13 @@ export function Header({
         <button
           type="button"
           className="brand-mark"
-          onClick={() => onViewChange('home')}
-          aria-label="Octopus home"
+          onClick={() => onViewChange('control')}
+          aria-label="Octopus control"
         >
           <span className="brand">
             Octopus<em>.</em>
           </span>
-          <span className="brand-sub">Beyond Stage Zero · ops hub</span>
+          <span className="brand-sub">Beyond Stage Zero · mission control</span>
         </button>
         <nav className="view-nav" aria-label="Sections">
           {NAV.map((item) => (
@@ -84,10 +88,16 @@ export function Header({
         </nav>
       </div>
 
+      <div className="mission-clock" data-state={missionState} aria-label="Mission clock">
+        <span className="mission-clock-label">Mission</span>
+        <strong className="mission-clock-value">{missionClock}</strong>
+        <span className="mission-clock-vehicle">{sessionLabel}</span>
+      </div>
+
       <div className="header-meta">
         {demo ? (
           <div className="meta-item meta-demo">
-            <span>Feeds</span>
+            <span>Mode</span>
             <strong>Demo</strong>
           </div>
         ) : null}
@@ -96,7 +106,6 @@ export function Header({
           className="theme-toggle"
           onClick={onToggleTheme}
           aria-label={`Switch to ${nextLabel.toLowerCase()} mode`}
-          title={`Switch to ${nextLabel.toLowerCase()} mode`}
         >
           {theme === 'light' ? <MoonIcon /> : <SunIcon />}
           <span className="theme-toggle-label">{nextLabel}</span>
@@ -106,10 +115,6 @@ export function Header({
           <strong className="live-dot" data-state={linkState}>
             {linkLabel}
           </strong>
-        </div>
-        <div className="meta-item meta-focus">
-          <span>Vehicle</span>
-          <strong>{sessionLabel}</strong>
         </div>
         <div className="meta-item">
           <span>Local</span>

@@ -95,16 +95,16 @@ export const RESOURCES: ResourceLink[] = [
     needsLink: true,
   },
   {
-    id: 'ops-live',
+    id: 'ops-control',
     category: 'ops',
-    title: 'Live data (this hub)',
-    description: 'Telemetry and link health — view only.',
-    href: '#live',
+    title: 'Mission control',
+    description: 'Range, arm, telemetry, and ops console.',
+    href: '#control',
   },
   {
     id: 'ops-cams',
     category: 'ops',
-    title: 'Cameras (this hub)',
+    title: 'Cameras',
     description: 'Pad, Goods Shed, and vehicle groups.',
     href: '#cameras',
   },
@@ -222,8 +222,8 @@ export const NOTICES: Notice[] = [
   {
     id: 'n1',
     level: 'warn',
-    title: 'Live data & cameras are demo until wired',
-    body: 'Charts and camera tiles are simulated placeholders. Real streams and telemetry still need connecting.',
+    title: 'Control & cameras are demo until wired',
+    body: 'Telemetry, range/arm UI, and camera tiles work locally for practice. Real streams and hardware still need connecting.',
   },
   {
     id: 'n2',
@@ -234,8 +234,8 @@ export const NOTICES: Notice[] = [
   {
     id: 'n3',
     level: 'info',
-    title: 'View-only hub',
-    body: 'Octopus is for watching and looking things up. Control systems stay separate.',
+    title: 'Ignition enable ≠ flight computer',
+    body: 'Mission control can arm ignition enable when checklist + range GO. The flight computer stays separate.',
   },
 ]
 

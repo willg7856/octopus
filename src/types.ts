@@ -1,9 +1,23 @@
 export type LinkStatus = 'nominal' | 'degraded' | 'lost' | 'standby'
 export type OpMode = 'static-fire' | 'launch' | 'idle'
 export type ChannelKind = 'pad' | 'vehicle' | 'shed'
+export type RangeState = 'go' | 'hold' | 'nogo'
 
 /** Until real feeds are wired, Live/Cameras run in demo mode. */
 export type DataMode = 'demo' | 'live'
+
+export interface ChecklistItem {
+  id: string
+  label: string
+  /** When true, state is derived in App (not manually toggled). */
+  auto: boolean
+}
+
+export interface LinkHop {
+  id: string
+  label: string
+  detail: string
+}
 
 export interface Channel {
   id: string
