@@ -166,18 +166,7 @@ export function TelemetryStage({
           )}
         </div>
 
-        <div
-          className="chart-wrap"
-          onPointerDown={(e) => {
-            if (mode === 'idle') return
-            ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-            seekFromPointer(e.clientX)
-          }}
-          onPointerMove={(e) => {
-            if (mode === 'idle' || !(e.buttons & 1)) return
-            seekFromPointer(e.clientX)
-          }}
-        >
+        <div className="chart-block">
           <div className="chart-legend">
             {isLaunch ? (
               <>
@@ -200,85 +189,99 @@ export function TelemetryStage({
               </>
             )}
           </div>
-          <svg
-            ref={chartRef}
-            viewBox="0 0 640 240"
-            preserveAspectRatio="none"
-            role="img"
-            aria-label="Burn curve"
+          <div
+            className="chart-wrap"
+            onPointerDown={(e) => {
+              if (mode === 'idle') return
+              ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+              seekFromPointer(e.clientX)
+            }}
+            onPointerMove={(e) => {
+              if (mode === 'idle' || !(e.buttons & 1)) return
+              seekFromPointer(e.clientX)
+            }}
           >
-            <g stroke="var(--chart-grid)" strokeWidth="1">
-              {[40, 80, 120, 160, 200].map((y) => (
-                <line key={y} x1="0" y1={y} x2="640" y2={y} />
-              ))}
-            </g>
+            <svg
+              ref={chartRef}
+              viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+              preserveAspectRatio="none"
+              role="img"
+              aria-label="Burn curve"
+            >
+              <g stroke="var(--chart-grid)" strokeWidth="1">
+                {[0.25, 0.5, 0.75].map((t) => {
+                  const y = CHART_PAD_TOP + (1 - t) * CHART_PLOT_H
+                  return <line key={t} x1="0" y1={y} x2={CHART_W} y2={y} />
+                })}
+              </g>
 
-            {isFire && thrustFill ? (
-              <path className="chart-fill" d={thrustFill} />
-            ) : null}
+              {isFire && thrustFill ? (
+                <path className="chart-fill" d={thrustFill} />
+              ) : null}
 
-            {mode !== 'idle' ? (
-              <>
-                <path
-                  className="chart-line chart-line-ghost"
-                  d={
-                    isLaunch
-                      ? buildPath(vehicleCurve, 'altitude', 'velocity', maxIndex).primary
-                      : fullBurn.primary
-                  }
-                  stroke={isLaunch || isFire ? 'var(--ignition)' : 'var(--fg-faint)'}
-                />
-                <path
-                  className="chart-line chart-line-ghost"
-                  d={
-                    isLaunch
-                      ? buildPath(vehicleCurve, 'altitude', 'velocity', maxIndex).secondary
-                      : fullBurn.secondary
-                  }
-                  stroke="var(--telem-cyan)"
-                />
-              </>
-            ) : null}
+              {mode !== 'idle' ? (
+                <>
+                  <path
+                    className="chart-line chart-line-ghost"
+                    d={
+                      isLaunch
+                        ? buildPath(vehicleCurve, 'altitude', 'velocity', maxIndex).primary
+                        : fullBurn.primary
+                    }
+                    stroke={isLaunch || isFire ? 'var(--ignition)' : 'var(--fg-faint)'}
+                  />
+                  <path
+                    className="chart-line chart-line-ghost"
+                    d={
+                      isLaunch
+                        ? buildPath(vehicleCurve, 'altitude', 'velocity', maxIndex).secondary
+                        : fullBurn.secondary
+                    }
+                    stroke="var(--telem-cyan)"
+                  />
+                </>
+              ) : null}
 
-            <path
-              className="chart-line"
-              d={chart.primary}
-              stroke={isLaunch || isFire ? 'var(--ignition)' : 'var(--fg-faint)'}
-            />
-            <path
-              className="chart-line"
-              d={chart.secondary}
-              stroke="var(--telem-cyan)"
-              style={{ animationDelay: '0.15s' }}
-            />
-
-            {isFire ? (
-              <>
-                <BurnMarker
-                  index={stats.maxThrustIndex}
-                  maxIndex={maxIndex}
-                  label="P"
-                  title="Max thrust"
-                />
-                <BurnMarker
-                  index={stats.burnoutIndex}
-                  maxIndex={maxIndex}
-                  label="B"
-                  title="Burnout"
-                />
-              </>
-            ) : null}
-
-            {mode !== 'idle' ? (
-              <line
-                className="scrub-cursor"
-                x1={(burnIndex / maxIndex) * 640}
-                y1="20"
-                x2={(burnIndex / maxIndex) * 640}
-                y2="230"
+              <path
+                className="chart-line"
+                d={chart.primary}
+                stroke={isLaunch || isFire ? 'var(--ignition)' : 'var(--fg-faint)'}
               />
-            ) : null}
-          </svg>
+              <path
+                className="chart-line"
+                d={chart.secondary}
+                stroke="var(--telem-cyan)"
+                style={{ animationDelay: '0.15s' }}
+              />
+
+              {isFire ? (
+                <>
+                  <BurnMarker
+                    index={stats.maxThrustIndex}
+                    maxIndex={maxIndex}
+                    label="P"
+                    title="Max thrust"
+                  />
+                  <BurnMarker
+                    index={stats.burnoutIndex}
+                    maxIndex={maxIndex}
+                    label="B"
+                    title="Burnout"
+                  />
+                </>
+              ) : null}
+
+              {mode !== 'idle' ? (
+                <line
+                  className="scrub-cursor"
+                  x1={(burnIndex / maxIndex) * CHART_W}
+                  y1={CHART_PAD_TOP}
+                  x2={(burnIndex / maxIndex) * CHART_W}
+                  y2={CHART_BASE}
+                />
+              ) : null}
+            </svg>
+          </div>
         </div>
 
         <div className="scrubber">
@@ -400,6 +403,18 @@ function statusTone(status: Channel['status']) {
   return 'ink'
 }
 
+const CHART_W = 640
+const CHART_H = 200
+const CHART_PAD_TOP = 22
+const CHART_PAD_BOTTOM = 16
+const CHART_PLOT_H = CHART_H - CHART_PAD_TOP - CHART_PAD_BOTTOM
+const CHART_BASE = CHART_H - CHART_PAD_BOTTOM
+
+function chartY(value: number, max: number, scale = 1) {
+  const ratio = Math.min(1, Math.max(0, value / Math.max(max, 1)))
+  return CHART_BASE - ratio * CHART_PLOT_H * scale
+}
+
 function BurnMarker({
   index,
   maxIndex,
@@ -411,12 +426,12 @@ function BurnMarker({
   label: string
   title: string
 }) {
-  const x = (index / maxIndex) * 640
+  const x = (index / maxIndex) * CHART_W
   return (
     <g className="burn-marker" aria-label={title}>
-      <line x1={x} y1="28" x2={x} y2="230" />
-      <circle cx={x} cy="28" r="7" />
-      <text x={x} y="31" textAnchor="middle">
+      <line x1={x} y1={CHART_PAD_TOP} x2={x} y2={CHART_BASE} />
+      <circle cx={x} cy={CHART_PAD_TOP} r="6" />
+      <text x={x} y={CHART_PAD_TOP + 3.5} textAnchor="middle">
         {label}
       </text>
     </g>
@@ -487,8 +502,8 @@ function buildPath(
   const toPrimary = (points: Array<TelemetryPoint | VehicleSample>) =>
     points
       .map((p, i) => {
-        const x = (i / n) * 640
-        const y = 220 - (read(p, primaryKey) / maxP) * 180
+        const x = (i / n) * CHART_W
+        const y = chartY(read(p, primaryKey), maxP)
         return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
       })
       .join(' ')
@@ -496,8 +511,8 @@ function buildPath(
   const toSecondary = (points: Array<TelemetryPoint | VehicleSample>) =>
     points
       .map((p, i) => {
-        const x = (i / n) * 640
-        const y = 220 - (Math.abs(read(p, secondaryKey)) / maxS) * 160
+        const x = (i / n) * CHART_W
+        const y = chartY(Math.abs(read(p, secondaryKey)), maxS, 0.9)
         return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
       })
       .join(' ')
@@ -516,11 +531,11 @@ function buildFill(curve: TelemetryPoint[], key: 'thrust', upTo: number) {
   if (pts.length < 2) return ''
   const line = pts
     .map((p, i) => {
-      const x = (i / n) * 640
-      const y = 220 - (p[key] / max) * 180
+      const x = (i / n) * CHART_W
+      const y = chartY(p[key], max)
       return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
     })
     .join(' ')
-  const lastX = ((end - 1) / n) * 640
-  return `${line} L${lastX.toFixed(1)},220 L0,220 Z`
+  const lastX = ((end - 1) / n) * CHART_W
+  return `${line} L${lastX.toFixed(1)},${CHART_BASE} L0,${CHART_BASE} Z`
 }
