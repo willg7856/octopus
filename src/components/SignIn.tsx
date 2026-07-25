@@ -37,18 +37,24 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
         type="button"
         className="theme-toggle auth-theme"
         onClick={onToggleTheme}
-        aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+        aria-label={`Switch to ${theme === 'light' ? 'night' : 'day'} mode`}
       >
-        {theme === 'light' ? 'Dark' : 'Light'}
+        {theme === 'light' ? 'Night' : 'Day'}
       </button>
 
       <div className="auth-panel">
-        <p className="brand-kicker">Beyond Stage Zero · Goods Shed</p>
+        <div className="brand-mark auth-mark" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        <p className="brand-kicker">Beyond Stage Zero · Creswick</p>
         <h1 className="brand auth-brand">
-          Octopus<em>.</em>
+          OCTOPUS <em>RANGE</em>
         </h1>
         <p className="auth-copy">
-          Sign in to mission control for static fires and launches.
+          Crew sign-in for the Goods Shed range board — static fires and launch
+          day paths.
         </p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -84,11 +90,11 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
           ) : null}
 
           <button type="submit" className="btn btn-accent auth-submit" disabled={pending}>
-            {pending ? 'Signing in…' : 'Sign in'}
+            {pending ? 'Checking…' : 'Enter board'}
           </button>
         </form>
 
-        <p className="auth-footnote">Team access only · Creswick Goods Shed</p>
+        <p className="auth-footnote">Crew only · Goods Shed</p>
       </div>
     </div>
   )

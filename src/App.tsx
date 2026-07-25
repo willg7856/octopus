@@ -346,9 +346,9 @@ export default function App() {
         <div className="auth-screen auth-loading">
           <p className="brand-kicker">Beyond Stage Zero · Goods Shed</p>
           <h1 className="brand auth-brand">
-            Octopus<em>.</em>
+            OCTOPUS <em>RANGE</em>
           </h1>
-          <p className="auth-copy">Checking session…</p>
+          <p className="auth-copy">Checking crew session…</p>
         </div>
       </div>
     )
@@ -414,13 +414,6 @@ export default function App() {
 
           {view === 'console' ? (
             <main className="console">
-              <ModePanel
-                mode={mode}
-                onModeChange={handleModeChange}
-                channels={channels}
-                selectedChannelId={selectedChannelId}
-                onSelectChannel={setSelectedChannelId}
-              />
               <TelemetryStage
                 mode={mode}
                 burnIndex={burnIndex}
@@ -434,6 +427,13 @@ export default function App() {
                 liveVelocity={mode === 'launch' ? vehicle.velocity : 0}
                 onSeek={handleSeek}
                 onTogglePlay={handleTogglePlay}
+              />
+              <ModePanel
+                mode={mode}
+                onModeChange={handleModeChange}
+                channels={channels}
+                selectedChannelId={selectedChannelId}
+                onSelectChannel={setSelectedChannelId}
               />
               <LinkDetail
                 channel={selectedChannel}

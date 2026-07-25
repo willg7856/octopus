@@ -42,8 +42,8 @@ export function ModePanel({
   return (
     <aside className="panel" aria-label="Operations">
       <div className="panel-head">
-        <h2 className="panel-title">Operation</h2>
-        <span className="panel-note">Mode</span>
+        <h2 className="panel-title">Modes</h2>
+        <span className="panel-note">Select</span>
       </div>
       <div className="panel-body">
         <div className="mode-list" role="group" aria-label="Octopus modes">

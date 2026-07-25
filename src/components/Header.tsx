@@ -28,22 +28,29 @@ export function Header({
 }: HeaderProps) {
   const linkLabel =
     linkState === 'nominal'
-      ? 'Link live'
+      ? 'LINK OK'
       : linkState === 'degraded'
-        ? 'Degraded'
+        ? 'DEGRADED'
         : linkState === 'lost'
-          ? 'Link lost'
-          : 'Standby'
+          ? 'LINK LOST'
+          : 'STANDBY'
 
-  const nextLabel = theme === 'light' ? 'Dark' : 'Light'
+  const nextLabel = theme === 'light' ? 'Night' : 'Day'
 
   return (
     <header className="header">
       <div className="brand-block">
-        <p className="brand-kicker">Beyond Stage Zero · Goods Shed</p>
-        <h1 className="brand">
-          Octopus<em>.</em>
-        </h1>
+        <div className="brand-mark" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className="brand-copy">
+          <p className="brand-kicker">Beyond Stage Zero</p>
+          <h1 className="brand">
+            OCTOPUS <em>RANGE</em>
+          </h1>
+        </div>
         <nav className="view-nav" aria-label="Octopus views">
           <button
             type="button"
@@ -51,7 +58,7 @@ export function Header({
             aria-pressed={view === 'console'}
             onClick={() => onViewChange('console')}
           >
-            Console
+            Board
           </button>
           <button
             type="button"
@@ -59,10 +66,11 @@ export function Header({
             aria-pressed={view === 'cameras'}
             onClick={() => onViewChange('cameras')}
           >
-            Cameras
+            Cams
           </button>
         </nav>
       </div>
+
       <div className="header-meta">
         <button
           type="button"
@@ -71,58 +79,32 @@ export function Header({
           aria-label={`Switch to ${nextLabel.toLowerCase()} mode`}
           title={`Switch to ${nextLabel.toLowerCase()} mode`}
         >
-          {theme === 'light' ? <MoonIcon /> : <SunIcon />}
           {nextLabel}
         </button>
         <div className="meta-item">
-          <span>Octopus</span>
+          <span>Path</span>
           <strong className="live-dot" data-state={linkState}>
             {linkLabel}
           </strong>
         </div>
         <div className="meta-item">
-          <span>Session</span>
+          <span>Run</span>
           <strong>{sessionId}</strong>
         </div>
         <div className="meta-item">
-          <span>Local</span>
+          <span>Clock</span>
           <strong>{clock}</strong>
         </div>
         {user ? (
           <div className="meta-item meta-user">
-            <span>Operator</span>
+            <span>Crew</span>
             <strong title={user.email}>{user.name}</strong>
             <button type="button" className="sign-out" onClick={onSignOut}>
-              Sign out
+              Out
             </button>
           </div>
         ) : null}
       </div>
     </header>
-  )
-}
-
-function MoonIcon() {
-  return (
-    <svg className="theme-toggle-icon" viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M6.2 1.3a6.5 6.5 0 0 0 8 8.9A6.6 6.6 0 1 1 6.2 1.3Z"
-      />
-    </svg>
-  )
-}
-
-function SunIcon() {
-  return (
-    <svg className="theme-toggle-icon" viewBox="0 0 16 16" aria-hidden="true">
-      <circle cx="8" cy="8" r="3.2" fill="currentColor" />
-      <path
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.1 3.1l1.1 1.1M11.8 11.8l1.1 1.1M12.9 3.1l-1.1 1.1M4.2 11.8l-1.1 1.1"
-      />
-    </svg>
   )
 }
