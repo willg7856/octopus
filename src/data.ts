@@ -2,10 +2,8 @@ import type {
   CameraFeed,
   CameraGroup,
   Channel,
-  ChecklistItem,
   DataMode,
   EventItem,
-  LinkHop,
   Operation,
   TelemetryPoint,
   VehicleSample,
@@ -336,20 +334,4 @@ export function buildVehicleCurve(): VehicleSample[] {
   }
   return points
 }
-
-export const CHECKLIST: ChecklistItem[] = [
-  { id: 'loadcell', label: 'Load cell zeroed', auto: true },
-  { id: 'chamber', label: 'Chamber P path nominal', auto: true },
-  { id: 'recording', label: 'Shed logger recording', auto: true },
-  { id: 'cams', label: 'Pad cameras ready', auto: true },
-  { id: 'range', label: 'Range is GO', auto: true },
-  { id: 'crew', label: 'Crew brief complete', auto: false },
-]
-
-export const LINK_HOPS: LinkHop[] = [
-  { id: 'pad', label: 'Pad', detail: 'Instruments / mux' },
-  { id: 'rf', label: 'RF path', detail: 'Pad → Shed' },
-  { id: 'shed', label: 'Goods Shed', detail: 'Logger / MC' },
-  { id: 'vehicle', label: 'Vehicle', detail: 'Flight-day only' },
-]
 

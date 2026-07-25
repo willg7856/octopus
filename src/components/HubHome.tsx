@@ -26,9 +26,9 @@ const DESTINATIONS: {
   primary?: boolean
 }[] = [
   {
-    view: 'control',
-    label: 'Mission control',
-    hint: 'Range, arm, telemetry, ops',
+    view: 'live',
+    label: 'Live data',
+    hint: 'Telemetry and link health',
     primary: true,
   },
   {
@@ -83,7 +83,7 @@ export function HubHome({
       <header className="hub-intro">
         <h2 className="hub-intro-title">Home</h2>
         <p className="hub-intro-copy">
-          Team hub — files, people, dates. Open Control for the console.
+          Status, feeds, files, people, and dates for the team.
         </p>
       </header>
 

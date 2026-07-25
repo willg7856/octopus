@@ -8,24 +8,21 @@ type ModePanelProps = {
   onSelectChannel: (id: string) => void
 }
 
-const MODES: { id: OpMode; name: string; desc: string; tag: string }[] = [
+const VIEWS: { id: OpMode; name: string; desc: string }[] = [
   {
     id: 'static-fire',
     name: 'Static fire',
-    desc: 'Pad instruments into the Goods Shed during ground burns.',
-    tag: 'Primary',
+    desc: 'Pad instruments during ground burns.',
   },
   {
     id: 'launch',
     name: 'Launch day',
     desc: 'Pad path plus vehicle telemetry.',
-    tag: 'Flight',
   },
   {
     id: 'idle',
-    name: 'Idle / bench',
-    desc: 'Link up without an active fire.',
-    tag: 'Standby',
+    name: 'Idle',
+    desc: 'Bench / no active burn.',
   },
 ]
 
@@ -37,14 +34,14 @@ export function ModePanel({
   onSelectChannel,
 }: ModePanelProps) {
   return (
-    <aside className="panel" aria-label="Mode and channels">
+    <aside className="panel" aria-label="Data views">
       <div className="panel-head">
-        <h2 className="panel-title">Mode & channels</h2>
-        <span className="panel-note">Select</span>
+        <h2 className="panel-title">Data view</h2>
+        <span className="panel-note">Filter</span>
       </div>
       <div className="panel-body">
-        <div className="mode-list" role="group" aria-label="Operation mode">
-          {MODES.map((m) => (
+        <div className="mode-list" role="group" aria-label="Telemetry view">
+          {VIEWS.map((m) => (
             <button
               key={m.id}
               type="button"
@@ -54,14 +51,13 @@ export function ModePanel({
             >
               <div className="mode-top">
                 <span className="mode-name">{m.name}</span>
-                <span className="chip">{m.tag}</span>
               </div>
               <p className="mode-desc">{m.desc}</p>
             </button>
           ))}
         </div>
 
-        <div className="channel-list" role="list" aria-label="Data channels">
+        <div className="channel-list" role="list" aria-label="Channels">
           {channels.map((ch) => (
             <button
               key={ch.id}

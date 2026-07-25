@@ -47,7 +47,7 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
         <h1 className="brand auth-brand">
           Octopus<em>.</em>
         </h1>
-        <p className="auth-copy">Sign in to mission control.</p>
+        <p className="auth-copy">Sign in to open the ops hub.</p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-field">
