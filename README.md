@@ -19,7 +19,11 @@ Deployed on Vercel as `beyondstagezero/octopus`.
 - **Team** — contact roster
 - **Timeline** — milestones and standing notes
 
-Edit shared links/contacts/milestones in `src/hubData.ts`.
+Edit shared links/contacts/milestones/events in `src/hubData.ts`.
+
+Camera stream URLs go in `src/data.ts` (`CAMERA_FEEDS`). Live/cameras stay in **demo** mode until `DATA_MODE` is flipped to `'live'` and real sources exist.
+
+Deep links: `#/`, `#/live`, `#/cameras`, `#/resources`, `#/team`, `#/timeline`.
 
 ## Sign in
 

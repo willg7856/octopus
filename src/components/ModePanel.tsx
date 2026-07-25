@@ -8,27 +8,21 @@ type ModePanelProps = {
   onSelectChannel: (id: string) => void
 }
 
-const MODES: { id: OpMode; name: string; desc: string; tone: string; tag: string }[] = [
+const VIEWS: { id: OpMode; name: string; desc: string }[] = [
   {
     id: 'static-fire',
     name: 'Static fire',
-    desc: 'View pad instruments as they arrive during ground burns.',
-    tone: 'ignition',
-    tag: 'Primary',
+    desc: 'Pad instruments during ground burns.',
   },
   {
     id: 'launch',
     name: 'Launch day',
-    desc: 'View pad path plus vehicle telemetry on flight day.',
-    tone: 'cyan',
-    tag: 'Flight',
+    desc: 'Pad path plus vehicle telemetry.',
   },
   {
     id: 'idle',
-    name: 'Idle / bench',
-    desc: 'Bench / integration view when nothing is live.',
-    tone: 'ink',
-    tag: 'Standby',
+    name: 'Idle',
+    desc: 'Bench / no active burn.',
   },
 ]
 
@@ -40,14 +34,14 @@ export function ModePanel({
   onSelectChannel,
 }: ModePanelProps) {
   return (
-    <aside className="panel" aria-label="Live feeds">
+    <aside className="panel" aria-label="Data views">
       <div className="panel-head">
-        <h2 className="panel-title">Feed & channels</h2>
-        <span className="panel-note">View</span>
+        <h2 className="panel-title">Data view</h2>
+        <span className="panel-note">Filter</span>
       </div>
       <div className="panel-body">
-        <div className="mode-list" role="group" aria-label="Octopus modes">
-          {MODES.map((m) => (
+        <div className="mode-list" role="group" aria-label="Telemetry view">
+          {VIEWS.map((m) => (
             <button
               key={m.id}
               type="button"
@@ -57,16 +51,13 @@ export function ModePanel({
             >
               <div className="mode-top">
                 <span className="mode-name">{m.name}</span>
-                <span className="chip" data-tone={m.tone}>
-                  {m.tag}
-                </span>
               </div>
               <p className="mode-desc">{m.desc}</p>
             </button>
           ))}
         </div>
 
-        <div className="channel-list" role="list" aria-label="Data channels">
+        <div className="channel-list" role="list" aria-label="Channels">
           {channels.map((ch) => (
             <button
               key={ch.id}
@@ -77,12 +68,8 @@ export function ModePanel({
               onClick={() => onSelectChannel(ch.id)}
             >
               <span className="channel-name">{ch.name}</span>
-              <span className="chip" data-tone={statusTone(ch.status)}>
+              <span className="live-dot" data-state={ch.status}>
                 {ch.status}
-              </span>
-              <span className="channel-meta">
-                {ch.kind.toUpperCase()} · {ch.latencyMs || '—'} ms · drop{' '}
-                {ch.dropPct.toFixed(1)}% · {ch.recording ? 'REC' : '—'}
               </span>
             </button>
           ))}
@@ -90,11 +77,4 @@ export function ModePanel({
       </div>
     </aside>
   )
-}
-
-function statusTone(status: Channel['status']) {
-  if (status === 'nominal') return 'green'
-  if (status === 'degraded') return 'amber'
-  if (status === 'lost') return 'red'
-  return 'ink'
 }

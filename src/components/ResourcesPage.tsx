@@ -1,22 +1,34 @@
 import type { AppView } from './Header'
 import type { ResourceCategory, ResourceLink } from '../types'
-import { RESOURCE_CATEGORY_LABELS, RESOURCES } from '../hubData'
+import {
+  RESOURCE_CATEGORY_LABELS,
+  RESOURCES,
+  resourceIsReady,
+} from '../hubData'
 
-const ORDER: ResourceCategory[] = ['cad', 'drive', 'planning', 'web', 'ops']
+const ORDER: ResourceCategory[] = ['cad', 'drive', 'planning', 'ops', 'web']
 
 type ResourcesPageProps = {
   onNavigate: (view: AppView) => void
 }
 
 export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
+  const missing = RESOURCES.filter((r) => !resourceIsReady(r)).length
+
   return (
     <main className="hub-page hub-page-inner resources-page" aria-label="Resources">
       <header className="hub-page-head">
         <h2 className="hub-page-title">Resources</h2>
         <p className="hub-page-lede">
-          Shared files and planning links. Update URLs in <code>hubData.ts</code>.
+          Shared files and planning links for the team.
         </p>
       </header>
+
+      {missing > 0 ? (
+        <p className="hub-banner" data-level="warn">
+          {missing} links still need real URLs.
+        </p>
+      ) : null}
 
       <div className="resources-groups">
         {ORDER.map((category) => {
@@ -53,7 +65,21 @@ function ResourceRow({
   resource: ResourceLink
   onNavigate: (view: AppView) => void
 }) {
+  const ready = resourceIsReady(resource)
   const isInternal = resource.href.startsWith('#')
+
+  if (!ready) {
+    return (
+      <div className="resources-item resources-item-missing">
+        <span className="resources-item-copy">
+          <span className="resources-item-title">{resource.title}</span>
+          <span className="resources-item-desc">{resource.description}</span>
+        </span>
+        <span className="resources-item-go">Needs link</span>
+      </div>
+    )
+  }
+
   return (
     <a
       className="resources-item"

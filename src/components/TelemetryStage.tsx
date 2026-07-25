@@ -26,6 +26,7 @@ type TelemetryStageProps = {
   events: EventItem[]
   selectedChannelId: string
   recording: boolean
+  demo: boolean
   onSeek: (index: number) => void
   onTogglePlay: () => void
   onSelectChannel: (id: string) => void
@@ -49,6 +50,7 @@ export function TelemetryStage({
   events,
   selectedChannelId,
   recording,
+  demo,
   onSeek,
   onTogglePlay,
   onSelectChannel,
@@ -107,15 +109,14 @@ export function TelemetryStage({
         <h2 className="panel-title">
           {isFire ? 'Pad burn feed' : isLaunch ? 'Vehicle downlink' : 'Link monitor'}
         </h2>
-        <span className="panel-note">
-          {isFire
-            ? 'Thrust · pressure · impulse'
-            : isLaunch
-              ? 'Altitude · velocity · vehicle health'
-              : 'Bench — no active burn'}
-        </span>
+        <span className="panel-note">{demo ? 'Demo data' : 'Live'}</span>
       </div>
       <div className="stage-body">
+        {demo ? (
+          <p className="hub-banner" data-level="warn">
+            Simulated sample curve for layout — not a live burn.
+          </p>
+        ) : null}
         {isFire ? (
           <div className="motor-stats" aria-label="Burn performance">
             <Stat label="Total impulse" value={stats.totalImpulseNs.toFixed(0)} unit="N·s" />
@@ -334,11 +335,14 @@ export function TelemetryStage({
             <span className="stage-pill" data-on="true">
               View only
             </span>
+            <span className="stage-pill" data-on={demo ? 'false' : 'true'}>
+              {demo ? 'Demo' : 'Connected'}
+            </span>
             <span className="stage-pill" data-on={recording ? 'true' : 'false'}>
               {recording ? 'Logger on' : 'Logger off'}
             </span>
             <span className="stage-pill" data-on={playing ? 'true' : 'false'}>
-              {playing ? 'Playing' : 'Paused'}
+              {playing ? 'Sample playing' : 'Paused'}
             </span>
           </div>
 

@@ -3210,6 +3210,187 @@ button {
   color: var(--fg-muted);
 }
 
+.hub-banner {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--telem-amber);
+  background: color-mix(in srgb, var(--telem-amber) 8%, var(--bg-panel-solid));
+  border-radius: var(--r);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--fg);
+}
+
+.hub-banner[data-level='info'] {
+  border-left-color: var(--telem-cyan);
+  background: color-mix(in srgb, var(--telem-cyan) 8%, var(--bg-panel-solid));
+}
+
+.hub-empty {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.hub-empty-spaced {
+  margin-top: 0.75rem;
+}
+
+.hub-health-list,
+.hub-attention-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.hub-health-list li,
+.hub-attention-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.92rem;
+}
+
+.hub-health-list span,
+.hub-attention-list li {
+  color: var(--fg-muted);
+}
+
+.meta-demo strong {
+  color: var(--telem-amber);
+}
+
+.camera-picker-row {
+  display: flex;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+.camera-focus-btn {
+  border: 1px solid var(--line);
+  background: var(--bg-panel-solid);
+  padding: 0.35rem 0.55rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  border-radius: var(--r);
+}
+
+.camera-focus-btn:hover {
+  color: var(--ignition);
+  border-color: color-mix(in srgb, var(--ignition) 40%, var(--line));
+}
+
+.camera-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 0.25rem;
+  text-align: center;
+  padding: 1rem;
+  z-index: 1;
+}
+
+.camera-empty strong {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+}
+
+.camera-empty span {
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+}
+
+.camera-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.camera-frame[data-has-stream='false'] .camera-scan {
+  opacity: 0.25;
+}
+
+.team-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.team-item {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  background: var(--bg-panel-solid);
+  border-radius: var(--r);
+}
+
+.team-item[data-ready='false'] {
+  opacity: 0.85;
+}
+
+.team-item-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+}
+
+.team-item-main strong {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.team-item-role {
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+}
+
+.team-item-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.team-item-links a {
+  color: var(--ignition);
+}
+
+.team-missing {
+  color: var(--fg-faint);
+}
+
+.team-item-notes {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 0.88rem;
+}
+
+.resources-item-missing {
+  opacity: 0.9;
+}
+
+.resources-item-missing .resources-item-go {
+  color: var(--telem-amber);
+}
+
 /* ——— Resources page ——— */
 
 .resources-page {

@@ -6,6 +6,7 @@ type CameraPageProps = {
   feeds: CameraFeed[]
   groups: CameraGroup[]
   clock: string
+  demo: boolean
   onBack: () => void
 }
 
@@ -19,6 +20,7 @@ export function CameraPage({
   feeds,
   groups,
   clock,
+  demo,
   onBack,
 }: CameraPageProps) {
   const [groupId, setGroupId] = useState<CameraGroupId>('pad')
@@ -47,14 +49,13 @@ export function CameraPage({
       const next = current.includes(id)
         ? current.filter((x) => x !== id)
         : [...current, id]
-      // Keep at least one camera on in the category
       if (next.length === 0) return prev
       return { ...prev, [groupId]: next }
     })
     if (focusedId === id) setFocusedId(null)
   }
 
-  function enableOnly(id: string) {
+  function focusCamera(id: string) {
     setEnabledByGroup((prev) => ({ ...prev, [groupId]: [id] }))
     setFocusedId(id)
   }
@@ -78,10 +79,17 @@ export function CameraPage({
         <div className="camera-page-meta">
           <span className="camera-page-clock">{clock}</span>
           <button type="button" className="btn btn-ghost" onClick={onBack}>
-            Back to hub
+            Home
           </button>
         </div>
       </div>
+
+      {demo ? (
+        <p className="hub-banner" data-level="warn">
+          No camera streams connected yet — tiles show placeholders until
+          stream URLs are added.
+        </p>
+      ) : null}
 
       <div className="camera-page-controls">
         <div className="camera-group-tabs" role="tablist" aria-label="Camera groups">
@@ -111,20 +119,27 @@ export function CameraPage({
           {groupFeeds.map((feed) => {
             const on = enabledIds.includes(feed.id)
             return (
-              <button
-                key={feed.id}
-                type="button"
-                className="camera-picker"
-                data-on={on ? 'true' : 'false'}
-                data-status={feed.status}
-                aria-pressed={on}
-                onClick={() => toggleCamera(feed.id)}
-                onDoubleClick={() => enableOnly(feed.id)}
-                title={`${feed.spot} · double-click to solo`}
-              >
-                <span className="camera-picker-dot" aria-hidden="true" />
-                {feed.name}
-              </button>
+              <div key={feed.id} className="camera-picker-row">
+                <button
+                  type="button"
+                  className="camera-picker"
+                  data-on={on ? 'true' : 'false'}
+                  data-status={feed.status}
+                  aria-pressed={on}
+                  onClick={() => toggleCamera(feed.id)}
+                  title={feed.spot}
+                >
+                  <span className="camera-picker-dot" aria-hidden="true" />
+                  {feed.name}
+                </button>
+                <button
+                  type="button"
+                  className="camera-focus-btn"
+                  onClick={() => focusCamera(feed.id)}
+                >
+                  Focus
+                </button>
+              </div>
             )
           })}
         </div>
@@ -140,8 +155,18 @@ export function CameraPage({
             onClick={() => setFocusedId(null)}
           />
           <p className="camera-page-hint">
-            Click feed to return to multi view · toggles above pick cameras
+            Click feed to return to multi view. Use Focus to solo a camera.
           </p>
+          {focused.streamUrl ? (
+            <a
+              className="hub-text-btn"
+              href={focused.streamUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open stream ↗
+            </a>
+          ) : null}
         </div>
       ) : (
         <div className={gridClass} data-count={activeFeeds.length}>

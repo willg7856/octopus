@@ -12,7 +12,7 @@ export type AppView =
 
 const NAV: { id: AppView; label: string }[] = [
   { id: 'home', label: 'Home' },
-  { id: 'live', label: 'Live' },
+  { id: 'live', label: 'Live data' },
   { id: 'cameras', label: 'Cameras' },
   { id: 'resources', label: 'Resources' },
   { id: 'team', label: 'Team' },
@@ -26,6 +26,7 @@ type HeaderProps = {
   theme: Theme
   view: AppView
   user: AuthUser | null
+  demo: boolean
   onToggleTheme: () => void
   onSignOut: () => void
   onViewChange: (view: AppView) => void
@@ -38,13 +39,14 @@ export function Header({
   theme,
   view,
   user,
+  demo,
   onToggleTheme,
   onSignOut,
   onViewChange,
 }: HeaderProps) {
   const linkLabel =
     linkState === 'nominal'
-      ? 'Live'
+      ? 'OK'
       : linkState === 'degraded'
         ? 'Degraded'
         : linkState === 'lost'
@@ -65,7 +67,7 @@ export function Header({
           <span className="brand">
             Octopus<em>.</em>
           </span>
-          <span className="brand-sub">Beyond Stage Zero</span>
+          <span className="brand-sub">Beyond Stage Zero · ops hub</span>
         </button>
         <nav className="view-nav" aria-label="Sections">
           {NAV.map((item) => (
@@ -83,6 +85,12 @@ export function Header({
       </div>
 
       <div className="header-meta">
+        {demo ? (
+          <div className="meta-item meta-demo">
+            <span>Feeds</span>
+            <strong>Demo</strong>
+          </div>
+        ) : null}
         <button
           type="button"
           className="theme-toggle"

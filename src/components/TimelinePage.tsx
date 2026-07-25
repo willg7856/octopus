@@ -1,4 +1,4 @@
-import { MILESTONES, NOTICES } from '../hubData'
+import { MILESTONES, NOTICES, UPCOMING_EVENTS } from '../hubData'
 import type { Milestone } from '../types'
 
 export function TimelinePage() {
@@ -7,10 +7,27 @@ export function TimelinePage() {
       <header className="hub-page-head">
         <h2 className="hub-page-title">Timeline</h2>
         <p className="hub-page-lede">
-          Campaign milestones and notes. Day-to-day dates are on the team
-          calendar under Resources.
+          Near-term events and program milestones. Day-to-day scheduling also
+          lives on the team calendar under Resources.
         </p>
       </header>
+
+      <section className="hub-section" aria-label="Upcoming events">
+        <header className="hub-section-head">
+          <h3>Upcoming</h3>
+        </header>
+        <ul className="team-list">
+          {UPCOMING_EVENTS.map((ev) => (
+            <li key={ev.id} className="team-item">
+              <div className="team-item-main">
+                <strong>{ev.title}</strong>
+                <span className="team-item-role">{ev.date}</span>
+              </div>
+              <p className="team-item-notes">{ev.detail}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <section className="hub-section" aria-label="Standing notices">
         <header className="hub-section-head">

@@ -3,12 +3,13 @@ import {
   CAMERA_FEEDS,
   CAMERA_GROUPS,
   CHANNELS,
+  DATA_MODE,
   EVENTS,
   OPERATION,
   buildThrustCurve,
   buildVehicleCurve,
 } from './data'
-import type { Channel, LinkStatus, OpMode } from './types'
+import type { Channel, OpMode } from './types'
 import { applyTheme, getPreferredTheme, type Theme } from './theme'
 import {
   fetchSession,
@@ -17,6 +18,7 @@ import {
   type AuthUser,
 } from './auth'
 import { downloadSessionExport } from './exportSession'
+import { navigateHash, viewFromHash } from './routing'
 import { Header, type AppView } from './components/Header'
 import { HubHome } from './components/HubHome'
 import { ResourcesPage } from './components/ResourcesPage'
@@ -29,6 +31,8 @@ import { CameraPage } from './components/CameraPage'
 import { EventStream, readStoredDownlinkOpen } from './components/EventStream'
 import { SignIn } from './components/SignIn'
 
+const DEMO = DATA_MODE === 'demo'
+
 export default function App() {
   const [theme, setTheme] = useState<Theme>(() => getPreferredTheme())
   const [authState, setAuthState] = useState<'loading' | 'signed-out' | 'signed-in'>(
@@ -39,13 +43,13 @@ export default function App() {
   const [channels, setChannels] = useState(CHANNELS)
   const [selectedChannelId, setSelectedChannelId] = useState('pad-thrust')
   const [events] = useState(EVENTS)
-  const [cameras, setCameras] = useState(CAMERA_FEEDS)
+  const [cameras] = useState(CAMERA_FEEDS)
   const [toast, setToast] = useState<string | null>(null)
   const [clock, setClock] = useState(() => formatClock(new Date()))
   const [burnIndex, setBurnIndex] = useState(12)
   const [playing, setPlaying] = useState(true)
   const [downlinkOpen, setDownlinkOpen] = useState(readStoredDownlinkOpen)
-  const [view, setView] = useState<AppView>('home')
+  const [view, setView] = useState<AppView>(() => viewFromHash())
 
   const thrustCurve = useMemo(() => buildThrustCurve(), [])
   const vehicleCurve = useMemo(() => buildVehicleCurve(), [])
@@ -58,7 +62,7 @@ export default function App() {
 
   const linkLabel =
     linkState === 'nominal'
-      ? 'Live'
+      ? 'OK'
       : linkState === 'degraded'
         ? 'Degraded'
         : linkState === 'lost'
@@ -91,50 +95,25 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (authState !== 'signed-in' || !playing || mode === 'idle') return
+    function onHash() {
+      setView(viewFromHash())
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  useEffect(() => {
+    navigateHash(view)
+  }, [view])
+
+  useEffect(() => {
+    if (!DEMO || authState !== 'signed-in' || !playing || mode === 'idle') return
     const max = mode === 'launch' ? vehicleCurve.length - 1 : thrustCurve.length - 1
     const id = window.setInterval(() => {
       setBurnIndex((prev) => (prev >= max ? 0 : prev + 1))
     }, mode === 'launch' ? 500 : 50)
     return () => window.clearInterval(id)
   }, [authState, playing, mode, thrustCurve.length, vehicleCurve.length])
-
-  useEffect(() => {
-    if (authState !== 'signed-in') return
-    const id = window.setInterval(() => {
-      setChannels((prev) =>
-        prev.map((ch) => {
-          if (ch.status === 'standby') return ch
-          const jitter = (Math.random() - 0.5) * 8
-          const latencyMs = Math.max(8, Math.round(ch.latencyMs + jitter))
-          const dropPct = Math.max(0, Number((ch.dropPct + (Math.random() - 0.5) * 0.2).toFixed(1)))
-          let status: LinkStatus = ch.status
-          if (latencyMs > 160 || dropPct > 2.5) status = 'degraded'
-          else if (ch.status !== 'lost') status = 'nominal'
-          return {
-            ...ch,
-            latencyMs,
-            dropPct,
-            status,
-            lastPacket: `${(latencyMs / 1000).toFixed(2)}s`,
-            packetAgeMs: latencyMs,
-          }
-        }),
-      )
-      setCameras((prev) =>
-        prev.map((cam) => {
-          if (cam.status === 'standby') return cam
-          const latencyMs = Math.max(20, Math.round(cam.latencyMs + (Math.random() - 0.5) * 12))
-          return {
-            ...cam,
-            latencyMs,
-            status: latencyMs > 160 ? 'degraded' : 'nominal',
-          }
-        }),
-      )
-    }, 1800)
-    return () => window.clearInterval(id)
-  }, [authState])
 
   useEffect(() => {
     if (!toast) return
@@ -157,6 +136,10 @@ export default function App() {
     setAuthState('signed-out')
   }
 
+  function handleViewChange(next: AppView) {
+    setView(next)
+  }
+
   function handleModeChange(next: OpMode) {
     setMode(next)
     setBurnIndex(next === 'idle' ? 0 : 12)
@@ -166,26 +149,15 @@ export default function App() {
         if (ch.kind === 'vehicle') {
           return {
             ...ch,
-            status: next === 'launch' ? 'nominal' : 'standby',
-            recording: next === 'launch',
-            lastPacket: next === 'launch' ? '0.05s' : '—',
-            latencyMs: next === 'launch' ? 48 : 0,
-            packetAgeMs: next === 'launch' ? 48 : 0,
+            status: next === 'launch' ? (DEMO ? 'standby' : 'nominal') : 'standby',
+            recording: next === 'launch' && !DEMO,
+            lastPacket: next === 'launch' && !DEMO ? '0.05s' : '—',
+            latencyMs: next === 'launch' && !DEMO ? 48 : 0,
+            packetAgeMs: next === 'launch' && !DEMO ? 48 : 0,
           }
         }
         return ch
       }),
-    )
-    setCameras((prev) =>
-      prev.map((cam) =>
-        cam.group === 'vehicle'
-          ? {
-              ...cam,
-              status: next === 'launch' ? 'nominal' : 'standby',
-              latencyMs: next === 'launch' ? 90 : 0,
-            }
-          : cam,
-      ),
     )
     if (next === 'launch') setSelectedChannelId('veh-avionics')
     else if (next === 'static-fire') setSelectedChannelId('pad-thrust')
@@ -209,7 +181,7 @@ export default function App() {
       thrustCurve,
       vehicleCurve,
     })
-    setToast('Session CSV downloaded')
+    setToast(DEMO ? 'Demo CSV downloaded' : 'Session CSV downloaded')
   }
 
   if (authState === 'loading') {
@@ -246,6 +218,7 @@ export default function App() {
       className="app"
       data-downlink-open={downlinkOpen && isLiveWorkbench ? 'true' : 'false'}
       data-view={view}
+      data-demo={DEMO ? 'true' : 'false'}
     >
       <div className="shell">
         <div className="shell-main">
@@ -256,21 +229,26 @@ export default function App() {
             theme={theme}
             view={view}
             user={user}
+            demo={DEMO}
             onToggleTheme={handleToggleTheme}
             onSignOut={handleSignOut}
-            onViewChange={setView}
+            onViewChange={handleViewChange}
           />
 
           {view === 'home' ? (
             <HubHome
               operation={OPERATION}
               linkLabel={linkLabel}
-              cameraCount={cameras.length}
-              onNavigate={setView}
+              channels={channels}
+              cameras={cameras}
+              demo={DEMO}
+              onNavigate={handleViewChange}
             />
           ) : null}
 
-          {view === 'resources' ? <ResourcesPage onNavigate={setView} /> : null}
+          {view === 'resources' ? (
+            <ResourcesPage onNavigate={handleViewChange} />
+          ) : null}
           {view === 'team' ? <TeamPage /> : null}
           {view === 'timeline' ? <TimelinePage /> : null}
 
@@ -292,8 +270,8 @@ export default function App() {
                   <p className="ops-value">{OPERATION.site}</p>
                 </div>
                 <div className="ops-cell">
-                  <p className="ops-label">Window</p>
-                  <p className="ops-value">{OPERATION.window}</p>
+                  <p className="ops-label">Data</p>
+                  <p className="ops-value">{DEMO ? 'Demo' : 'Live'}</p>
                 </div>
               </div>
 
@@ -323,6 +301,7 @@ export default function App() {
                   events={events}
                   selectedChannelId={selectedChannelId}
                   recording={recording}
+                  demo={DEMO}
                   onSeek={handleSeek}
                   onTogglePlay={handleTogglePlay}
                   onSelectChannel={setSelectedChannelId}
@@ -331,8 +310,9 @@ export default function App() {
                   mode={mode}
                   channels={channels}
                   selectedChannelId={selectedChannelId}
+                  demo={DEMO}
                   onSelectChannel={setSelectedChannelId}
-                  onOpenCameras={() => setView('cameras')}
+                  onOpenCameras={() => handleViewChange('cameras')}
                   onExport={handleExport}
                 />
               </main>
@@ -344,7 +324,8 @@ export default function App() {
               feeds={cameras}
               groups={CAMERA_GROUPS}
               clock={clock}
-              onBack={() => setView('home')}
+              demo={DEMO}
+              onBack={() => handleViewChange('home')}
             />
           ) : null}
         </div>

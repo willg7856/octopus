@@ -1,13 +1,24 @@
-import type { Contact, Milestone, Notice, ResourceLink } from './types'
+import type {
+  Contact,
+  Milestone,
+  Notice,
+  ResourceLink,
+  UpcomingEvent,
+} from './types'
 
-/** Edit this file to keep Octopus pointed at the team’s real sources of truth. */
+/**
+ * TEAM CONTENT — fill this file with real links and people.
+ *
+ * Anything marked needsLink: true (or href '#') shows as “Needs link” in the UI.
+ * Prefer full URLs (https://…).
+ */
 
 export const RESOURCE_CATEGORY_LABELS: Record<ResourceLink['category'], string> = {
   cad: 'CAD · Onshape',
   drive: 'Google Drive',
   planning: 'Calendar & planning',
-  web: 'Web & public',
   ops: 'Ops references',
+  web: 'Web',
 }
 
 export const RESOURCES: ResourceLink[] = [
@@ -16,78 +27,94 @@ export const RESOURCES: ResourceLink[] = [
     category: 'cad',
     title: 'STRAVOX vehicle — Onshape',
     description: 'Airframe, motor, and pad interface models.',
-    href: 'https://cad.onshape.com/',
+    href: '',
     external: true,
+    needsLink: true,
   },
   {
     id: 'onshape-pad',
     category: 'cad',
     title: 'Pad & stand — Onshape',
     description: 'Static-fire stand, load path, and pad geometry.',
-    href: 'https://cad.onshape.com/',
+    href: '',
     external: true,
+    needsLink: true,
   },
   {
     id: 'drive-root',
     category: 'drive',
-    title: 'Beyond Stage Zero — Drive',
-    description: 'Shared docs, photos, test reports, and exports.',
-    href: 'https://drive.google.com/',
+    title: 'Beyond Stage Zero — Drive root',
+    description: 'Top-level shared Drive folder.',
+    href: '',
     external: true,
+    needsLink: true,
   },
   {
     id: 'drive-tests',
     category: 'drive',
     title: 'Test campaign folder',
     description: 'Static-fire / launch folders, delay sheets, and logs.',
-    href: 'https://drive.google.com/',
+    href: '',
     external: true,
+    needsLink: true,
   },
   {
     id: 'drive-media',
     category: 'drive',
     title: 'Media & stills',
     description: 'Pad photography, edit selects, and release assets.',
-    href: 'https://drive.google.com/',
+    href: '',
     external: true,
+    needsLink: true,
   },
   {
     id: 'calendar-team',
     category: 'planning',
     title: 'Team calendar',
-    description: 'Build nights, pad days, and travel windows.',
-    href: 'https://calendar.google.com/',
+    description: 'Build nights, pad days, and travel.',
+    href: '',
     external: true,
+    needsLink: true,
   },
   {
     id: 'calendar-ops',
     category: 'planning',
     title: 'Ops / range windows',
-    description: 'Fire windows, range coordination, and blackout dates.',
-    href: 'https://calendar.google.com/',
+    description: 'Fire windows and blackout dates.',
+    href: '',
     external: true,
+    needsLink: true,
   },
   {
-    id: 'site-public',
-    category: 'web',
-    title: 'beyondstagezero.com',
-    description: 'Public site and program narrative.',
-    href: 'https://www.beyondstagezero.com',
+    id: 'ops-checklist',
+    category: 'ops',
+    title: 'Pad-day checklist',
+    description: 'Shared checklist or runbook doc.',
+    href: '',
     external: true,
+    needsLink: true,
   },
   {
     id: 'ops-live',
     category: 'ops',
     title: 'Live data (this hub)',
-    description: 'Pad / vehicle telemetry and link health — view only.',
+    description: 'Telemetry and link health — view only.',
     href: '#live',
   },
   {
     id: 'ops-cams',
     category: 'ops',
-    title: 'Camera wall (this hub)',
-    description: 'Pad, Goods Shed, and vehicle camera groups.',
+    title: 'Cameras (this hub)',
+    description: 'Pad, Goods Shed, and vehicle groups.',
     href: '#cameras',
+  },
+  {
+    id: 'site-public',
+    category: 'web',
+    title: 'beyondstagezero.com',
+    description: 'Public site.',
+    href: 'https://www.beyondstagezero.com',
+    external: true,
   },
 ]
 
@@ -95,36 +122,52 @@ export const CONTACTS: Contact[] = [
   {
     id: 'will',
     name: 'Will',
-    role: 'Program / ops lead',
+    role: 'Program / ops',
     email: 'willg@beyondstagezero.com',
-    notes: 'Primary Octopus access & Vercel ops.',
+    phone: '',
+    chat: '',
+    notes: 'Octopus / Vercel access.',
+    escalateOrder: 1,
   },
   {
     id: 'propulsion',
-    name: 'Propulsion lead',
-    role: 'Motor & static fire',
-    email: 'propulsion@beyondstagezero.com',
-    notes: 'Replace with real team emails in hubData.ts.',
+    name: '',
+    role: 'Propulsion',
+    email: '',
+    phone: '',
+    chat: '',
+    notes: 'Motor & static fire.',
+    escalateOrder: 2,
   },
   {
     id: 'avionics',
-    name: 'Avionics lead',
-    role: 'Flight computer & RF',
-    email: 'avionics@beyondstagezero.com',
+    name: '',
+    role: 'Avionics / RF',
+    email: '',
+    phone: '',
+    chat: '',
+    notes: 'Flight computer & link path.',
+    escalateOrder: 3,
   },
   {
     id: 'structures',
-    name: 'Structures lead',
-    role: 'Airframe & pad stand',
-    email: 'structures@beyondstagezero.com',
+    name: '',
+    role: 'Structures',
+    email: '',
+    phone: '',
+    chat: '',
+    notes: 'Airframe & pad stand.',
+    escalateOrder: 4,
   },
   {
     id: 'range',
-    name: 'Range / safety',
-    role: 'Range safety contact',
-    email: 'range@beyondstagezero.com',
+    name: '',
+    role: 'Range / safety',
+    email: '',
     phone: '',
-    notes: 'For pad-day coordination — not controlled from Octopus.',
+    chat: '',
+    notes: 'Pad-day range contact.',
+    escalateOrder: 1,
   },
 ]
 
@@ -140,7 +183,7 @@ export const MILESTONES: Milestone[] = [
     id: 'm2',
     date: '2026-Q3',
     title: 'B1M static-fire campaign',
-    detail: 'Ground burns with thrust / chamber pressure / case temp logged.',
+    detail: 'Ground burns with thrust / chamber / case temp logged.',
     status: 'active',
   },
   {
@@ -154,22 +197,55 @@ export const MILESTONES: Milestone[] = [
     id: 'm4',
     date: '2027-Q1',
     title: 'STRAVOX launch window',
-    detail: 'Target launch campaign — exact dates live on the team calendar.',
+    detail: 'Target launch campaign — exact dates on the team calendar.',
     status: 'upcoming',
+  },
+]
+
+/** Specific dated events — replace with real calendar items. */
+export const UPCOMING_EVENTS: UpcomingEvent[] = [
+  {
+    id: 'e1',
+    date: 'TBD',
+    title: 'Next build night',
+    detail: 'Add the real date from the team calendar.',
+  },
+  {
+    id: 'e2',
+    date: 'TBD',
+    title: 'Next pad day',
+    detail: 'Add the real date / window.',
   },
 ]
 
 export const NOTICES: Notice[] = [
   {
     id: 'n1',
-    level: 'info',
-    title: 'Live feeds are view-only',
-    body: 'Use Live and Cameras to watch the pad and vehicle. Control stays on the dedicated systems.',
+    level: 'warn',
+    title: 'Live data & cameras are demo until wired',
+    body: 'Charts and camera tiles are simulated placeholders. Real streams and telemetry still need connecting.',
   },
   {
     id: 'n2',
     level: 'warn',
-    title: 'Some links are placeholders',
-    body: 'Replace Onshape, Drive, calendar, and contact emails in hubData.ts with the real team links.',
+    title: 'Shared links need filling in',
+    body: 'Onshape, Drive, calendars, and several contacts are blank — drop real URLs and names into hubData.ts.',
+  },
+  {
+    id: 'n3',
+    level: 'info',
+    title: 'View-only hub',
+    body: 'Octopus is for watching and looking things up. Control systems stay separate.',
   },
 ]
+
+export function resourceIsReady(resource: ResourceLink) {
+  if (resource.needsLink) return false
+  if (!resource.href || resource.href === '#') return false
+  if (resource.href.startsWith('#')) return true
+  return /^https?:\/\//i.test(resource.href)
+}
+
+export function contactIsReady(contact: Contact) {
+  return Boolean(contact.name.trim() && contact.email.trim())
+}

@@ -2,6 +2,9 @@ export type LinkStatus = 'nominal' | 'degraded' | 'lost' | 'standby'
 export type OpMode = 'static-fire' | 'launch' | 'idle'
 export type ChannelKind = 'pad' | 'vehicle' | 'shed'
 
+/** Until real feeds are wired, Live/Cameras run in demo mode. */
+export type DataMode = 'demo' | 'live'
+
 export interface Channel {
   id: string
   name: string
@@ -13,6 +16,8 @@ export interface Channel {
   dropPct: number
   packetAgeMs: number
   recording: boolean
+  /** Who owns this path when something is wrong. */
+  owner?: string
 }
 
 export interface TelemetryPoint {
@@ -64,22 +69,33 @@ export interface CameraFeed {
   spot: string
   status: LinkStatus
   latencyMs: number
+  /** HLS / WebRTC / MJPEG / vendor page URL when available. */
+  streamUrl?: string
+  /** Still frame URL when available. */
+  snapshotUrl?: string
+  owner?: string
+  lastFrameAt?: string
 }
 
 export type ResourceCategory =
   | 'cad'
   | 'drive'
   | 'planning'
-  | 'web'
   | 'ops'
+  | 'web'
 
 export interface ResourceLink {
   id: string
   category: ResourceCategory
   title: string
   description: string
+  /**
+   * Put the real URL here.
+   * Leave empty or use '#' until you have it — UI will show “Needs link”.
+   */
   href: string
   external?: boolean
+  needsLink?: boolean
 }
 
 export interface Contact {
@@ -88,7 +104,11 @@ export interface Contact {
   role: string
   email: string
   phone?: string
+  /** Slack handle, Discord, etc. */
+  chat?: string
   notes?: string
+  /** Higher = contact first in an incident. */
+  escalateOrder?: number
 }
 
 export type MilestoneStatus = 'done' | 'active' | 'upcoming' | 'blocked'
@@ -99,6 +119,14 @@ export interface Milestone {
   title: string
   detail: string
   status: MilestoneStatus
+}
+
+/** Dated calendar-style items for Home / Timeline. */
+export interface UpcomingEvent {
+  id: string
+  date: string
+  title: string
+  detail: string
 }
 
 export interface Notice {
