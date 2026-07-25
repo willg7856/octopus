@@ -10,13 +10,12 @@ type ResourcesPageProps = {
 
 export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
   return (
-    <main className="hub-page" aria-label="Resources">
+    <main className="hub-page hub-page-inner" aria-label="Resources">
       <header className="hub-page-head">
         <p className="hub-eyebrow">Shared sources of truth</p>
         <h2 className="hub-page-title">Resources</h2>
         <p className="hub-page-lede">
-          Onshape, Drive, calendars, and ops views in one list. Update URLs in{' '}
-          <code>hubData.ts</code> when folders move.
+          Onshape, Drive, calendars, and ops views — one index for the team.
         </p>
       </header>
 
@@ -24,7 +23,11 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
         const items = RESOURCES.filter((r) => r.category === category)
         if (items.length === 0) return null
         return (
-          <section key={category} className="hub-section" aria-label={RESOURCE_CATEGORY_LABELS[category]}>
+          <section
+            key={category}
+            className="hub-section"
+            aria-label={RESOURCE_CATEGORY_LABELS[category]}
+          >
             <header className="hub-section-head">
               <h3>{RESOURCE_CATEGORY_LABELS[category]}</h3>
             </header>

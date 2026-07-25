@@ -3,13 +3,13 @@ import type { Milestone } from '../types'
 
 export function TimelinePage() {
   return (
-    <main className="hub-page" aria-label="Program timeline">
+    <main className="hub-page hub-page-inner" aria-label="Program timeline">
       <header className="hub-page-head">
         <p className="hub-eyebrow">Program cadence</p>
         <h2 className="hub-page-title">Timeline</h2>
         <p className="hub-page-lede">
-          Campaign milestones and standing notices. Day-to-day scheduling lives
-          on the team Google Calendar under Resources.
+          Campaign milestones and standing notes. Day-to-day dates live on the
+          team calendar under Resources.
         </p>
       </header>
 
@@ -30,7 +30,6 @@ export function TimelinePage() {
       <section className="hub-section" aria-label="Milestones">
         <header className="hub-section-head">
           <h3>Milestones</h3>
-          <p>High-level program markers — update in hubData.ts.</p>
         </header>
         <ol className="hub-timeline">
           {MILESTONES.map((m) => (

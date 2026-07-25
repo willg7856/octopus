@@ -44,25 +44,29 @@ export function Header({
 }: HeaderProps) {
   const linkLabel =
     linkState === 'nominal'
-      ? 'Link live'
+      ? 'Live'
       : linkState === 'degraded'
         ? 'Degraded'
         : linkState === 'lost'
-          ? 'Link lost'
+          ? 'Lost'
           : 'Standby'
 
   const nextLabel = theme === 'light' ? 'Dark' : 'Light'
+  const home = view === 'home'
 
   return (
-    <header className="header">
+    <header className="header" data-home={home ? 'true' : 'false'}>
       <div className="brand-block">
-        <p className="brand-kicker">Beyond Stage Zero</p>
-        <h1 className="brand">
-          Octopus<em>.</em>
-        </h1>
-        <p className="brand-sub">
-          Team hub — live data, cameras, docs, contacts, and timelines.
-        </p>
+        <button
+          type="button"
+          className="brand-mark"
+          onClick={() => onViewChange('home')}
+          aria-label="Octopus home"
+        >
+          <span className="brand">
+            Octopus<em>.</em>
+          </span>
+        </button>
         <nav className="view-nav" aria-label="Hub sections">
           {NAV.map((item) => (
             <button
@@ -87,7 +91,7 @@ export function Header({
           title={`Switch to ${nextLabel.toLowerCase()} mode`}
         >
           {theme === 'light' ? <MoonIcon /> : <SunIcon />}
-          {nextLabel}
+          <span className="theme-toggle-label">{nextLabel}</span>
         </button>
         <div className="meta-item">
           <span>Link</span>
@@ -95,7 +99,7 @@ export function Header({
             {linkLabel}
           </strong>
         </div>
-        <div className="meta-item">
+        <div className="meta-item meta-focus">
           <span>Focus</span>
           <strong>{sessionLabel}</strong>
         </div>
