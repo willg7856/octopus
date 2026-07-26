@@ -102,6 +102,13 @@ export const RESOURCES: ResourceLink[] = [
     href: '#live',
   },
   {
+    id: 'ops-hardware',
+    category: 'ops',
+    title: 'Hardware lab (this hub)',
+    description: 'Unit versions, build progress, and test log.',
+    href: '#hardware',
+  },
+  {
     id: 'ops-cams',
     category: 'ops',
     title: 'Cameras (this hub)',
@@ -236,6 +243,12 @@ export const NOTICES: Notice[] = [
     level: 'info',
     title: 'View-only hub',
     body: 'Octopus is for watching and looking things up. Mission Control (range / arm) is a separate app.',
+  },
+  {
+    id: 'n4',
+    level: 'info',
+    title: 'Hardware lab is browser-local for edits',
+    body: 'Add units, progress, and test logs under Hardware. Changes persist in this browser; use Export CSV to share, or promote keepers into src/hardwareData.ts.',
   },
 ]
 

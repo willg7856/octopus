@@ -38,6 +38,12 @@ const DESTINATIONS: {
     primary: true,
   },
   {
+    view: 'hardware',
+    label: 'Hardware',
+    hint: 'Versions, progress, test log',
+    primary: true,
+  },
+  {
     view: 'resources',
     label: 'Resources',
     hint: 'Onshape, Drive, calendars',

@@ -15,15 +15,18 @@ Deployed on Vercel as `beyondstagezero/octopus`.
 - **Home** — current focus, notices, quick links
 - **Live** — view-only telemetry and link health
 - **Cameras** — pad / Goods Shed / vehicle camera wall
+- **Hardware** — unit inventory (HW/FW versions), build progress, test log + CSV export
 - **Resources** — Onshape, Google Drive, calendars, web links
 - **Team** — contact roster
 - **Timeline** — milestones and standing notes
 
 Edit shared links/contacts/milestones/events in `src/hubData.ts`.
 
+Hardware seed inventory / sample tests live in `src/hardwareData.ts`. Runtime adds and status updates persist in the browser; use **Export CSV** on the Hardware page to share logs, or promote keepers back into the seed file.
+
 Camera stream URLs go in `src/data.ts` (`CAMERA_FEEDS`). Live/cameras stay in **demo** mode until `DATA_MODE` is flipped to `'live'` and real sources exist.
 
-Deep links: `#/`, `#/live`, `#/cameras`, `#/resources`, `#/team`, `#/timeline`.
+Deep links: `#/`, `#/live`, `#/cameras`, `#/hardware`, `#/resources`, `#/team`, `#/timeline`.
 
 ## Sign in
 

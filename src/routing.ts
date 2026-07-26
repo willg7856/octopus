@@ -4,6 +4,7 @@ const VIEWS: AppView[] = [
   'home',
   'live',
   'cameras',
+  'hardware',
   'resources',
   'team',
   'timeline',
