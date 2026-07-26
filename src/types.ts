@@ -149,3 +149,82 @@ export interface Notice {
   title: string
   body: string
 }
+
+/** Physical / electronic assets tracked in the Hardware lab. */
+export type HardwareKind =
+  | 'vehicle'
+  | 'motor'
+  | 'avionics'
+  | 'pad'
+  | 'ground'
+  | 'other'
+
+/** Build / checkout progress for a hardware unit. */
+export type HardwareStatus =
+  | 'concept'
+  | 'design'
+  | 'fab'
+  | 'assembly'
+  | 'checkout'
+  | 'flight-ready'
+  | 'retired'
+  | 'failed'
+
+export interface HardwareUnit {
+  id: string
+  name: string
+  kind: HardwareKind
+  /** Human serial / asset tag, e.g. SVX-B1M-001 */
+  serial: string
+  /** Hardware revision / drawing rev, e.g. B1M · rev A */
+  hwRev: string
+  /** Firmware / software load when applicable */
+  fwVersion?: string
+  status: HardwareStatus
+  location?: string
+  owner?: string
+  notes?: string
+  updatedAt: string
+}
+
+export interface HardwareProgressNote {
+  id: string
+  unitId: string
+  date: string
+  status: HardwareStatus
+  note: string
+  author?: string
+}
+
+export type TestKind =
+  | 'static-fire'
+  | 'cold-flow'
+  | 'fit-check'
+  | 'avionics'
+  | 'structural'
+  | 'ground'
+  | 'other'
+
+export type TestResult = 'pass' | 'fail' | 'partial' | 'aborted' | 'data-only'
+
+export interface TestMetric {
+  key: string
+  value: string
+  unit?: string
+}
+
+export interface TestLogEntry {
+  id: string
+  date: string
+  title: string
+  kind: TestKind
+  result: TestResult
+  unitIds: string[]
+  site?: string
+  operator?: string
+  summary: string
+  metrics?: TestMetric[]
+  /** Drive folder, CSV name, or other pointer to raw data */
+  dataRef?: string
+  createdAt: string
+}

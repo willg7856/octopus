@@ -6,6 +6,7 @@ export type AppView =
   | 'home'
   | 'live'
   | 'cameras'
+  | 'hardware'
   | 'resources'
   | 'team'
   | 'timeline'
@@ -14,6 +15,7 @@ const NAV: { id: AppView; label: string }[] = [
   { id: 'home', label: 'Home' },
   { id: 'live', label: 'Live data' },
   { id: 'cameras', label: 'Cameras' },
+  { id: 'hardware', label: 'Hardware' },
   { id: 'resources', label: 'Resources' },
   { id: 'team', label: 'Team' },
   { id: 'timeline', label: 'Timeline' },

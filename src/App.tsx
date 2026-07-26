@@ -24,6 +24,7 @@ import { HubHome } from './components/HubHome'
 import { ResourcesPage } from './components/ResourcesPage'
 import { TeamPage } from './components/TeamPage'
 import { TimelinePage } from './components/TimelinePage'
+import { HardwarePage } from './components/HardwarePage'
 import { ModePanel } from './components/ModePanel'
 import { TelemetryStage } from './components/TelemetryStage'
 import { LiveStatus } from './components/LiveStatus'
@@ -249,6 +250,7 @@ export default function App() {
           {view === 'resources' ? (
             <ResourcesPage onNavigate={handleViewChange} />
           ) : null}
+          {view === 'hardware' ? <HardwarePage /> : null}
           {view === 'team' ? <TeamPage /> : null}
           {view === 'timeline' ? <TimelinePage /> : null}
 
