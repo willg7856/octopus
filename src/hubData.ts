@@ -105,7 +105,7 @@ export const RESOURCES: ResourceLink[] = [
     id: 'ops-hardware',
     category: 'ops',
     title: 'Hardware lab (this hub)',
-    description: 'Unit versions, build progress, and test log.',
+    description: 'Shared team inventory, build progress, and test log.',
     href: '#hardware',
   },
   {
@@ -247,8 +247,8 @@ export const NOTICES: Notice[] = [
   {
     id: 'n4',
     level: 'info',
-    title: 'Hardware lab is browser-local for edits',
-    body: 'Add units, progress, and test logs under Hardware. Changes persist in this browser; use Export CSV to share, or promote keepers into src/hardwareData.ts.',
+    title: 'Hardware inventory is shared',
+    body: 'Anyone signed in can update units, progress, and test logs under Hardware. Changes sync for the whole team.',
   },
 ]
 

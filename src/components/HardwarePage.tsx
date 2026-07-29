@@ -1,5 +1,12 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import type { AuthUser } from '../auth'
 import { downloadHardwareLabExport } from '../exportHardware'
+import {
+  fetchSharedHardwareLab,
+  resetSharedHardwareLab,
+  saveSharedHardwareLab,
+  type SharedHardwareLab,
+} from '../hardwareApi'
 import {
   HARDWARE_KIND_LABELS,
   HARDWARE_STATUS_LABELS,
@@ -27,6 +34,7 @@ import type {
 } from '../types'
 
 type LabTab = 'hardware' | 'tests' | 'progress'
+type SyncState = 'loading' | 'shared' | 'local' | 'error'
 
 const KIND_OPTIONS = Object.entries(HARDWARE_KIND_LABELS) as [
   HardwareKind,
@@ -42,8 +50,34 @@ const TEST_RESULT_OPTIONS = Object.entries(TEST_RESULT_LABELS) as [
   string,
 ][]
 
-export function HardwarePage() {
-  const [lab, setLab] = useState<HardwareLabState>(() => loadHardwareLab())
+function flashToast(
+  setToast: (value: string | null) => void,
+  message: string,
+) {
+  setToast(message)
+  window.setTimeout(() => setToast(null), 2400)
+}
+
+function toLabState(shared: SharedHardwareLab): HardwareLabState {
+  return {
+    units: shared.units,
+    progress: shared.progress,
+    tests: shared.tests,
+  }
+}
+
+export function HardwarePage({ user }: { user: AuthUser | null }) {
+  const [lab, setLab] = useState<HardwareLabState>(() => ({
+    units: [],
+    progress: [],
+    tests: [],
+  }))
+  const [revision, setRevision] = useState(1)
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+  const [updatedBy, setUpdatedBy] = useState<string | null>(null)
+  const [sync, setSync] = useState<SyncState>('loading')
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState<LabTab>('hardware')
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -55,14 +89,71 @@ export function HardwarePage() {
   const selectedUnit =
     units.find((u) => u.id === selectedUnitId) ?? units[0] ?? null
 
-  function commit(next: HardwareLabState, message: string) {
-    saveHardwareLab(next)
-    setLab(next)
-    setToast(message)
-    window.setTimeout(() => setToast(null), 2400)
+  function applyShared(shared: SharedHardwareLab) {
+    setLab(toLabState(shared))
+    setRevision(shared.revision)
+    setUpdatedAt(shared.updatedAt)
+    setUpdatedBy(shared.updatedBy)
+    setSync('shared')
+    setSyncError(null)
+  }
+
+  async function loadShared(opts?: { quiet?: boolean }) {
+    const result = await fetchSharedHardwareLab()
+    if (result.ok) {
+      applyShared(result.lab)
+      if (!opts?.quiet) flashToast(setToast, 'Team inventory loaded')
+      return
+    }
+
+    if (import.meta.env.DEV && (result.status === 0 || result.status === 404)) {
+      const local = loadHardwareLab()
+      setLab(local)
+      setSync('local')
+      setSyncError(null)
+      return
+    }
+
+    setSync('error')
+    setSyncError(result.error)
+  }
+
+  useEffect(() => {
+    void loadShared({ quiet: true })
+  }, [])
+
+  async function commit(next: HardwareLabState, message: string) {
+    if (sync === 'local') {
+      saveHardwareLab(next)
+      setLab(next)
+      flashToast(setToast, message)
+      return
+    }
+
+    setSaving(true)
+    const result = await saveSharedHardwareLab(next, revision)
+    setSaving(false)
+
+    if ('conflict' in result && result.conflict) {
+      applyShared(result.lab)
+      flashToast(
+        setToast,
+        'Someone else saved first — refreshed. Re-apply your change.',
+      )
+      return
+    }
+
+    if (!result.ok) {
+      flashToast(setToast, result.error)
+      return
+    }
+
+    applyShared(result.lab)
+    flashToast(setToast, message)
   }
 
   function handleAddUnit(unit: Omit<HardwareUnit, 'id' | 'updatedAt'>) {
+    const author = unit.owner || user?.name || undefined
     const nextUnit: HardwareUnit = {
       ...unit,
       id: newId('hw'),
@@ -74,39 +165,40 @@ export function HardwarePage() {
       date: new Date().toISOString().slice(0, 10),
       status: nextUnit.status,
       note: `Added to inventory${nextUnit.notes ? ` — ${nextUnit.notes}` : '.'}`,
-      author: nextUnit.owner || undefined,
+      author,
     }
-    commit(
+    void commit(
       {
         ...lab,
         units: [...lab.units, nextUnit],
         progress: [note, ...lab.progress],
       },
-      'Hardware unit saved',
+      'Hardware unit saved for the team',
     )
     setSelectedUnitId(nextUnit.id)
     setTab('hardware')
   }
 
   function handleUpdateUnitStatus(unitId: string, status: HardwareStatus, note: string) {
-    const updatedAt = new Date().toISOString()
+    const updatedAtNext = new Date().toISOString()
     const nextUnits = lab.units.map((u) =>
-      u.id === unitId ? { ...u, status, updatedAt } : u,
+      u.id === unitId ? { ...u, status, updatedAt: updatedAtNext } : u,
     )
     const progressNote: HardwareProgressNote = {
       id: newId('pg'),
       unitId,
-      date: updatedAt.slice(0, 10),
+      date: updatedAtNext.slice(0, 10),
       status,
       note: note.trim() || `Status → ${HARDWARE_STATUS_LABELS[status]}`,
+      author: user?.name || undefined,
     }
-    commit(
+    void commit(
       {
         ...lab,
         units: nextUnits,
         progress: [progressNote, ...lab.progress],
       },
-      'Progress updated',
+      'Progress updated for the team',
     )
   }
 
@@ -115,30 +207,42 @@ export function HardwarePage() {
       ...entry,
       id: newId('test'),
       createdAt: new Date().toISOString(),
+      operator: entry.operator || user?.name || undefined,
     }
-    commit({ ...lab, tests: [next, ...lab.tests] }, 'Test log entry saved')
+    void commit({ ...lab, tests: [next, ...lab.tests] }, 'Test log saved for the team')
     setTab('tests')
   }
 
   function handleExport() {
     downloadHardwareLabExport(lab)
-    setToast('Hardware lab CSV downloaded')
-    window.setTimeout(() => setToast(null), 2400)
+    flashToast(setToast, 'Hardware lab CSV downloaded')
   }
 
-  function handleReset() {
-    if (
-      !window.confirm(
-        'Reset hardware lab to seed data? Browser-only edits will be cleared.',
-      )
-    ) {
+  async function handleReset() {
+    const sharedWarning =
+      sync === 'shared'
+        ? 'Reset the shared team inventory to seed data? This affects everyone.'
+        : 'Reset hardware lab to seed data? Browser-only edits will be cleared.'
+    if (!window.confirm(sharedWarning)) return
+
+    if (sync === 'local') {
+      const next = resetHardwareLab()
+      setLab(next)
+      setSelectedUnitId(null)
+      flashToast(setToast, 'Reset to seed data')
       return
     }
-    const next = resetHardwareLab()
-    setLab(next)
+
+    setSaving(true)
+    const result = await resetSharedHardwareLab()
+    setSaving(false)
+    if (!result.ok) {
+      flashToast(setToast, result.error)
+      return
+    }
+    applyShared(result.lab)
     setSelectedUnitId(null)
-    setToast('Reset to seed data')
-    window.setTimeout(() => setToast(null), 2400)
+    flashToast(setToast, 'Shared inventory reset to seed')
   }
 
   const counts = {
@@ -149,123 +253,161 @@ export function HardwarePage() {
     ).length,
   }
 
+  const syncLede =
+    sync === 'shared'
+      ? 'Shared team inventory — anyone signed in can update units, progress, and tests.'
+      : sync === 'local'
+        ? 'Local Vite fallback — edits stay in this browser until the shared API is available.'
+        : sync === 'error'
+          ? 'Shared inventory unavailable. Check sign-in and Vercel Blob setup.'
+          : 'Loading shared team inventory…'
+
   return (
     <main className="hub-page hub-page-inner hardware-page" aria-label="Hardware lab">
       <header className="hub-page-head hardware-head">
         <div>
           <h2 className="hub-page-title">Hardware</h2>
-          <p className="hub-page-lede">
-            Inventory with hardware/firmware versions, build progress, and a
-            test log. Edits stay in this browser until you export or promote
-            them into seed data.
-          </p>
+          <p className="hub-page-lede">{syncLede}</p>
+          {sync === 'shared' && updatedAt ? (
+            <p className="hardware-sync-meta">
+              Rev {revision} · last update {new Date(updatedAt).toLocaleString()}
+              {updatedBy ? ` · ${updatedBy}` : ''}
+              {saving ? ' · saving…' : ''}
+            </p>
+          ) : null}
+          {sync === 'error' && syncError ? (
+            <p className="hardware-sync-error" role="alert">
+              {syncError}
+            </p>
+          ) : null}
         </div>
         <div className="hardware-head-actions">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void loadShared()}
+            disabled={sync === 'loading' || saving}
+          >
+            Refresh
+          </button>
           <button type="button" className="btn btn-ghost" onClick={handleExport}>
             Export CSV
           </button>
-          <button type="button" className="btn btn-ghost" onClick={handleReset}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void handleReset()}
+            disabled={sync === 'loading' || sync === 'error' || saving}
+          >
             Reset seed
           </button>
         </div>
       </header>
 
-      <dl className="hardware-stats" aria-label="Lab summary">
-        <div>
-          <dt>Units</dt>
-          <dd>{counts.units}</dd>
-        </div>
-        <div>
-          <dt>Active</dt>
-          <dd>{counts.active}</dd>
-        </div>
-        <div>
-          <dt>Test logs</dt>
-          <dd>{counts.tests}</dd>
-        </div>
-      </dl>
+      {sync === 'loading' ? (
+        <p className="hub-empty hub-empty-spaced">Loading team inventory…</p>
+      ) : null}
 
-      <div className="hardware-tabs" role="tablist" aria-label="Hardware lab sections">
-        {(
-          [
-            ['hardware', 'Units & versions'],
-            ['progress', 'Progress'],
-            ['tests', 'Test log'],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            className="hardware-tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {sync === 'shared' || sync === 'local' ? (
+        <>
+          <dl className="hardware-stats" aria-label="Lab summary">
+            <div>
+              <dt>Units</dt>
+              <dd>{counts.units}</dd>
+            </div>
+            <div>
+              <dt>Active</dt>
+              <dd>{counts.active}</dd>
+            </div>
+            <div>
+              <dt>Test logs</dt>
+              <dd>{counts.tests}</dd>
+            </div>
+          </dl>
 
-      {tab === 'hardware' ? (
-        <div className="hardware-split">
-          <section className="hub-section" aria-label="Hardware units">
-            <header className="hub-section-head">
-              <h3>Inventory</h3>
-            </header>
-            <ul className="hardware-unit-list">
-              {units.map((unit) => (
-                <li key={unit.id}>
-                  <button
-                    type="button"
-                    className="hardware-unit-row"
-                    data-selected={selectedUnit?.id === unit.id ? 'true' : 'false'}
-                    onClick={() => setSelectedUnitId(unit.id)}
-                  >
-                    <span className="hardware-unit-main">
-                      <strong>{unit.name}</strong>
-                      <span className="hardware-unit-meta">
-                        {unit.serial} · {HARDWARE_KIND_LABELS[unit.kind]}
-                      </span>
-                    </span>
-                    <span className="hub-status-pill" data-status={statusPill(unit.status)}>
-                      {HARDWARE_STATUS_LABELS[unit.status]}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <div className="hardware-detail-stack">
-            {selectedUnit ? (
-              <UnitDetail
-                key={selectedUnit.id}
-                unit={selectedUnit}
-                progress={progress.filter((p) => p.unitId === selectedUnit.id)}
-                tests={tests.filter((t) => t.unitIds.includes(selectedUnit.id))}
-                onUpdateStatus={handleUpdateUnitStatus}
-              />
-            ) : (
-              <p className="hub-empty">No hardware units yet.</p>
-            )}
-            <AddUnitForm onAdd={handleAddUnit} />
+          <div className="hardware-tabs" role="tablist" aria-label="Hardware lab sections">
+            {(
+              [
+                ['hardware', 'Units & versions'],
+                ['progress', 'Progress'],
+                ['tests', 'Test log'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                className="hardware-tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        </div>
-      ) : null}
 
-      {tab === 'progress' ? (
-        <ProgressBoard
-          units={units}
-          progress={progress}
-          onUpdateStatus={handleUpdateUnitStatus}
-        />
-      ) : null}
+          {tab === 'hardware' ? (
+            <div className="hardware-split">
+              <section className="hub-section" aria-label="Hardware units">
+                <header className="hub-section-head">
+                  <h3>Inventory</h3>
+                </header>
+                <ul className="hardware-unit-list">
+                  {units.map((unit) => (
+                    <li key={unit.id}>
+                      <button
+                        type="button"
+                        className="hardware-unit-row"
+                        data-selected={selectedUnit?.id === unit.id ? 'true' : 'false'}
+                        onClick={() => setSelectedUnitId(unit.id)}
+                      >
+                        <span className="hardware-unit-main">
+                          <strong>{unit.name}</strong>
+                          <span className="hardware-unit-meta">
+                            {unit.serial} · {HARDWARE_KIND_LABELS[unit.kind]}
+                          </span>
+                        </span>
+                        <span className="hub-status-pill" data-status={statusPill(unit.status)}>
+                          {HARDWARE_STATUS_LABELS[unit.status]}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
 
-      {tab === 'tests' ? (
-        <div className="hardware-split hardware-split-tests">
-          <TestLogList units={lab.units} tests={tests} />
-          <AddTestForm units={units} onAdd={handleAddTest} />
-        </div>
+              <div className="hardware-detail-stack">
+                {selectedUnit ? (
+                  <UnitDetail
+                    key={selectedUnit.id}
+                    unit={selectedUnit}
+                    progress={progress.filter((p) => p.unitId === selectedUnit.id)}
+                    tests={tests.filter((t) => t.unitIds.includes(selectedUnit.id))}
+                    onUpdateStatus={handleUpdateUnitStatus}
+                  />
+                ) : (
+                  <p className="hub-empty">No hardware units yet.</p>
+                )}
+                <AddUnitForm onAdd={handleAddUnit} />
+              </div>
+            </div>
+          ) : null}
+
+          {tab === 'progress' ? (
+            <ProgressBoard
+              units={units}
+              progress={progress}
+              onUpdateStatus={handleUpdateUnitStatus}
+            />
+          ) : null}
+
+          {tab === 'tests' ? (
+            <div className="hardware-split hardware-split-tests">
+              <TestLogList units={lab.units} tests={tests} />
+              <AddTestForm units={units} onAdd={handleAddTest} />
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {toast ? (

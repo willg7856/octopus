@@ -3551,6 +3551,18 @@ button {
   gap: 1.25rem;
 }
 
+.hardware-sync-meta {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.hardware-sync-error {
+  margin: 0.55rem 0 0;
+  color: var(--crit, #b42318);
+  font-size: 0.9rem;
+}
+
 .hardware-head {
   display: flex;
   align-items: flex-end;

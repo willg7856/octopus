@@ -250,7 +250,7 @@ export default function App() {
           {view === 'resources' ? (
             <ResourcesPage onNavigate={handleViewChange} />
           ) : null}
-          {view === 'hardware' ? <HardwarePage /> : null}
+          {view === 'hardware' ? <HardwarePage user={user} /> : null}
           {view === 'team' ? <TeamPage /> : null}
           {view === 'timeline' ? <TimelinePage /> : null}
 
