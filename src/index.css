@@ -151,12 +151,9 @@ button {
   grid-template-rows: auto auto minmax(0, 1fr);
 }
 
-.app[data-view='home'] .shell-main,
-.app[data-view='resources'] .shell-main,
 .app[data-view='inventory'] .shell-main,
-.app[data-view='vehicles'] .shell-main,
-.app[data-view='team'] .shell-main,
-.app[data-view='timeline'] .shell-main {
+.app[data-view='hardware'] .shell-main,
+.app[data-view='vehicles'] .shell-main {
   overflow: auto;
 }
 

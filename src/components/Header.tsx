@@ -1,25 +1,12 @@
 import type { Theme } from '../theme'
 import type { AuthUser } from '../auth'
 
-export type AppView =
-  | 'home'
-  | 'live'
-  | 'cameras'
-  | 'inventory'
-  | 'vehicles'
-  | 'resources'
-  | 'team'
-  | 'timeline'
+export type AppView = 'inventory' | 'hardware' | 'vehicles'
 
 const NAV: { id: AppView; label: string }[] = [
-  { id: 'home', label: 'Home' },
   { id: 'inventory', label: 'Inventory' },
-  { id: 'vehicles', label: 'Vehicles' },
-  { id: 'live', label: 'Live' },
-  { id: 'cameras', label: 'Cameras' },
-  { id: 'resources', label: 'Resources' },
-  { id: 'team', label: 'Team' },
-  { id: 'timeline', label: 'Timeline' },
+  { id: 'hardware', label: 'Hardware' },
+  { id: 'vehicles', label: 'Production' },
 ]
 
 type HeaderProps = {
@@ -47,8 +34,8 @@ export function Header({
         <button
           type="button"
           className="brand-mark"
-          onClick={() => onViewChange('home')}
-          aria-label="Octopus home"
+          onClick={() => onViewChange('inventory')}
+          aria-label="Octopus inventory"
         >
           <span className="brand">
             Octopus<em>.</em>

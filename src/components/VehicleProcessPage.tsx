@@ -115,7 +115,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   return (
     <main className="simple-page" aria-label="Vehicle process">
       <header className="simple-head">
-        <h2>Vehicles</h2>
+        <h2>Vehicle production</h2>
         <div className="simple-head-actions">
           {saving ? <span className="simple-muted">Saving…</span> : null}
           <button
