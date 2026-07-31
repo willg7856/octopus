@@ -1,25 +1,27 @@
 import type { AppView } from './components/Header'
 
-const VIEWS: AppView[] = [
-  'home',
-  'live',
-  'cameras',
-  'hardware',
-  'resources',
-  'team',
-  'timeline',
-]
+const VIEWS: AppView[] = ['inventory', 'hardware', 'vehicles']
 
 export function viewFromHash(hash = window.location.hash): AppView {
   const raw = hash.replace(/^#\/?/, '').split('/')[0]?.toLowerCase()
-  // Old mission-control deep link → hub live view
-  if (raw === 'control') return 'live'
+  if (raw === 'home' || raw === '' || !raw) return 'inventory'
+  // Old hub deep links land on inventory
+  if (
+    raw === 'live' ||
+    raw === 'control' ||
+    raw === 'cameras' ||
+    raw === 'resources' ||
+    raw === 'team' ||
+    raw === 'timeline'
+  ) {
+    return 'inventory'
+  }
   if (raw && VIEWS.includes(raw as AppView)) return raw as AppView
-  return 'home'
+  return 'inventory'
 }
 
 export function hashForView(view: AppView) {
-  return view === 'home' ? '#/' : `#/${view}`
+  return `#/${view}`
 }
 
 export function navigateHash(view: AppView) {

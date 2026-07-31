@@ -2,10 +2,21 @@ import type {
   HardwareProgressNote,
   HardwareStatus,
   HardwareUnit,
+  ProcessStepStatus,
   TestLogEntry,
+  VehicleProcess,
+  VehicleProcessStep,
 } from './types'
+import {
+  SEED_HARDWARE,
+  SEED_PROCESSES,
+  SEED_PROGRESS,
+  SEED_TESTS,
+} from './hardwareSeed'
 
-const STORAGE_KEY = 'octopus.hardware-lab.v1'
+const STORAGE_KEY = 'octopus.hardware-lab.v2'
+
+export { SEED_HARDWARE, SEED_PROCESSES, SEED_PROGRESS, SEED_TESTS }
 
 export const HARDWARE_KIND_LABELS: Record<HardwareUnit['kind'], string> = {
   vehicle: 'Vehicle',
@@ -56,168 +67,34 @@ export const TEST_RESULT_LABELS: Record<TestLogEntry['result'], string> = {
   'data-only': 'Data only',
 }
 
-/** Seed inventory — edit here for shared defaults; browser edits layer on top. */
-export const SEED_HARDWARE: HardwareUnit[] = [
-  {
-    id: 'hw-stravox-b1m',
-    name: 'STRAVOX airframe',
-    kind: 'vehicle',
-    serial: 'SVX-B1M-001',
-    hwRev: 'B1M · rev A',
-    fwVersion: '',
-    status: 'assembly',
-    location: 'Goods Shed',
-    owner: 'Structures',
-    notes: 'Primary flight vehicle for B1M campaign.',
-    updatedAt: '2026-07-20T10:00:00.000Z',
-  },
-  {
-    id: 'hw-motor-b1m',
-    name: 'B1M motor',
-    kind: 'motor',
-    serial: 'MTR-B1M-001',
-    hwRev: 'B1M · grain set 1',
-    status: 'checkout',
-    location: 'Goods Shed · prop bay',
-    owner: 'Propulsion',
-    notes: 'Static-fire candidate. Case temp instrumentation fitted.',
-    updatedAt: '2026-07-22T08:30:00.000Z',
-  },
-  {
-    id: 'hw-avionics-01',
-    name: 'Flight computer',
-    kind: 'avionics',
-    serial: 'AVN-FC-01',
-    hwRev: 'rev B',
-    fwVersion: '0.4.2-dev',
-    status: 'checkout',
-    location: 'Goods Shed · bench',
-    owner: 'Avionics',
-    notes: 'Downlink dry-run load. GPS path not fully exercised.',
-    updatedAt: '2026-07-24T14:15:00.000Z',
-  },
-  {
-    id: 'hw-pad-stand',
-    name: 'Static-fire stand',
-    kind: 'pad',
-    serial: 'PAD-SF-01',
-    hwRev: 'rev C',
-    status: 'flight-ready',
-    location: 'Pad',
-    owner: 'Structures',
-    notes: 'Load path verified. Thrust cell cal current.',
-    updatedAt: '2026-07-18T16:00:00.000Z',
-  },
-  {
-    id: 'hw-logger',
-    name: 'Goods Shed logger',
-    kind: 'ground',
-    serial: 'GSE-LOG-01',
-    hwRev: 'rev A',
-    fwVersion: '1.1.0',
-    status: 'flight-ready',
-    location: 'Goods Shed',
-    owner: 'Ops',
-    notes: 'Records pad instruments during burns.',
-    updatedAt: '2026-07-15T09:00:00.000Z',
-  },
-]
+export const PROCESS_STEP_STATUS_LABELS: Record<ProcessStepStatus, string> = {
+  pending: 'Pending',
+  active: 'Active',
+  blocked: 'Blocked',
+  done: 'Done',
+  skipped: 'Skipped',
+}
 
-export const SEED_PROGRESS: HardwareProgressNote[] = [
-  {
-    id: 'pg-1',
-    unitId: 'hw-motor-b1m',
-    date: '2026-07-22',
-    status: 'checkout',
-    note: 'Grain set installed. Chamber pressure tap leak-checked.',
-    author: 'Propulsion',
-  },
-  {
-    id: 'pg-2',
-    unitId: 'hw-stravox-b1m',
-    date: '2026-07-20',
-    status: 'assembly',
-    note: 'Fin can and motor interface dry-fit complete.',
-    author: 'Structures',
-  },
-  {
-    id: 'pg-3',
-    unitId: 'hw-avionics-01',
-    date: '2026-07-24',
-    status: 'checkout',
-    note: 'FW 0.4.2-dev flashed. Packet path to shed logger OK in bench loop.',
-    author: 'Avionics',
-  },
-  {
-    id: 'pg-4',
-    unitId: 'hw-pad-stand',
-    date: '2026-07-18',
-    status: 'flight-ready',
-    note: 'Thrust cell zeroed and span-checked against known mass.',
-    author: 'Ops',
-  },
-]
-
-export const SEED_TESTS: TestLogEntry[] = [
-  {
-    id: 'test-1',
-    date: '2026-07-12',
-    title: 'Pad stand load check',
-    kind: 'structural',
-    result: 'pass',
-    unitIds: ['hw-pad-stand', 'hw-logger'],
-    site: 'Pad',
-    operator: 'Ops',
-    summary: 'Static load path and logger capture verified with deadweight.',
-    metrics: [
-      { key: 'peak_load', value: '120', unit: 'kgf' },
-      { key: 'sample_rate', value: '200', unit: 'Hz' },
-    ],
-    dataRef: 'Drive · test campaign / 2026-07-12-pad-load',
-    createdAt: '2026-07-12T17:00:00.000Z',
-  },
-  {
-    id: 'test-2',
-    date: '2026-07-24',
-    title: 'Avionics downlink dry run',
-    kind: 'avionics',
-    result: 'partial',
-    unitIds: ['hw-avionics-01', 'hw-logger'],
-    site: 'Goods Shed',
-    operator: 'Avionics',
-    summary:
-      'Bench RF path into shed logger stable. GPS sats not locked indoors — outdoor retest needed.',
-    metrics: [
-      { key: 'packet_drop', value: '0.2', unit: '%' },
-      { key: 'latency_p95', value: '48', unit: 'ms' },
-    ],
-    dataRef: 'Drive · test campaign / 2026-07-24-avionics-dry',
-    createdAt: '2026-07-24T15:30:00.000Z',
-  },
-  {
-    id: 'test-3',
-    date: '2026-07-25',
-    title: 'Motor / airframe fit check',
-    kind: 'fit-check',
-    result: 'pass',
-    unitIds: ['hw-motor-b1m', 'hw-stravox-b1m'],
-    site: 'Goods Shed',
-    operator: 'Structures',
-    summary: 'Motor seats cleanly. Retention hardware torque marked.',
-    createdAt: '2026-07-25T11:00:00.000Z',
-  },
+export const PROCESS_STEP_STATUS_ORDER: ProcessStepStatus[] = [
+  'pending',
+  'active',
+  'blocked',
+  'done',
+  'skipped',
 ]
 
 export type HardwareLabState = {
   units: HardwareUnit[]
   progress: HardwareProgressNote[]
   tests: TestLogEntry[]
+  processes: VehicleProcess[]
 }
 
 type StoredLab = {
   units?: HardwareUnit[]
   progress?: HardwareProgressNote[]
   tests?: TestLogEntry[]
+  processes?: VehicleProcess[]
 }
 
 function seedState(): HardwareLabState {
@@ -225,19 +102,25 @@ function seedState(): HardwareLabState {
     units: structuredClone(SEED_HARDWARE),
     progress: structuredClone(SEED_PROGRESS),
     tests: structuredClone(SEED_TESTS),
+    processes: structuredClone(SEED_PROCESSES),
   }
 }
 
 export function loadHardwareLab(): HardwareLabState {
   const seed = seedState()
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ??
+      localStorage.getItem('octopus.hardware-lab.v1')
     if (!raw) return seed
     const stored = JSON.parse(raw) as StoredLab
     return {
       units: Array.isArray(stored.units) ? stored.units : seed.units,
       progress: Array.isArray(stored.progress) ? stored.progress : seed.progress,
       tests: Array.isArray(stored.tests) ? stored.tests : seed.tests,
+      processes: Array.isArray(stored.processes)
+        ? stored.processes
+        : seed.processes,
     }
   } catch {
     return seed
@@ -250,6 +133,7 @@ export function saveHardwareLab(state: HardwareLabState) {
 
 export function resetHardwareLab(): HardwareLabState {
   localStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem('octopus.hardware-lab.v1')
   return seedState()
 }
 
@@ -275,4 +159,38 @@ export function sortTests(tests: TestLogEntry[]) {
 
 export function sortProgress(notes: HardwareProgressNote[]) {
   return [...notes].sort((a, b) => b.date.localeCompare(a.date))
+}
+
+export function sortProcesses(processes: VehicleProcess[]) {
+  return [...processes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+export function sortProcessSteps(steps: VehicleProcessStep[]) {
+  return [...steps].sort((a, b) => a.order - b.order)
+}
+
+export function processCompletion(process: VehicleProcess) {
+  const steps = process.steps
+  if (steps.length === 0) return { done: 0, total: 0, pct: 0 }
+  const done = steps.filter((s) => s.status === 'done' || s.status === 'skipped').length
+  return {
+    done,
+    total: steps.length,
+    pct: Math.round((done / steps.length) * 100),
+  }
+}
+
+export function processOverallStatus(process: VehicleProcess): ProcessStepStatus {
+  if (process.steps.some((s) => s.status === 'blocked')) return 'blocked'
+  if (process.steps.every((s) => s.status === 'done' || s.status === 'skipped')) {
+    return 'done'
+  }
+  if (process.steps.some((s) => s.status === 'active')) return 'active'
+  return 'pending'
+}
+
+export function unitQuantity(unit: HardwareUnit) {
+  return typeof unit.quantity === 'number' && Number.isFinite(unit.quantity)
+    ? unit.quantity
+    : 1
 }

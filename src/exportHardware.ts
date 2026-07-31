@@ -1,19 +1,23 @@
 import {
   HARDWARE_KIND_LABELS,
   HARDWARE_STATUS_LABELS,
+  PROCESS_STEP_STATUS_LABELS,
   TEST_KIND_LABELS,
   TEST_RESULT_LABELS,
+  unitQuantity,
 } from './hardwareData'
 import type {
   HardwareProgressNote,
   HardwareUnit,
   TestLogEntry,
+  VehicleProcess,
 } from './types'
 
 type ExportInput = {
   units: HardwareUnit[]
   progress: HardwareProgressNote[]
   tests: TestLogEntry[]
+  processes?: VehicleProcess[]
 }
 
 export function downloadHardwareLabExport(input: ExportInput) {
@@ -33,7 +37,7 @@ function csvEscape(value: string) {
   return `"${value.replace(/"/g, '""')}"`
 }
 
-function buildCsv({ units, progress, tests }: ExportInput) {
+function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
   const unitName = (id: string) =>
     units.find((u) => u.id === id)?.name ?? id
 
@@ -42,13 +46,15 @@ function buildCsv({ units, progress, tests }: ExportInput) {
     `# exported,${new Date().toISOString()}`,
     '',
     '## hardware_units',
-    'id,name,kind,serial,hw_rev,fw_version,status,location,owner,notes,updated_at',
+    'id,name,kind,serial,part_number,quantity,hw_rev,fw_version,status,location,owner,notes,updated_at',
     ...units.map((u) =>
       [
         u.id,
         csvEscape(u.name),
         HARDWARE_KIND_LABELS[u.kind],
         csvEscape(u.serial),
+        csvEscape(u.partNumber ?? ''),
+        String(unitQuantity(u)),
         csvEscape(u.hwRev),
         csvEscape(u.fwVersion ?? ''),
         HARDWARE_STATUS_LABELS[u.status],
@@ -95,6 +101,30 @@ function buildCsv({ units, progress, tests }: ExportInput) {
         t.createdAt,
       ].join(',')
     }),
+    '',
+    '## vehicle_processes',
+    'process_id,process_name,campaign,vehicle_unit_id,vehicle_name,step_order,step_title,step_status,step_owner,linked_units,blocked_reason,completed_at,completed_by',
+    ...processes.flatMap((proc) =>
+      [...proc.steps]
+        .sort((a, b) => a.order - b.order)
+        .map((step) =>
+          [
+            proc.id,
+            csvEscape(proc.name),
+            csvEscape(proc.campaign ?? ''),
+            proc.vehicleUnitId,
+            csvEscape(unitName(proc.vehicleUnitId)),
+            String(step.order),
+            csvEscape(step.title),
+            PROCESS_STEP_STATUS_LABELS[step.status],
+            csvEscape(step.owner ?? ''),
+            csvEscape((step.linkedUnitIds ?? []).map(unitName).join('|')),
+            csvEscape(step.blockedReason ?? ''),
+            step.completedAt ?? '',
+            csvEscape(step.completedBy ?? ''),
+          ].join(','),
+        ),
+    ),
   ]
 
   return lines.join('\n')

@@ -176,6 +176,10 @@ export interface HardwareUnit {
   kind: HardwareKind
   /** Human serial / asset tag, e.g. SVX-B1M-001 */
   serial: string
+  /** Optional drawing / catalog part number */
+  partNumber?: string
+  /** Count on hand (default 1 for unique assets) */
+  quantity?: number
   /** Hardware revision / drawing rev, e.g. B1M · rev A */
   hwRev: string
   /** Firmware / software load when applicable */
@@ -184,6 +188,40 @@ export interface HardwareUnit {
   location?: string
   owner?: string
   notes?: string
+  updatedAt: string
+}
+
+/** Step state on a vehicle / campaign process tracker. */
+export type ProcessStepStatus =
+  | 'pending'
+  | 'active'
+  | 'blocked'
+  | 'done'
+  | 'skipped'
+
+export interface VehicleProcessStep {
+  id: string
+  order: number
+  title: string
+  detail?: string
+  owner?: string
+  status: ProcessStepStatus
+  /** Inventory units this step touches */
+  linkedUnitIds?: string[]
+  blockedReason?: string
+  completedAt?: string
+  completedBy?: string
+}
+
+/** Ordered build / checkout process for a vehicle campaign. */
+export interface VehicleProcess {
+  id: string
+  /** Hardware unit id of the vehicle (or primary asset) */
+  vehicleUnitId: string
+  name: string
+  campaign?: string
+  notes?: string
+  steps: VehicleProcessStep[]
   updatedAt: string
 }
 

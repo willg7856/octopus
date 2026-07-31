@@ -1,8 +1,6 @@
 # Octopus
 
-Internal ops tool for [Beyond Stage Zero](https://www.beyondstagezero.com) — live pad/vehicle data, cameras, shared links (Onshape, Drive, calendars), contacts, and timelines.
-
-Octopus is for looking things up and watching feeds. It is not the control system or the flight computer.
+Internal ops tool for [Beyond Stage Zero](https://www.beyondstagezero.com) — shared **inventory**, **hardware**, and **vehicle production** tracking.
 
 ## Live site
 
@@ -10,35 +8,33 @@ Octopus is for looking things up and watching feeds. It is not the control syste
 
 Deployed on Vercel as `beyondstagezero/octopus`.
 
-## Hub sections
+## Sections
 
-- **Home** — current focus, notices, quick links
-- **Live** — view-only telemetry and link health
-- **Cameras** — pad / Goods Shed / vehicle camera wall
-- **Hardware** — unit inventory (HW/FW versions), build progress, test log + CSV export
-- **Resources** — Onshape, Google Drive, calendars, web links
-- **Team** — contact roster
-- **Timeline** — milestones and standing notes
+- **Inventory** — add/edit items (serials, qty, location, status)
+- **Hardware** — HW/FW versions and status for vehicles, motors, avionics, pad, GSE
+- **Production** — vehicle production process tracker (ordered build / checkout steps)
 
-Edit shared links/contacts/milestones/events in `src/hubData.ts`.
+Seed defaults live in `src/hardwareSeed.ts`. On the live site, data is **shared for everyone signed in** via `/api/hardware/lab` (Vercel Blob). Local Vite without the API falls back to browser storage.
 
-Hardware seed inventory / sample tests live in `src/hardwareData.ts`. Runtime adds and status updates persist in the browser; use **Export CSV** on the Hardware page to share logs, or promote keepers back into the seed file.
-
-Camera stream URLs go in `src/data.ts` (`CAMERA_FEEDS`). Live/cameras stay in **demo** mode until `DATA_MODE` is flipped to `'live'` and real sources exist.
-
-Deep links: `#/`, `#/live`, `#/cameras`, `#/hardware`, `#/resources`, `#/team`, `#/timeline`.
+Deep links: `#/inventory`, `#/hardware`, `#/vehicles`.
 
 ## Sign in
 
-The hub is gated behind team sign-in.
+The app is gated behind team sign-in.
 
 Set these Vercel env vars on the `octopus` project:
 
 - `OPS_PASSWORD` — shared team password
 - `AUTH_SECRET` — random string used to sign session cookies
-- `OPS_USERS` _(optional)_ — comma-separated allowed emails; if empty, any email + correct password works
+- `OPS_USERS` — comma-separated allowed emails for the whole team. If empty, any email + correct password works
+- `BLOB_READ_WRITE_TOKEN` — from a Vercel Blob store connected to the project (Storage → Blob). Required for shared data in production
+- `BLOB_ACCESS` _(optional)_ — `private` (default) or `public`, matching the Blob store type
 
-Production is locked to `willg@beyondstagezero.com` via `OPS_USERS`.
+### Team access checklist
+
+1. Put every teammate’s email in `OPS_USERS` (or clear it if you want any email + the shared password).
+2. Create/connect a **Blob** store on the `octopus` Vercel project so `BLOB_READ_WRITE_TOKEN` is set.
+3. Redeploy. Open Inventory / Hardware / Vehicles — edits sync for all signed-in users.
 
 Local Vite uses password `goods-shed` (or `VITE_OPS_PASSWORD`) when `/api` isn’t available.
 
