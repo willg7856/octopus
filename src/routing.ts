@@ -4,7 +4,8 @@ const VIEWS: AppView[] = [
   'home',
   'live',
   'cameras',
-  'hardware',
+  'inventory',
+  'vehicles',
   'resources',
   'team',
   'timeline',
@@ -14,6 +15,8 @@ export function viewFromHash(hash = window.location.hash): AppView {
   const raw = hash.replace(/^#\/?/, '').split('/')[0]?.toLowerCase()
   // Old mission-control deep link → hub live view
   if (raw === 'control') return 'live'
+  // Former Hardware lab deep link → inventory tracker
+  if (raw === 'hardware') return 'inventory'
   if (raw && VIEWS.includes(raw as AppView)) return raw as AppView
   return 'home'
 }

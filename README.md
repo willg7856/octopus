@@ -15,18 +15,19 @@ Deployed on Vercel as `beyondstagezero/octopus`.
 - **Home** — current focus, notices, quick links
 - **Live** — view-only telemetry and link health
 - **Cameras** — pad / Goods Shed / vehicle camera wall
-- **Hardware** — shared team inventory (HW/FW versions), build progress, test log + CSV export
+- **Inventory** — shared unit tracker (serials, revs, qty, location, test log + CSV export)
+- **Vehicles** — shared campaign process tracker (ordered build / checkout steps)
 - **Resources** — Onshape, Google Drive, calendars, web links
 - **Team** — contact roster
 - **Timeline** — milestones and standing notes
 
 Edit shared links/contacts/milestones/events in `src/hubData.ts`.
 
-Hardware seed defaults live in `src/hardwareSeed.ts`. On the live site, inventory is **shared for everyone signed in** via `/api/hardware/lab` (Vercel Blob). Local Vite without the API falls back to browser storage.
+Inventory + vehicle process seed defaults live in `src/hardwareSeed.ts`. On the live site both are **shared for everyone signed in** via `/api/hardware/lab` (Vercel Blob). Local Vite without the API falls back to browser storage. `#/hardware` redirects to Inventory.
 
 Camera stream URLs go in `src/data.ts` (`CAMERA_FEEDS`). Live/cameras stay in **demo** mode until `DATA_MODE` is flipped to `'live'` and real sources exist.
 
-Deep links: `#/`, `#/live`, `#/cameras`, `#/hardware`, `#/resources`, `#/team`, `#/timeline`.
+Deep links: `#/`, `#/live`, `#/cameras`, `#/inventory`, `#/vehicles`, `#/resources`, `#/team`, `#/timeline`.
 
 ## Sign in
 

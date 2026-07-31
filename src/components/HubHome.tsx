@@ -38,9 +38,15 @@ const DESTINATIONS: {
     primary: true,
   },
   {
-    view: 'hardware',
-    label: 'Hardware',
-    hint: 'Versions, progress, test log',
+    view: 'inventory',
+    label: 'Inventory',
+    hint: 'Units, serials, quantities',
+    primary: true,
+  },
+  {
+    view: 'vehicles',
+    label: 'Vehicles',
+    hint: 'Build & checkout process',
     primary: true,
   },
   {

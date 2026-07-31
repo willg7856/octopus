@@ -23,7 +23,8 @@ function isLabState(value: unknown): value is HardwareLabState {
   return (
     Array.isArray(lab.units) &&
     Array.isArray(lab.progress) &&
-    Array.isArray(lab.tests)
+    Array.isArray(lab.tests) &&
+    Array.isArray(lab.processes)
   )
 }
 

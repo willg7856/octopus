@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { get, put } from '@vercel/blob'
 import {
   SEED_HARDWARE,
+  SEED_PROCESSES,
   SEED_PROGRESS,
   SEED_TESTS,
 } from '../../src/hardwareSeed.js'
@@ -10,12 +11,14 @@ import type {
   HardwareProgressNote,
   HardwareUnit,
   TestLogEntry,
+  VehicleProcess,
 } from '../../src/types.js'
 
 export type HardwareLabState = {
   units: HardwareUnit[]
   progress: HardwareProgressNote[]
   tests: TestLogEntry[]
+  processes: VehicleProcess[]
 }
 
 export const HARDWARE_BLOB_PATH = 'octopus/hardware-lab.json'
@@ -38,6 +41,7 @@ function seedLab(updatedBy = 'system'): SharedHardwareLab {
     units: structuredClone(SEED_HARDWARE),
     progress: structuredClone(SEED_PROGRESS),
     tests: structuredClone(SEED_TESTS),
+    processes: structuredClone(SEED_PROCESSES),
   }
 }
 
@@ -51,6 +55,7 @@ function normalize(raw: StoredLab | null | undefined, updatedBy = 'system'): Sha
     units: Array.isArray(raw.units) ? raw.units : seed.units,
     progress: Array.isArray(raw.progress) ? raw.progress : seed.progress,
     tests: Array.isArray(raw.tests) ? raw.tests : seed.tests,
+    processes: Array.isArray(raw.processes) ? raw.processes : seed.processes,
   }
 }
 
@@ -153,6 +158,7 @@ export async function saveSharedLab(
     units: next.units,
     progress: next.progress,
     tests: next.tests,
+    processes: next.processes,
   }
 
   if (storageMode() === 'blob') {

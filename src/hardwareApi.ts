@@ -6,8 +6,6 @@ export type SharedHardwareLab = HardwareLabState & {
   updatedBy: string
 }
 
-export type HardwareSyncMode = 'shared' | 'local'
-
 async function parseJson(res: Response) {
   try {
     return await res.json()
@@ -18,7 +16,11 @@ async function parseJson(res: Response) {
 
 function asShared(lab: SharedHardwareLab | null | undefined): SharedHardwareLab | null {
   if (!lab || typeof lab !== 'object') return null
-  if (!Array.isArray(lab.units) || !Array.isArray(lab.progress) || !Array.isArray(lab.tests)) {
+  if (
+    !Array.isArray(lab.units) ||
+    !Array.isArray(lab.progress) ||
+    !Array.isArray(lab.tests)
+  ) {
     return null
   }
   return {
@@ -28,6 +30,7 @@ function asShared(lab: SharedHardwareLab | null | undefined): SharedHardwareLab 
     units: lab.units,
     progress: lab.progress,
     tests: lab.tests,
+    processes: Array.isArray(lab.processes) ? lab.processes : [],
   }
 }
 

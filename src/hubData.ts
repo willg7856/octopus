@@ -102,11 +102,18 @@ export const RESOURCES: ResourceLink[] = [
     href: '#live',
   },
   {
-    id: 'ops-hardware',
+    id: 'ops-inventory',
     category: 'ops',
-    title: 'Hardware lab (this hub)',
-    description: 'Shared team inventory, build progress, and test log.',
-    href: '#hardware',
+    title: 'Inventory (this hub)',
+    description: 'Shared units, serials, quantities, and test log.',
+    href: '#inventory',
+  },
+  {
+    id: 'ops-vehicles',
+    category: 'ops',
+    title: 'Vehicle process (this hub)',
+    description: 'Campaign build & checkout step tracker.',
+    href: '#vehicles',
   },
   {
     id: 'ops-cams',
@@ -247,8 +254,8 @@ export const NOTICES: Notice[] = [
   {
     id: 'n4',
     level: 'info',
-    title: 'Hardware inventory is shared',
-    body: 'Anyone signed in can update units, progress, and test logs under Hardware. Changes sync for the whole team.',
+    title: 'Inventory & vehicle process are shared',
+    body: 'Anyone signed in can update Inventory and Vehicles. Changes sync for the whole team.',
   },
 ]
 

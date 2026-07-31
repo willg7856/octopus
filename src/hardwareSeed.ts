@@ -2,6 +2,7 @@ import type {
   HardwareProgressNote,
   HardwareUnit,
   TestLogEntry,
+  VehicleProcess,
 } from './types'
 
 /** Seed inventory — shared defaults for the team lab API and local fallback. */
@@ -153,6 +154,87 @@ export const SEED_TESTS: TestLogEntry[] = [
     operator: 'Structures',
     summary: 'Motor seats cleanly. Retention hardware torque marked.',
     createdAt: '2026-07-25T11:00:00.000Z',
+  },
+]
+
+/** Seed vehicle / campaign process trackers. */
+export const SEED_PROCESSES: VehicleProcess[] = [
+  {
+    id: 'proc-stravox-b1m',
+    vehicleUnitId: 'hw-stravox-b1m',
+    name: 'STRAVOX B1M build & checkout',
+    campaign: 'B1M',
+    notes: 'Path from Goods Shed assembly through static-fire readiness.',
+    updatedAt: '2026-07-25T12:00:00.000Z',
+    steps: [
+      {
+        id: 'ps-1',
+        order: 1,
+        title: 'Airframe dry-fit',
+        detail: 'Fin can, motor interface, and recovery bay fit check.',
+        owner: 'Structures',
+        status: 'done',
+        linkedUnitIds: ['hw-stravox-b1m'],
+        completedAt: '2026-07-20T16:00:00.000Z',
+        completedBy: 'Structures',
+      },
+      {
+        id: 'ps-2',
+        order: 2,
+        title: 'Motor install & retention',
+        detail: 'Seat motor, torque retention, mark hardware.',
+        owner: 'Propulsion',
+        status: 'done',
+        linkedUnitIds: ['hw-motor-b1m', 'hw-stravox-b1m'],
+        completedAt: '2026-07-25T11:00:00.000Z',
+        completedBy: 'Structures',
+      },
+      {
+        id: 'ps-3',
+        order: 3,
+        title: 'Avionics integrate & flash',
+        detail: 'Install FC, flash current FW, bench downlink loop.',
+        owner: 'Avionics',
+        status: 'active',
+        linkedUnitIds: ['hw-avionics-01', 'hw-stravox-b1m'],
+      },
+      {
+        id: 'ps-4',
+        order: 4,
+        title: 'GSE / logger checkout',
+        detail: 'Confirm shed logger captures pad + vehicle paths.',
+        owner: 'Ops',
+        status: 'pending',
+        linkedUnitIds: ['hw-logger'],
+      },
+      {
+        id: 'ps-5',
+        order: 5,
+        title: 'Pad stand load path',
+        detail: 'Verify stand, thrust cell cal, and instrument harness.',
+        owner: 'Structures',
+        status: 'pending',
+        linkedUnitIds: ['hw-pad-stand'],
+      },
+      {
+        id: 'ps-6',
+        order: 6,
+        title: 'Static-fire readiness review',
+        detail: 'Go / hold review before pad ops.',
+        owner: 'Ops',
+        status: 'pending',
+        linkedUnitIds: ['hw-stravox-b1m', 'hw-motor-b1m'],
+      },
+      {
+        id: 'ps-7',
+        order: 7,
+        title: 'Flight readiness review',
+        detail: 'Final vehicle process gate after static-fire data review.',
+        owner: 'Ops',
+        status: 'pending',
+        linkedUnitIds: ['hw-stravox-b1m'],
+      },
+    ],
   },
 ]
 

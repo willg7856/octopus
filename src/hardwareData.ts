@@ -2,17 +2,21 @@ import type {
   HardwareProgressNote,
   HardwareStatus,
   HardwareUnit,
+  ProcessStepStatus,
   TestLogEntry,
+  VehicleProcess,
+  VehicleProcessStep,
 } from './types'
 import {
   SEED_HARDWARE,
+  SEED_PROCESSES,
   SEED_PROGRESS,
   SEED_TESTS,
 } from './hardwareSeed'
 
-const STORAGE_KEY = 'octopus.hardware-lab.v1'
+const STORAGE_KEY = 'octopus.hardware-lab.v2'
 
-export { SEED_HARDWARE, SEED_PROGRESS, SEED_TESTS }
+export { SEED_HARDWARE, SEED_PROCESSES, SEED_PROGRESS, SEED_TESTS }
 
 export const HARDWARE_KIND_LABELS: Record<HardwareUnit['kind'], string> = {
   vehicle: 'Vehicle',
@@ -63,16 +67,34 @@ export const TEST_RESULT_LABELS: Record<TestLogEntry['result'], string> = {
   'data-only': 'Data only',
 }
 
+export const PROCESS_STEP_STATUS_LABELS: Record<ProcessStepStatus, string> = {
+  pending: 'Pending',
+  active: 'Active',
+  blocked: 'Blocked',
+  done: 'Done',
+  skipped: 'Skipped',
+}
+
+export const PROCESS_STEP_STATUS_ORDER: ProcessStepStatus[] = [
+  'pending',
+  'active',
+  'blocked',
+  'done',
+  'skipped',
+]
+
 export type HardwareLabState = {
   units: HardwareUnit[]
   progress: HardwareProgressNote[]
   tests: TestLogEntry[]
+  processes: VehicleProcess[]
 }
 
 type StoredLab = {
   units?: HardwareUnit[]
   progress?: HardwareProgressNote[]
   tests?: TestLogEntry[]
+  processes?: VehicleProcess[]
 }
 
 function seedState(): HardwareLabState {
@@ -80,19 +102,25 @@ function seedState(): HardwareLabState {
     units: structuredClone(SEED_HARDWARE),
     progress: structuredClone(SEED_PROGRESS),
     tests: structuredClone(SEED_TESTS),
+    processes: structuredClone(SEED_PROCESSES),
   }
 }
 
 export function loadHardwareLab(): HardwareLabState {
   const seed = seedState()
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ??
+      localStorage.getItem('octopus.hardware-lab.v1')
     if (!raw) return seed
     const stored = JSON.parse(raw) as StoredLab
     return {
       units: Array.isArray(stored.units) ? stored.units : seed.units,
       progress: Array.isArray(stored.progress) ? stored.progress : seed.progress,
       tests: Array.isArray(stored.tests) ? stored.tests : seed.tests,
+      processes: Array.isArray(stored.processes)
+        ? stored.processes
+        : seed.processes,
     }
   } catch {
     return seed
@@ -105,6 +133,7 @@ export function saveHardwareLab(state: HardwareLabState) {
 
 export function resetHardwareLab(): HardwareLabState {
   localStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem('octopus.hardware-lab.v1')
   return seedState()
 }
 
@@ -130,4 +159,38 @@ export function sortTests(tests: TestLogEntry[]) {
 
 export function sortProgress(notes: HardwareProgressNote[]) {
   return [...notes].sort((a, b) => b.date.localeCompare(a.date))
+}
+
+export function sortProcesses(processes: VehicleProcess[]) {
+  return [...processes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+export function sortProcessSteps(steps: VehicleProcessStep[]) {
+  return [...steps].sort((a, b) => a.order - b.order)
+}
+
+export function processCompletion(process: VehicleProcess) {
+  const steps = process.steps
+  if (steps.length === 0) return { done: 0, total: 0, pct: 0 }
+  const done = steps.filter((s) => s.status === 'done' || s.status === 'skipped').length
+  return {
+    done,
+    total: steps.length,
+    pct: Math.round((done / steps.length) * 100),
+  }
+}
+
+export function processOverallStatus(process: VehicleProcess): ProcessStepStatus {
+  if (process.steps.some((s) => s.status === 'blocked')) return 'blocked'
+  if (process.steps.every((s) => s.status === 'done' || s.status === 'skipped')) {
+    return 'done'
+  }
+  if (process.steps.some((s) => s.status === 'active')) return 'active'
+  return 'pending'
+}
+
+export function unitQuantity(unit: HardwareUnit) {
+  return typeof unit.quantity === 'number' && Number.isFinite(unit.quantity)
+    ? unit.quantity
+    : 1
 }
