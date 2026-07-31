@@ -59,16 +59,23 @@ function normalize(raw: StoredLab | null | undefined, updatedBy = 'system'): Sha
   }
 }
 
+/** True when a Blob store is connected (OIDC via BLOB_STORE_ID) or a RW token is set. */
 function blobConfigured() {
-  return Boolean(
-    process.env.BLOB_READ_WRITE_TOKEN ||
-      process.env.VERCEL_OIDC_TOKEN ||
-      process.env.BLOB_STORE_ID,
-  )
+  // Do not treat VERCEL_OIDC_TOKEN alone as configured — Vercel injects it on every deploy.
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID)
 }
 
 function blobAccess(): 'private' | 'public' {
   return process.env.BLOB_ACCESS === 'public' ? 'public' : 'private'
+}
+
+export function blobSetupHint() {
+  return (
+    'Create a Vercel Blob store for the octopus project: ' +
+    'Vercel → octopus → Storage → Create Database → Blob → Private → ' +
+    'connect Production + Preview, then Redeploy. ' +
+    'Dashboard: https://vercel.com/beyondstagezero/octopus/stores'
+  )
 }
 
 async function streamToText(stream: ReadableStream<Uint8Array> | null) {
@@ -113,22 +120,33 @@ async function writeBlob(lab: SharedHardwareLab) {
 
 export function storageMode(): 'blob' | 'file' {
   if (blobConfigured()) return 'blob'
-  if (process.env.VERCEL === '1' && process.env.NODE_ENV === 'production') {
-    throw new Error(
-      'Shared inventory needs Vercel Blob. Create a Blob store on the octopus project (Storage → Blob), then redeploy.',
-    )
+  if (process.env.VERCEL === '1') {
+    throw new Error(`Shared inventory needs Vercel Blob. ${blobSetupHint()}`)
   }
   return 'file'
+}
+
+async function withBlobErrors<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Vercel Blob read/write failed (${message}). Check the store is connected and BLOB_ACCESS matches the store type (private/public). ${blobSetupHint()}`,
+    )
+  }
 }
 
 export async function loadSharedLab(): Promise<SharedHardwareLab> {
   const mode = storageMode()
   if (mode === 'blob') {
-    const existing = await readBlob()
-    if (existing) return existing
-    const seeded = seedLab('system')
-    await writeBlob(seeded)
-    return seeded
+    return withBlobErrors(async () => {
+      const existing = await readBlob()
+      if (existing) return existing
+      const seeded = seedLab('system')
+      await writeBlob(seeded)
+      return seeded
+    })
   }
 
   const existing = await readLocal()
@@ -162,7 +180,9 @@ export async function saveSharedLab(
   }
 
   if (storageMode() === 'blob') {
-    await writeBlob(lab)
+    await withBlobErrors(async () => {
+      await writeBlob(lab)
+    })
   } else {
     await writeLocal(lab)
   }
@@ -180,7 +200,9 @@ export async function resetSharedLab(updatedBy: string): Promise<SharedHardwareL
   }
 
   if (storageMode() === 'blob') {
-    await writeBlob(lab)
+    await withBlobErrors(async () => {
+      await writeBlob(lab)
+    })
   } else {
     await writeLocal(lab)
   }

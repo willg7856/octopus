@@ -27,14 +27,35 @@ Set these Vercel env vars on the `octopus` project:
 - `OPS_PASSWORD` — shared team password
 - `AUTH_SECRET` — random string used to sign session cookies
 - `OPS_USERS` — comma-separated allowed emails for the whole team. If empty, any email + correct password works
-- `BLOB_READ_WRITE_TOKEN` — from a Vercel Blob store connected to the project (Storage → Blob). Required for shared data in production
-- `BLOB_ACCESS` _(optional)_ — `private` (default) or `public`, matching the Blob store type
+- `BLOB_READ_WRITE_TOKEN` and/or `BLOB_STORE_ID` — set automatically when a Blob store is connected to the project
+- `BLOB_ACCESS` _(optional)_ — `private` (default) or `public`, must match the Blob store type
+
+### Add Vercel Blob (required for shared inventory)
+
+The app already uses `@vercel/blob`. You only need to create the store once:
+
+1. Open **[octopus → Storage](https://vercel.com/beyondstagezero/octopus/stores)**
+2. **Create Database** → **Blob**
+3. Choose **Private**
+4. Name it e.g. `octopus-lab`
+5. Connect to the `octopus` project for **Production** and **Preview**
+6. **Redeploy** the latest production deployment
+
+Vercel will inject `BLOB_STORE_ID` (OIDC) and/or `BLOB_READ_WRITE_TOKEN`. After redeploy, Inventory / Hardware / Production sync for everyone signed in.
+
+Or via CLI (from a machine logged into Vercel):
+
+```bash
+npx vercel link
+npx vercel blob create-store octopus-lab --access private --yes
+npx vercel redeploy --prod
+```
 
 ### Team access checklist
 
 1. Put every teammate’s email in `OPS_USERS` (or clear it if you want any email + the shared password).
-2. Create/connect a **Blob** store on the `octopus` Vercel project so `BLOB_READ_WRITE_TOKEN` is set.
-3. Redeploy. Open Inventory / Hardware / Vehicles — edits sync for all signed-in users.
+2. Create/connect Blob as above.
+3. Redeploy. Open Inventory / Hardware / Production — edits sync for all signed-in users.
 
 Local Vite uses password `goods-shed` (or `VITE_OPS_PASSWORD`) when `/api` isn’t available.
 
