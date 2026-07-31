@@ -5,7 +5,6 @@ import { CameraFrame } from './CameraFrame'
 type CameraPageProps = {
   feeds: CameraFeed[]
   groups: CameraGroup[]
-  clock: string
   demo: boolean
   onBack: () => void
 }
@@ -16,16 +15,30 @@ const DEFAULT_ENABLED: Record<CameraGroupId, string[]> = {
   vehicle: ['veh-avionics', 'veh-fin'],
 }
 
+function formatClock(d: Date) {
+  return d.toLocaleTimeString('en-AU', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+}
+
 export function CameraPage({
   feeds,
   groups,
-  clock,
   demo,
   onBack,
 }: CameraPageProps) {
   const [groupId, setGroupId] = useState<CameraGroupId>('pad')
   const [enabledByGroup, setEnabledByGroup] = useState(DEFAULT_ENABLED)
   const [focusedId, setFocusedId] = useState<string | null>(null)
+  const [clock, setClock] = useState(() => formatClock(new Date()))
+
+  useEffect(() => {
+    const id = window.setInterval(() => setClock(formatClock(new Date())), 1000)
+    return () => window.clearInterval(id)
+  }, [])
 
   const group = groups.find((g) => g.id === groupId) ?? groups[0]
   const groupFeeds = useMemo(

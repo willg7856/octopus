@@ -47,7 +47,6 @@ export default function App() {
   const [events] = useState(EVENTS)
   const [cameras] = useState(CAMERA_FEEDS)
   const [toast, setToast] = useState<string | null>(null)
-  const [clock, setClock] = useState(() => formatClock(new Date()))
   const [burnIndex, setBurnIndex] = useState(12)
   const [playing, setPlaying] = useState(true)
   const [downlinkOpen, setDownlinkOpen] = useState(readStoredDownlinkOpen)
@@ -89,11 +88,6 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [])
-
-  useEffect(() => {
-    const id = window.setInterval(() => setClock(formatClock(new Date())), 1000)
-    return () => window.clearInterval(id)
   }, [])
 
   useEffect(() => {
@@ -225,13 +219,9 @@ export default function App() {
       <div className="shell">
         <div className="shell-main">
           <Header
-            clock={clock}
-            linkState={linkState}
-            sessionLabel={OPERATION.vehicle}
             theme={theme}
             view={view}
             user={user}
-            demo={DEMO}
             onToggleTheme={handleToggleTheme}
             onSignOut={handleSignOut}
             onViewChange={handleViewChange}
@@ -241,9 +231,6 @@ export default function App() {
             <HubHome
               operation={OPERATION}
               linkLabel={linkLabel}
-              channels={channels}
-              cameras={cameras}
-              demo={DEMO}
               onNavigate={handleViewChange}
             />
           ) : null}
@@ -327,7 +314,6 @@ export default function App() {
             <CameraPage
               feeds={cameras}
               groups={CAMERA_GROUPS}
-              clock={clock}
               demo={DEMO}
               onBack={() => handleViewChange('home')}
             />
@@ -350,15 +336,6 @@ export default function App() {
       ) : null}
     </div>
   )
-}
-
-function formatClock(d: Date) {
-  return d.toLocaleTimeString('en-AU', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
 }
 
 function aggregateLink(channels: Channel[], mode: OpMode) {
