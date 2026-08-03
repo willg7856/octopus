@@ -1,7 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { Redis } from '@upstash/redis'
-import { get, put } from '@vercel/blob'
 import {
   SEED_HARDWARE,
   SEED_PROCESSES,
@@ -23,7 +22,6 @@ export type HardwareLabState = {
 }
 
 export const HARDWARE_REDIS_KEY = 'octopus:hardware-lab'
-export const HARDWARE_BLOB_PATH = 'octopus/hardware-lab.json'
 
 export type SharedHardwareLab = HardwareLabState & {
   revision: number
@@ -31,7 +29,7 @@ export type SharedHardwareLab = HardwareLabState & {
   updatedBy: string
 }
 
-export type StorageMode = 'redis' | 'blob' | 'file'
+export type StorageMode = 'redis' | 'file'
 
 type StoredLab = Partial<SharedHardwareLab>
 
@@ -83,21 +81,21 @@ function redisConfigured() {
   return Boolean(redisUrl() && redisToken())
 }
 
-function blobConfigured() {
-  return Boolean(
-    process.env.BLOB_READ_WRITE_TOKEN?.trim() || process.env.BLOB_STORE_ID?.trim(),
-  )
-}
-
-function blobAccess(): 'private' | 'public' {
-  return process.env.BLOB_ACCESS === 'public' ? 'public' : 'private'
-}
-
 export function storageSetupHint() {
+  const missing = [
+    !redisUrl() ? 'UPSTASH_REDIS_REST_URL' : null,
+    !redisToken() ? 'UPSTASH_REDIS_REST_TOKEN' : null,
+  ].filter(Boolean)
+
+  const missingText =
+    missing.length > 0 ? ` Missing on this deployment: ${missing.join(', ')}.` : ''
+
   return (
-    'Shared inventory needs storage. Prefer Upstash Redis env vars ' +
-    'UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN, or connect a Vercel Blob store ' +
-    '(BLOB_STORE_ID / BLOB_READ_WRITE_TOKEN), then Redeploy.'
+    'Shared inventory needs Upstash Redis. In Vercel → octopus → Settings → Environment Variables, ' +
+    'set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN for Production + Preview, then Redeploy ' +
+    '(Deployments → … → Redeploy, uncheck build cache).' +
+    missingText +
+    ' Console: https://console.upstash.com/'
   )
 }
 
@@ -106,11 +104,6 @@ function getRedis() {
     url: redisUrl(),
     token: redisToken(),
   })
-}
-
-async function streamToText(stream: ReadableStream<Uint8Array> | null) {
-  if (!stream) return ''
-  return new Response(stream).text()
 }
 
 async function readLocal(): Promise<SharedHardwareLab | null> {
@@ -143,68 +136,39 @@ async function writeRedis(lab: SharedHardwareLab) {
   await redis.set(HARDWARE_REDIS_KEY, lab)
 }
 
-async function readBlob(): Promise<SharedHardwareLab | null> {
-  const result = await get(HARDWARE_BLOB_PATH, {
-    access: blobAccess(),
-    useCache: false,
-  })
-  if (!result || result.statusCode !== 200) return null
-  const text = await streamToText(result.stream)
-  if (!text.trim()) return null
-  return normalize(JSON.parse(text) as StoredLab)
-}
-
-async function writeBlob(lab: SharedHardwareLab) {
-  await put(HARDWARE_BLOB_PATH, JSON.stringify(lab), {
-    access: blobAccess(),
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: 'application/json',
-  })
-}
-
 export function storageMode(): StorageMode {
   if (redisConfigured()) return 'redis'
-  if (blobConfigured()) return 'blob'
   if (process.env.VERCEL === '1') {
     throw new Error(storageSetupHint())
   }
   return 'file'
 }
 
-async function withStoreErrors<T>(backend: string, fn: () => Promise<T>): Promise<T> {
+async function withRedisErrors<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`${backend} read/write failed (${message}). ${storageSetupHint()}`)
+    throw new Error(`Upstash Redis read/write failed (${message}). ${storageSetupHint()}`)
   }
-}
-
-async function readStore(mode: StorageMode): Promise<SharedHardwareLab | null> {
-  if (mode === 'redis') return withStoreErrors('Upstash Redis', readRedis)
-  if (mode === 'blob') return withStoreErrors('Vercel Blob', readBlob)
-  return readLocal()
-}
-
-async function writeStore(mode: StorageMode, lab: SharedHardwareLab) {
-  if (mode === 'redis') {
-    await withStoreErrors('Upstash Redis', async () => writeRedis(lab))
-    return
-  }
-  if (mode === 'blob') {
-    await withStoreErrors('Vercel Blob', async () => writeBlob(lab))
-    return
-  }
-  await writeLocal(lab)
 }
 
 export async function loadSharedLab(): Promise<SharedHardwareLab> {
   const mode = storageMode()
-  const existing = await readStore(mode)
+  if (mode === 'redis') {
+    return withRedisErrors(async () => {
+      const existing = await readRedis()
+      if (existing) return existing
+      const seeded = seedLab('system')
+      await writeRedis(seeded)
+      return seeded
+    })
+  }
+
+  const existing = await readLocal()
   if (existing) return existing
   const seeded = seedLab('system')
-  await writeStore(mode, seeded)
+  await writeLocal(seeded)
   return seeded
 }
 
@@ -232,7 +196,12 @@ export async function saveSharedLab(
     processes: next.processes,
   }
 
-  await writeStore(mode, lab)
+  if (mode === 'redis') {
+    await withRedisErrors(async () => writeRedis(lab))
+  } else {
+    await writeLocal(lab)
+  }
+
   return { ok: true, lab }
 }
 
@@ -245,7 +214,13 @@ export async function resetSharedLab(updatedBy: string): Promise<SharedHardwareL
     updatedAt: new Date().toISOString(),
     updatedBy,
   }
-  await writeStore(mode, lab)
+
+  if (mode === 'redis') {
+    await withRedisErrors(async () => writeRedis(lab))
+  } else {
+    await writeLocal(lab)
+  }
+
   return lab
 }
 
@@ -255,8 +230,6 @@ export function storageEnvFlags() {
     UPSTASH_REDIS_REST_TOKEN: Boolean(process.env.UPSTASH_REDIS_REST_TOKEN?.trim()),
     KV_REST_API_URL: Boolean(process.env.KV_REST_API_URL?.trim()),
     KV_REST_API_TOKEN: Boolean(process.env.KV_REST_API_TOKEN?.trim()),
-    BLOB_STORE_ID: Boolean(process.env.BLOB_STORE_ID?.trim()),
-    BLOB_READ_WRITE_TOKEN: Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()),
     VERCEL: process.env.VERCEL === '1',
   }
 }
