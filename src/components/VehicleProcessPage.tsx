@@ -1,8 +1,7 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import {
   PROCESS_STEP_STATUS_LABELS,
-  PROCESS_STEP_STATUS_ORDER,
   newId,
   processCompletion,
   sortProcessSteps,
@@ -23,11 +22,15 @@ const RECOMMENDED_PRODUCTIONS = [
   { name: '100M hopper production', vehicleName: '100M hopper' },
 ] as const
 
+const QUICK_STATUSES: ProcessStepStatus[] = ['active', 'done', 'blocked']
+const MORE_STATUSES: ProcessStepStatus[] = ['pending', 'skipped']
+
 export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
   const { lab, sync, syncError, saving, toast } = store
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [editingSteps, setEditingSteps] = useState(false)
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
 
   const units = useMemo(() => sortUnits(lab.units), [lab.units])
@@ -48,10 +51,15 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     [processes],
   )
 
+  useEffect(() => {
+    if (!selectedId && processes[0]) setSelectedId(processes[0].id)
+  }, [processes, selectedId])
+
   function updateStep(
     processId: string,
     stepId: string,
     status: ProcessStepStatus,
+    blockedReason?: string,
   ) {
     const now = new Date().toISOString()
     void store.commit(
@@ -70,13 +78,38 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                 status,
                 completedAt: done ? s.completedAt || now : undefined,
                 completedBy: done ? s.completedBy || user?.name : undefined,
-                blockedReason: status === 'blocked' ? s.blockedReason : undefined,
+                blockedReason:
+                  status === 'blocked'
+                    ? (blockedReason ?? s.blockedReason)
+                    : undefined,
               }
             }),
           }
         }),
       },
       'Updated',
+    )
+  }
+
+  function setBlockedReason(processId: string, stepId: string, reason: string) {
+    const now = new Date().toISOString()
+    void store.commit(
+      {
+        ...lab,
+        processes: lab.processes.map((p) => {
+          if (p.id !== processId) return p
+          return {
+            ...p,
+            updatedAt: now,
+            steps: p.steps.map((s) =>
+              s.id === stepId
+                ? { ...s, blockedReason: reason.trim() || undefined }
+                : s,
+            ),
+          }
+        }),
+      },
+      'Saved',
     )
   }
 
@@ -217,10 +250,18 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       'Removed',
     )
     setSelectedId(remaining[0]?.id ?? null)
+    setEditingSteps(false)
+    setEditingStepId(null)
   }
 
   const completion = selected ? processCompletion(selected) : null
   const steps = selected ? sortProcessSteps(selected.steps) : []
+  const progressPct =
+    completion && completion.total > 0
+      ? Math.round((completion.done / completion.total) * 100)
+      : 0
+  const activeStep = steps.find((s) => s.status === 'active')
+  const blockedCount = steps.filter((s) => s.status === 'blocked').length
 
   return (
     <main className="simple-page" aria-label="Vehicle production">
@@ -228,11 +269,14 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
         <div>
           <h2>Production</h2>
           <p className="simple-muted">
-            Choose a vehicle production tracker below.
+            Vehicle build & checkout trackers for the Goods Shed.
           </p>
         </div>
         <div className="simple-head-actions">
-          {saving ? <span className="simple-muted">Saving…</span> : null}
+          {saving ? <span className="simple-sync">Saving…</span> : null}
+          {sync === 'shared' && !saving ? (
+            <span className="simple-sync simple-sync-ok">Live</span>
+          ) : null}
           <button
             type="button"
             className="btn btn-ghost"
@@ -258,7 +302,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       ) : null}
 
       {sync === 'loading' ? (
-        <p className="simple-muted">Loading…</p>
+        <p className="simple-muted">Loading team lab…</p>
       ) : (
         <>
           <div className="prod-buttons" role="toolbar" aria-label="Productions">
@@ -276,7 +320,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                     setSelectedId(process.id)
                   }}
                 >
-                  <span className="prod-btn-label">{process.name}</span>
+                  <span className="prod-btn-label">{shortName(process.name)}</span>
                   {total > 0 ? (
                     <span className="prod-btn-meta">
                       {done}/{total}
@@ -286,29 +330,45 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
               )
             })}
 
-            {missingRecommended.map((rec) => (
-              <button
-                key={rec.name}
-                type="button"
-                className="prod-btn prod-btn-add"
-                onClick={() =>
-                  createProduction({
-                    name: rec.name,
-                    vehicleName: rec.vehicleName,
-                  })
-                }
-              >
-                <span className="prod-btn-label">+ {rec.name}</span>
-              </button>
-            ))}
+            {processes.length === 0 &&
+              missingRecommended.map((rec) => (
+                <button
+                  key={rec.name}
+                  type="button"
+                  className="prod-btn prod-btn-add"
+                  onClick={() =>
+                    createProduction({
+                      name: rec.name,
+                      vehicleName: rec.vehicleName,
+                    })
+                  }
+                >
+                  <span className="prod-btn-label">+ {shortName(rec.name)}</span>
+                </button>
+              ))}
 
-            <button
-              type="button"
-              className="prod-btn prod-btn-add"
-              onClick={() => setCreating(true)}
-            >
-              <span className="prod-btn-label">+ New</span>
-            </button>
+            {processes.length > 0 && missingRecommended.length > 0 ? (
+              <details className="prod-more">
+                <summary>Add suggested</summary>
+                <div className="prod-more-list">
+                  {missingRecommended.map((rec) => (
+                    <button
+                      key={rec.name}
+                      type="button"
+                      className="prod-btn prod-btn-add"
+                      onClick={() =>
+                        createProduction({
+                          name: rec.name,
+                          vehicleName: rec.vehicleName,
+                        })
+                      }
+                    >
+                      <span className="prod-btn-label">+ {shortName(rec.name)}</span>
+                    </button>
+                  ))}
+                </div>
+              </details>
+            ) : null}
           </div>
 
           {creating ? (
@@ -319,96 +379,197 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
           ) : null}
 
           {selected ? (
-            <section className="simple-steps" aria-label={selected.name}>
+            <section className="prod-panel" aria-label={selected.name}>
               <div className="prod-detail-head">
                 <div>
                   <h3>{selected.name}</h3>
                   <p className="simple-muted">
                     {selectedVehicle?.name ?? 'Vehicle'}
-                    {completion
-                      ? ` · ${completion.done}/${completion.total} steps done`
-                      : ''}
+                    {activeStep ? ` · Active: ${activeStep.title}` : ''}
+                    {blockedCount > 0 ? ` · ${blockedCount} blocked` : ''}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => removeProduction(selected.id)}
-                >
-                  Delete
-                </button>
+                <div className="prod-detail-actions">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    aria-pressed={editingSteps}
+                    onClick={() => {
+                      setEditingSteps((v) => !v)
+                      setEditingStepId(null)
+                    }}
+                  >
+                    {editingSteps ? 'Done editing' : 'Edit steps'}
+                  </button>
+                  {editingSteps ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => removeProduction(selected.id)}
+                    >
+                      Delete tracker
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
+              {completion && completion.total > 0 ? (
+                <div className="prod-progress" aria-hidden="true">
+                  <div className="prod-progress-bar">
+                    <span style={{ width: `${progressPct}%` }} />
+                  </div>
+                  <span className="prod-progress-label">
+                    {completion.done}/{completion.total} done · {progressPct}%
+                  </span>
+                </div>
+              ) : null}
+
               <ol className="simple-step-list">
-                {steps.map((step) => (
-                  <li key={step.id} className="simple-step">
-                    {editingStepId === step.id ? (
-                      <EditStepForm
-                        step={step}
-                        onSave={(patch) =>
-                          editStep(selected.id, step.id, patch)
-                        }
-                        onCancel={() => setEditingStepId(null)}
-                      />
-                    ) : (
-                      <>
-                        <div className="simple-step-top">
-                          <span className="simple-step-title">
-                            <strong>
-                              {step.order}. {step.title}
-                            </strong>
-                            {step.detail ? (
-                              <span className="simple-muted">{step.detail}</span>
-                            ) : null}
-                          </span>
-                          <div className="prod-step-actions">
-                            <button
-                              type="button"
-                              className="btn btn-ghost"
-                              onClick={() => setEditingStepId(step.id)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-ghost"
-                              onClick={() => deleteStep(selected.id, step.id)}
-                            >
-                              Delete
-                            </button>
+                {steps.map((step) => {
+                  const isEditing = editingStepId === step.id
+                  return (
+                    <li
+                      key={step.id}
+                      className="simple-step"
+                      data-status={step.status}
+                    >
+                      {isEditing ? (
+                        <EditStepForm
+                          step={step}
+                          onSave={(patch) =>
+                            editStep(selected.id, step.id, patch)
+                          }
+                          onCancel={() => setEditingStepId(null)}
+                        />
+                      ) : (
+                        <>
+                          <div className="simple-step-top">
+                            <span className="simple-step-title">
+                              <strong>
+                                <span className="prod-step-num">{step.order}</span>
+                                {step.title}
+                              </strong>
+                              {step.detail ? (
+                                <span className="simple-muted">{step.detail}</span>
+                              ) : null}
+                              {step.status === 'done' && step.completedBy ? (
+                                <span className="prod-step-meta">
+                                  Done · {step.completedBy}
+                                  {step.completedAt
+                                    ? ` · ${formatWhen(step.completedAt)}`
+                                    : ''}
+                                </span>
+                              ) : null}
+                              {step.status === 'blocked' && step.blockedReason ? (
+                                <span className="prod-step-meta prod-step-blocked">
+                                  Blocked · {step.blockedReason}
+                                </span>
+                              ) : null}
+                            </span>
+                            {editingSteps ? (
+                              <div className="prod-step-actions">
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  onClick={() => setEditingStepId(step.id)}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  onClick={() =>
+                                    deleteStep(selected.id, step.id)
+                                  }
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            ) : (
+                              <span
+                                className="prod-step-badge"
+                                data-status={step.status}
+                              >
+                                {PROCESS_STEP_STATUS_LABELS[step.status]}
+                              </span>
+                            )}
                           </div>
-                        </div>
-                        <div
-                          className="prod-status-row"
-                          role="group"
-                          aria-label={`${step.title} status`}
-                        >
-                          {PROCESS_STEP_STATUS_ORDER.map((status) => (
-                            <button
-                              key={status}
-                              type="button"
-                              className="prod-status-btn"
-                              aria-pressed={step.status === status}
-                              onClick={() =>
-                                updateStep(selected.id, step.id, status)
-                              }
-                            >
-                              {PROCESS_STEP_STATUS_LABELS[status]}
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </li>
-                ))}
+
+                          <div
+                            className="prod-status-row"
+                            role="group"
+                            aria-label={`${step.title} status`}
+                          >
+                            {QUICK_STATUSES.map((status) => (
+                              <button
+                                key={status}
+                                type="button"
+                                className="prod-status-btn"
+                                data-status={status}
+                                aria-pressed={step.status === status}
+                                onClick={() =>
+                                  updateStep(selected.id, step.id, status)
+                                }
+                              >
+                                {PROCESS_STEP_STATUS_LABELS[status]}
+                              </button>
+                            ))}
+                            {MORE_STATUSES.map((status) => (
+                              <button
+                                key={status}
+                                type="button"
+                                className="prod-status-btn prod-status-btn-quiet"
+                                data-status={status}
+                                aria-pressed={step.status === status}
+                                onClick={() =>
+                                  updateStep(selected.id, step.id, status)
+                                }
+                              >
+                                {PROCESS_STEP_STATUS_LABELS[status]}
+                              </button>
+                            ))}
+                          </div>
+
+                          {step.status === 'blocked' ? (
+                            <label className="prod-block-reason">
+                              Why blocked?
+                              <input
+                                key={`${step.id}-block`}
+                                defaultValue={step.blockedReason ?? ''}
+                                placeholder="Waiting on hardware, weather, review…"
+                                onBlur={(e) => {
+                                  const next = e.target.value.trim()
+                                  if (next !== (step.blockedReason ?? '')) {
+                                    setBlockedReason(
+                                      selected.id,
+                                      step.id,
+                                      next,
+                                    )
+                                  }
+                                }}
+                              />
+                            </label>
+                          ) : null}
+                        </>
+                      )}
+                    </li>
+                  )
+                })}
               </ol>
 
-              <AddStepForm onAdd={(title) => addStep(selected.id, title)} />
+              {editingSteps || steps.length === 0 ? (
+                <AddStepForm onAdd={(title) => addStep(selected.id, title)} />
+              ) : null}
             </section>
           ) : (
-            <p className="simple-muted">
-              Add a production tracker above to get started.
-            </p>
+            <div className="prod-empty">
+              <p>
+                No production trackers yet. Create{' '}
+                <strong>B1M</strong>, <strong>TVC</strong>,{' '}
+                <strong>STRAVOX</strong>, or <strong>100M hopper</strong> above,
+                or start a new one.
+              </p>
+            </div>
           )}
         </>
       )}
@@ -420,6 +581,21 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       ) : null}
     </main>
   )
+}
+
+function shortName(name: string) {
+  return name.replace(/\s+production\s*$/i, '').trim() || name
+}
+
+function formatWhen(iso: string) {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return ''
+  }
 }
 
 function defaultSteps(vehicleUnitId: string): VehicleProcessStep[] {
@@ -456,20 +632,25 @@ function NewProductionForm({
     e.preventDefault()
     if (!name.trim()) return
     onCreate({
-      name: name.trim(),
+      name: name.trim().toLowerCase().endsWith('production')
+        ? name.trim()
+        : `${name.trim()} production`,
       vehicleName: vehicleName.trim() || name.trim(),
     })
   }
 
   return (
-    <form className="simple-form" onSubmit={handleSubmit}>
+    <form className="simple-form prod-create" onSubmit={handleSubmit}>
       <h3>New vehicle production</h3>
+      <p className="simple-muted">
+        Creates a checklist and a Hardware vehicle if one doesn’t exist yet.
+      </p>
       <label>
-        Production name
+        Name
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="TVC production"
+          placeholder="TVC"
           required
           autoFocus
         />
@@ -479,12 +660,12 @@ function NewProductionForm({
         <input
           value={vehicleName}
           onChange={(e) => setVehicleName(e.target.value)}
-          placeholder="TVC"
+          placeholder="Same as name if blank"
         />
       </label>
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent">
-          Create
+          Create tracker
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel}>
           Cancel
@@ -528,7 +709,7 @@ function EditStepForm({
         <input
           value={detail}
           onChange={(e) => setDetail(e.target.value)}
-          placeholder="Optional notes"
+          placeholder="Optional notes for the team"
         />
       </label>
       <div className="simple-form-actions">

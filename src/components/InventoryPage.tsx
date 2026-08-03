@@ -128,7 +128,10 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
           <p className="simple-muted">Parts, consumables, tools, and other stock.</p>
         </div>
         <div className="simple-head-actions">
-          {saving ? <span className="simple-muted">Saving…</span> : null}
+          {saving ? <span className="simple-sync">Saving…</span> : null}
+          {sync === 'shared' && !saving ? (
+            <span className="simple-sync simple-sync-ok">Live</span>
+          ) : null}
           <button
             type="button"
             className="btn btn-ghost"
@@ -195,7 +198,11 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                 </li>
               ))}
               {filtered.length === 0 ? (
-                <li className="simple-muted">No stock items yet.</li>
+                <li className="simple-muted">
+                  {query.trim()
+                    ? 'No stock matches that search.'
+                    : 'No stock yet — add parts, consumables, or tools.'}
+                </li>
               ) : null}
             </ul>
           </section>
