@@ -4,28 +4,29 @@ import { useConfirm } from './ConfirmDialog'
 import {
   HARDWARE_KIND_LABELS,
   INVENTORY_KINDS,
-  INVENTORY_STATUS_LABELS,
-  INVENTORY_STATUS_ORDER,
-  inventoryStatusLabel,
+  STOCK_STATUS_LABELS,
+  STOCK_STATUS_ORDER,
+  hardwareStatusForStock,
   isInventoryKind,
   newId,
-  normalizeInventoryStatus,
   sortUnits,
+  stockStatusLabel,
+  stockStatusOf,
   unitQuantity,
 } from '../hardwareData'
 import type {
   HardwareKind,
   HardwareProgressNote,
-  HardwareStatus,
   HardwareUnit,
+  StockStatus,
 } from '../types'
 import { useLabStore } from '../useLabStore'
 
 const KIND_OPTIONS = INVENTORY_KINDS.map(
   (kind) => [kind, HARDWARE_KIND_LABELS[kind]] as const,
 )
-const STATUS_OPTIONS = INVENTORY_STATUS_ORDER.map(
-  (status) => [status, INVENTORY_STATUS_LABELS[status]] as const,
+const STATUS_OPTIONS = STOCK_STATUS_ORDER.map(
+  (status) => [status, STOCK_STATUS_LABELS[status]] as const,
 )
 
 export function InventoryPage({ user }: { user: AuthUser | null }) {
@@ -202,7 +203,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                       </span>
                     </span>
                     <span className="simple-muted">
-                      {inventoryStatusLabel(unit.status)}
+                      {stockStatusLabel(stockStatusOf(unit))}
                     </span>
                   </button>
                 </li>
@@ -268,10 +269,8 @@ function UnitForm({
   const [kind, setKind] = useState<HardwareKind>(
     initial && isInventoryKind(initial.kind) ? initial.kind : 'part',
   )
-  const [status, setStatus] = useState<HardwareStatus>(
-    initial
-      ? normalizeInventoryStatus(initial.status)
-      : 'flight-ready',
+  const [stockStatus, setStockStatus] = useState<StockStatus>(
+    initial ? stockStatusOf(initial) : 'in-stock',
   )
   const [location, setLocation] = useState(initial?.location ?? '')
   const [quantity, setQuantity] = useState(
@@ -290,7 +289,8 @@ function UnitForm({
       name: name.trim(),
       serial: serial.trim(),
       kind,
-      status: normalizeInventoryStatus(status),
+      status: hardwareStatusForStock(stockStatus),
+      stockStatus,
       location: location.trim() || undefined,
       quantity: Number.isFinite(qty) && qty >= 0 ? qty : 1,
       hwRev: '—',
@@ -352,8 +352,8 @@ function UnitForm({
         <label>
           Stock status
           <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as HardwareStatus)}
+            value={stockStatus}
+            onChange={(e) => setStockStatus(e.target.value as StockStatus)}
           >
             {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>

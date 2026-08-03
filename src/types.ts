@@ -177,6 +177,17 @@ export type HardwareStatus =
   | 'retired'
   | 'failed'
 
+/** Stock-room status for inventory items (separate from hardware build status). */
+export type StockStatus =
+  | 'in-stock'
+  | 'low'
+  | 'on-order'
+  | 'reserved'
+  | 'receiving'
+  | 'incoming'
+  | 'quarantine'
+  | 'depleted'
+
 export interface HardwareUnit {
   id: string
   name: string
@@ -192,6 +203,8 @@ export interface HardwareUnit {
   /** Firmware / software load when applicable */
   fwVersion?: string
   status: HardwareStatus
+  /** Inventory-only stock status. Prefer this over `status` for stock items. */
+  stockStatus?: StockStatus
   location?: string
   owner?: string
   notes?: string

@@ -3,6 +3,7 @@ import type {
   HardwareStatus,
   HardwareUnit,
   ProcessStepStatus,
+  StockStatus,
   TestLogEntry,
   VehicleProcess,
   VehicleProcessStep,
@@ -77,35 +78,65 @@ export const HARDWARE_STATUS_ORDER: HardwareStatus[] = [
   'failed',
 ]
 
-/** Stock-facing labels for inventory items (same status field, different meaning). */
-export const INVENTORY_STATUS_LABELS: Record<HardwareStatus, string> = {
-  concept: 'Incoming',
-  design: 'Reserved',
-  fab: 'Receiving',
-  assembly: 'On order',
-  checkout: 'Low stock',
-  'flight-ready': 'In stock',
-  retired: 'Depleted',
-  failed: 'Quarantine',
+/** Stock-facing labels for inventory items. */
+export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
+  'in-stock': 'In stock',
+  low: 'Low stock',
+  'on-order': 'On order',
+  reserved: 'Reserved',
+  receiving: 'Receiving',
+  incoming: 'Incoming',
+  quarantine: 'Quarantine',
+  depleted: 'Depleted',
 }
 
-export const INVENTORY_STATUS_ORDER: HardwareStatus[] = [
-  'flight-ready',
-  'checkout',
-  'assembly',
-  'design',
-  'fab',
-  'concept',
-  'failed',
-  'retired',
+export const STOCK_STATUS_ORDER: StockStatus[] = [
+  'in-stock',
+  'low',
+  'on-order',
+  'reserved',
+  'receiving',
+  'incoming',
+  'quarantine',
+  'depleted',
 ]
 
-export function inventoryStatusLabel(status: HardwareStatus) {
-  return INVENTORY_STATUS_LABELS[status] ?? status
+/** Map legacy hardware statuses that inventory used to reuse. */
+const LEGACY_STATUS_TO_STOCK: Partial<Record<HardwareStatus, StockStatus>> = {
+  'flight-ready': 'in-stock',
+  checkout: 'low',
+  assembly: 'on-order',
+  design: 'reserved',
+  fab: 'receiving',
+  concept: 'incoming',
+  failed: 'quarantine',
+  retired: 'depleted',
 }
 
-export function normalizeInventoryStatus(status: HardwareStatus): HardwareStatus {
-  return INVENTORY_STATUS_ORDER.includes(status) ? status : 'flight-ready'
+const STOCK_TO_HARDWARE_STATUS: Record<StockStatus, HardwareStatus> = {
+  'in-stock': 'flight-ready',
+  low: 'checkout',
+  'on-order': 'assembly',
+  reserved: 'design',
+  receiving: 'fab',
+  incoming: 'concept',
+  quarantine: 'failed',
+  depleted: 'retired',
+}
+
+export function stockStatusOf(unit: HardwareUnit): StockStatus {
+  if (unit.stockStatus && STOCK_STATUS_ORDER.includes(unit.stockStatus)) {
+    return unit.stockStatus
+  }
+  return LEGACY_STATUS_TO_STOCK[unit.status] ?? 'in-stock'
+}
+
+export function stockStatusLabel(status: StockStatus) {
+  return STOCK_STATUS_LABELS[status]
+}
+
+export function hardwareStatusForStock(stockStatus: StockStatus): HardwareStatus {
+  return STOCK_TO_HARDWARE_STATUS[stockStatus]
 }
 
 export const TEST_KIND_LABELS: Record<TestLogEntry['kind'], string> = {
