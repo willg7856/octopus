@@ -4280,6 +4280,73 @@ button {
   margin-top: 0;
 }
 
+.prod-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.prod-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  min-height: 5.5rem;
+  padding: 1rem 1.05rem;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.prod-tile strong {
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+.prod-tile:hover,
+.prod-tile:focus-visible {
+  background: var(--hover);
+  border-color: var(--fg-muted);
+  outline: none;
+}
+
+.prod-tile-new,
+.prod-tile-suggested {
+  border-style: dashed;
+  color: var(--fg-muted);
+}
+
+.prod-tile-new strong,
+.prod-tile-suggested strong {
+  color: var(--fg);
+}
+
+.prod-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.prod-detail-head h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+}
+
+.prod-detail-head p {
+  margin: 0.25rem 0 0;
+}
+
 .simple-nav-list {
   list-style: none;
   margin: 0;

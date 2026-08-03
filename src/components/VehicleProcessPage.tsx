@@ -33,8 +33,10 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     [units],
   )
   const processes = useMemo(() => sortProcesses(lab.processes), [lab.processes])
-  const selected =
-    processes.find((p) => p.id === selectedId) ?? processes[0] ?? null
+  const selected = processes.find((p) => p.id === selectedId) ?? null
+  const selectedVehicle = selected
+    ? units.find((u) => u.id === selected.vehicleUnitId)
+    : null
 
   function updateStep(
     processId: string,
@@ -92,30 +94,83 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     )
   }
 
-  function createProcess(vehicleUnitId: string, name: string) {
+  function createProduction(input: {
+    name: string
+    vehicleUnitId?: string
+    newVehicleName?: string
+  }) {
     const now = new Date().toISOString()
+    let vehicleUnitId = input.vehicleUnitId
+    let nextUnits = lab.units
+
+    if (!vehicleUnitId) {
+      const vehicleName = (input.newVehicleName || input.name)
+        .replace(/\s+production\s*$/i, '')
+        .trim()
+      const vehicle: HardwareUnit = {
+        id: newId('hw'),
+        name: vehicleName || input.name.trim(),
+        kind: 'vehicle',
+        serial: `VEH-${Date.now().toString(36).toUpperCase()}`,
+        hwRev: '—',
+        status: 'concept',
+        location: 'Goods Shed',
+        owner: user?.name,
+        notes: 'Created from Production',
+        updatedAt: now,
+        quantity: 1,
+      }
+      vehicleUnitId = vehicle.id
+      nextUnits = [...lab.units, vehicle]
+    }
+
     const process: VehicleProcess = {
       id: newId('proc'),
       vehicleUnitId,
-      name: name.trim(),
+      name: input.name.trim(),
       updatedAt: now,
-      steps: defaultSteps(vehicleUnitId, units),
+      steps: defaultSteps(vehicleUnitId),
     }
+
     void store.commit(
-      { ...lab, processes: [process, ...lab.processes] },
-      'Process created',
+      {
+        ...lab,
+        units: nextUnits,
+        processes: [process, ...lab.processes],
+      },
+      'Production created',
     )
-    setSelectedId(process.id)
     setCreating(false)
+    setSelectedId(process.id)
+  }
+
+  function removeProduction(processId: string) {
+    const process = lab.processes.find((p) => p.id === processId)
+    if (!process || !window.confirm(`Remove ${process.name}?`)) return
+    void store.commit(
+      {
+        ...lab,
+        processes: lab.processes.filter((p) => p.id !== processId),
+      },
+      'Removed',
+    )
+    setSelectedId(null)
   }
 
   const completion = selected ? processCompletion(selected) : null
   const steps = selected ? sortProcessSteps(selected.steps) : []
 
   return (
-    <main className="simple-page" aria-label="Vehicle process">
+    <main className="simple-page" aria-label="Vehicle production">
       <header className="simple-head">
-        <h2>Vehicle production</h2>
+        <div>
+          <h2>Production</h2>
+          <p className="simple-muted">
+            {selected
+              ? 'Track build and checkout steps for this vehicle.'
+              : 'Open a vehicle production tracker, or create a new one.'}
+          </p>
+        </div>
         <div className="simple-head-actions">
           {saving ? <span className="simple-muted">Saving…</span> : null}
           <button
@@ -126,13 +181,23 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
           >
             Refresh
           </button>
-          <button
-            type="button"
-            className="btn btn-accent"
-            onClick={() => setCreating((v) => !v)}
-          >
-            {creating ? 'Cancel' : 'New process'}
-          </button>
+          {selected ? (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setSelectedId(null)}
+            >
+              All productions
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-accent"
+              onClick={() => setCreating(true)}
+            >
+              New production
+            </button>
+          )}
         </div>
       </header>
 
@@ -144,79 +209,114 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
 
       {sync === 'loading' ? (
         <p className="simple-muted">Loading…</p>
+      ) : selected ? (
+        <section className="simple-steps" aria-label={selected.name}>
+          <div className="prod-detail-head">
+            <div>
+              <h3>{selected.name}</h3>
+              <p className="simple-muted">
+                {selectedVehicle?.name ?? 'Vehicle'}
+                {completion
+                  ? ` · ${completion.done}/${completion.total} steps done`
+                  : ''}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => removeProduction(selected.id)}
+            >
+              Delete
+            </button>
+          </div>
+
+          <ol className="simple-step-list">
+            {steps.map((step) => (
+              <li key={step.id} className="simple-step">
+                <span className="simple-step-title">
+                  <strong>
+                    {step.order}. {step.title}
+                  </strong>
+                  {step.detail ? (
+                    <span className="simple-muted">{step.detail}</span>
+                  ) : null}
+                </span>
+                <select
+                  aria-label={`${step.title} status`}
+                  value={step.status}
+                  onChange={(e) =>
+                    updateStep(
+                      selected.id,
+                      step.id,
+                      e.target.value as ProcessStepStatus,
+                    )
+                  }
+                >
+                  {STEP_STATUS_OPTIONS.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </li>
+            ))}
+          </ol>
+
+          <AddStepForm onAdd={(title) => addStep(selected.id, title)} />
+        </section>
       ) : (
         <>
           {creating ? (
-            <NewProcessForm
+            <NewProductionForm
               vehicles={vehicles}
-              onCreate={createProcess}
+              onCreate={createProduction}
               onCancel={() => setCreating(false)}
             />
           ) : null}
 
           {processes.length === 0 && !creating ? (
-            <p className="simple-muted">No processes yet. Create one to start.</p>
+            <p className="simple-muted">
+              No vehicle productions yet. Create one to start tracking.
+            </p>
           ) : null}
 
           {processes.length > 0 ? (
-            <div className="simple-toolbar">
-              <label>
-                Process
-                <select
-                  value={selected?.id ?? ''}
-                  onChange={(e) => setSelectedId(e.target.value)}
+            <div className="prod-grid" role="list">
+              {processes.map((process) => {
+                const { done, total } = processCompletion(process)
+                const vehicle = units.find((u) => u.id === process.vehicleUnitId)
+                return (
+                  <button
+                    key={process.id}
+                    type="button"
+                    className="prod-tile"
+                    role="listitem"
+                    onClick={() => {
+                      setCreating(false)
+                      setSelectedId(process.id)
+                    }}
+                  >
+                    <strong>{process.name}</strong>
+                    <span className="simple-muted">
+                      {vehicle?.name ?? 'Vehicle'}
+                      {total > 0 ? ` · ${done}/${total} done` : ''}
+                    </span>
+                  </button>
+                )
+              })}
+              {!creating ? (
+                <button
+                  type="button"
+                  className="prod-tile prod-tile-new"
+                  onClick={() => setCreating(true)}
                 >
-                  {processes.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {completion ? (
-                <span className="simple-muted">
-                  {completion.done}/{completion.total} done
-                </span>
+                  <strong>New production</strong>
+                  <span className="simple-muted">
+                    Add another vehicle tracker
+                  </span>
+                </button>
               ) : null}
             </div>
-          ) : null}
-
-          {selected ? (
-            <section className="simple-steps" aria-label={selected.name}>
-              <ol className="simple-step-list">
-                {steps.map((step) => (
-                  <li key={step.id} className="simple-step">
-                    <span className="simple-step-title">
-                      <strong>
-                        {step.order}. {step.title}
-                      </strong>
-                      {step.detail ? (
-                        <span className="simple-muted">{step.detail}</span>
-                      ) : null}
-                    </span>
-                    <select
-                      aria-label={`${step.title} status`}
-                      value={step.status}
-                      onChange={(e) =>
-                        updateStep(
-                          selected.id,
-                          step.id,
-                          e.target.value as ProcessStepStatus,
-                        )
-                      }
-                    >
-                      {STEP_STATUS_OPTIONS.map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </li>
-                ))}
-              </ol>
-
-              <AddStepForm onAdd={(title) => addStep(selected.id, title)} />
-            </section>
           ) : null}
         </>
       )}
@@ -230,92 +330,113 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   )
 }
 
-function defaultSteps(
-  vehicleUnitId: string,
-  units: HardwareUnit[],
-): VehicleProcessStep[] {
-  const motor = units.find((u) => u.kind === 'motor')
-  const avionics = units.find((u) => u.kind === 'avionics')
-  const titles: Array<{
-    title: string
-    linkedUnitIds: string[]
-  }> = [
-    { title: 'Airframe dry-fit', linkedUnitIds: [vehicleUnitId] },
-    {
-      title: 'Motor install & retention',
-      linkedUnitIds: [vehicleUnitId, ...(motor ? [motor.id] : [])],
-    },
-    {
-      title: 'Avionics integrate & flash',
-      linkedUnitIds: [vehicleUnitId, ...(avionics ? [avionics.id] : [])],
-    },
-    { title: 'GSE / logger checkout', linkedUnitIds: [] },
-    { title: 'Pad stand load path', linkedUnitIds: [] },
-    { title: 'Static-fire readiness review', linkedUnitIds: [vehicleUnitId] },
-    { title: 'Flight readiness review', linkedUnitIds: [vehicleUnitId] },
+function defaultSteps(vehicleUnitId: string): VehicleProcessStep[] {
+  const titles = [
+    'Airframe / structure',
+    'Propulsion install',
+    'Avionics integrate & flash',
+    'GSE / ground systems',
+    'Checkout & functional tests',
+    'Pad / range readiness',
+    'Flight readiness review',
   ]
 
-  return titles.map((t, i) => ({
+  return titles.map((title, i) => ({
     id: newId('ps'),
     order: i + 1,
-    title: t.title,
+    title,
     status: 'pending' as const,
-    linkedUnitIds: t.linkedUnitIds,
+    linkedUnitIds: [vehicleUnitId],
   }))
 }
 
-function NewProcessForm({
+function NewProductionForm({
   vehicles,
   onCreate,
   onCancel,
 }: {
   vehicles: HardwareUnit[]
-  onCreate: (vehicleUnitId: string, name: string) => void
+  onCreate: (input: {
+    name: string
+    vehicleUnitId?: string
+    newVehicleName?: string
+  }) => void
   onCancel: () => void
 }) {
-  const [vehicleUnitId, setVehicleUnitId] = useState(vehicles[0]?.id ?? '')
   const [name, setName] = useState('')
-
-  if (vehicles.length === 0) {
-    return (
-      <p className="simple-muted">
-        Add a vehicle under Hardware before creating a process.
-      </p>
-    )
-  }
+  const [mode, setMode] = useState<'existing' | 'new'>(
+    vehicles.length > 0 ? 'existing' : 'new',
+  )
+  const [vehicleUnitId, setVehicleUnitId] = useState(vehicles[0]?.id ?? '')
+  const [newVehicleName, setNewVehicleName] = useState('')
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    const id = vehicleUnitId || vehicles[0]?.id
-    if (!id || !name.trim()) return
-    onCreate(id, name)
-    setName('')
+    if (!name.trim()) return
+    if (mode === 'existing') {
+      const id = vehicleUnitId || vehicles[0]?.id
+      if (!id) return
+      onCreate({ name: name.trim(), vehicleUnitId: id })
+      return
+    }
+    onCreate({
+      name: name.trim(),
+      newVehicleName: newVehicleName.trim() || name.trim(),
+    })
   }
 
   return (
-    <form className="simple-form simple-form-inline" onSubmit={handleSubmit}>
+    <form className="simple-form" onSubmit={handleSubmit}>
+      <h3>New vehicle production</h3>
       <label>
-        Vehicle
-        <select
-          value={vehicleUnitId || vehicles[0]?.id}
-          onChange={(e) => setVehicleUnitId(e.target.value)}
-        >
-          {vehicles.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Process name
+        Production name
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="B1M build & checkout"
+          placeholder="TVC production"
           required
+          autoFocus
         />
       </label>
+
+      {vehicles.length > 0 ? (
+        <label>
+          Vehicle source
+          <select
+            value={mode}
+            onChange={(e) => setMode(e.target.value as 'existing' | 'new')}
+          >
+            <option value="existing">Link existing vehicle</option>
+            <option value="new">Create new vehicle</option>
+          </select>
+        </label>
+      ) : null}
+
+      {mode === 'existing' && vehicles.length > 0 ? (
+        <label>
+          Vehicle
+          <select
+            value={vehicleUnitId || vehicles[0]?.id}
+            onChange={(e) => setVehicleUnitId(e.target.value)}
+          >
+            {vehicles.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <label>
+          Vehicle name
+          <input
+            value={newVehicleName}
+            onChange={(e) => setNewVehicleName(e.target.value)}
+            placeholder="TVC"
+          />
+        </label>
+      )}
+
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent">
           Create

@@ -3,6 +3,7 @@ import type {
   HardwareUnit,
   TestLogEntry,
   VehicleProcess,
+  VehicleProcessStep,
 } from './types'
 
 /** Seed inventory — shared defaults for the team lab API and local fallback. */
@@ -18,6 +19,42 @@ export const SEED_HARDWARE: HardwareUnit[] = [
     location: 'Goods Shed',
     owner: 'Structures',
     notes: 'Primary flight vehicle for B1M campaign.',
+    updatedAt: '2026-07-20T10:00:00.000Z',
+  },
+  {
+    id: 'hw-b1m',
+    name: 'B1M',
+    kind: 'vehicle',
+    serial: 'B1M-001',
+    hwRev: 'rev A',
+    status: 'assembly',
+    location: 'Goods Shed',
+    owner: 'Structures',
+    notes: 'B1M campaign vehicle.',
+    updatedAt: '2026-07-20T10:00:00.000Z',
+  },
+  {
+    id: 'hw-tvc',
+    name: 'TVC',
+    kind: 'vehicle',
+    serial: 'TVC-001',
+    hwRev: 'rev A',
+    status: 'design',
+    location: 'Goods Shed',
+    owner: 'Controls',
+    notes: 'Thrust vector control vehicle / article.',
+    updatedAt: '2026-07-20T10:00:00.000Z',
+  },
+  {
+    id: 'hw-hopper-100m',
+    name: '100M hopper',
+    kind: 'vehicle',
+    serial: 'HOP-100M-001',
+    hwRev: 'rev A',
+    status: 'concept',
+    location: 'Goods Shed',
+    owner: 'Structures',
+    notes: '100M hopper production article.',
     updatedAt: '2026-07-20T10:00:00.000Z',
   },
   {
@@ -198,30 +235,69 @@ export const SEED_TESTS: TestLogEntry[] = [
   },
 ]
 
+function starterSteps(
+  idPrefix: string,
+  vehicleUnitId: string,
+  extras?: Partial<Record<number, Partial<VehicleProcessStep>>>,
+): VehicleProcessStep[] {
+  const titles = [
+    'Airframe / structure',
+    'Propulsion install',
+    'Avionics integrate & flash',
+    'GSE / ground systems',
+    'Checkout & functional tests',
+    'Pad / range readiness',
+    'Flight readiness review',
+  ]
+  return titles.map((title, i) => {
+    const order = i + 1
+    const extra = extras?.[order] ?? {}
+    return {
+      id: `${idPrefix}-${order}`,
+      order,
+      title,
+      status: 'pending' as const,
+      linkedUnitIds: [vehicleUnitId],
+      ...extra,
+    }
+  })
+}
+
 /** Seed vehicle / campaign process trackers. */
 export const SEED_PROCESSES: VehicleProcess[] = [
   {
+    id: 'proc-b1m',
+    vehicleUnitId: 'hw-b1m',
+    name: 'B1M production',
+    campaign: 'B1M',
+    updatedAt: '2026-07-25T12:00:00.000Z',
+    steps: starterSteps('ps-b1m', 'hw-b1m'),
+  },
+  {
+    id: 'proc-tvc',
+    vehicleUnitId: 'hw-tvc',
+    name: 'TVC production',
+    campaign: 'TVC',
+    updatedAt: '2026-07-25T12:00:00.000Z',
+    steps: starterSteps('ps-tvc', 'hw-tvc'),
+  },
+  {
     id: 'proc-stravox-b1m',
     vehicleUnitId: 'hw-stravox-b1m',
-    name: 'STRAVOX B1M build & checkout',
+    name: 'STRAVOX B1M production',
     campaign: 'B1M',
     notes: 'Path from Goods Shed assembly through static-fire readiness.',
     updatedAt: '2026-07-25T12:00:00.000Z',
-    steps: [
-      {
-        id: 'ps-1',
-        order: 1,
+    steps: starterSteps('ps-svx', 'hw-stravox-b1m', {
+      1: {
         title: 'Airframe dry-fit',
         detail: 'Fin can, motor interface, and recovery bay fit check.',
         owner: 'Structures',
         status: 'done',
-        linkedUnitIds: ['hw-stravox-b1m'],
         completedAt: '2026-07-20T16:00:00.000Z',
         completedBy: 'Structures',
       },
-      {
-        id: 'ps-2',
-        order: 2,
+      2: {
         title: 'Motor install & retention',
         detail: 'Seat motor, torque retention, mark hardware.',
         owner: 'Propulsion',
@@ -230,52 +306,45 @@ export const SEED_PROCESSES: VehicleProcess[] = [
         completedAt: '2026-07-25T11:00:00.000Z',
         completedBy: 'Structures',
       },
-      {
-        id: 'ps-3',
-        order: 3,
+      3: {
         title: 'Avionics integrate & flash',
         detail: 'Install FC, flash current FW, bench downlink loop.',
         owner: 'Avionics',
         status: 'active',
         linkedUnitIds: ['hw-avionics-01', 'hw-stravox-b1m'],
       },
-      {
-        id: 'ps-4',
-        order: 4,
+      4: {
         title: 'GSE / logger checkout',
         detail: 'Confirm shed logger captures pad + vehicle paths.',
         owner: 'Ops',
-        status: 'pending',
         linkedUnitIds: ['hw-logger'],
       },
-      {
-        id: 'ps-5',
-        order: 5,
+      5: {
         title: 'Pad stand load path',
         detail: 'Verify stand, thrust cell cal, and instrument harness.',
         owner: 'Structures',
-        status: 'pending',
         linkedUnitIds: ['hw-pad-stand'],
       },
-      {
-        id: 'ps-6',
-        order: 6,
+      6: {
         title: 'Static-fire readiness review',
         detail: 'Go / hold review before pad ops.',
         owner: 'Ops',
-        status: 'pending',
         linkedUnitIds: ['hw-stravox-b1m', 'hw-motor-b1m'],
       },
-      {
-        id: 'ps-7',
-        order: 7,
+      7: {
         title: 'Flight readiness review',
         detail: 'Final vehicle process gate after static-fire data review.',
         owner: 'Ops',
-        status: 'pending',
-        linkedUnitIds: ['hw-stravox-b1m'],
       },
-    ],
+    }),
+  },
+  {
+    id: 'proc-hopper-100m',
+    vehicleUnitId: 'hw-hopper-100m',
+    name: '100M hopper production',
+    campaign: '100M',
+    updatedAt: '2026-07-25T12:00:00.000Z',
+    steps: starterSteps('ps-hop', 'hw-hopper-100m'),
   },
 ]
 
