@@ -1826,9 +1826,11 @@ button {
   opacity: 0.88;
 }
 
-.btn-accent {
-  background: var(--ignition);
-  border-color: var(--ignition);
+.btn-ghost[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--ignition) 35%, var(--line));
+  color: var(--ignition);
+  background: color-mix(in srgb, var(--ignition) 8%, transparent);
+}
   color: #fff;
 }
 
