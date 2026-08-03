@@ -4264,6 +4264,29 @@ button {
   gap: 0.2rem;
 }
 
+.simple-step-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.prod-step-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.2rem;
+}
+
+.prod-step-actions .btn {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+.prod-edit-step {
+  max-width: none;
+  width: 100%;
+}
+
 .simple-add-step {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

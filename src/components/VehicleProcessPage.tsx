@@ -28,6 +28,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const { lab, sync, syncError, saving, toast } = store
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [editingStepId, setEditingStepId] = useState<string | null>(null)
 
   const units = useMemo(() => sortUnits(lab.units), [lab.units])
   const processes = useMemo(() => sortProcesses(lab.processes), [lab.processes])
@@ -101,6 +102,59 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       },
       'Step added',
     )
+  }
+
+  function editStep(
+    processId: string,
+    stepId: string,
+    patch: { title: string; detail?: string },
+  ) {
+    if (!patch.title.trim()) return
+    const now = new Date().toISOString()
+    void store.commit(
+      {
+        ...lab,
+        processes: lab.processes.map((p) => {
+          if (p.id !== processId) return p
+          return {
+            ...p,
+            updatedAt: now,
+            steps: p.steps.map((s) =>
+              s.id === stepId
+                ? {
+                    ...s,
+                    title: patch.title.trim(),
+                    detail: patch.detail?.trim() || undefined,
+                  }
+                : s,
+            ),
+          }
+        }),
+      },
+      'Step saved',
+    )
+    setEditingStepId(null)
+  }
+
+  function deleteStep(processId: string, stepId: string) {
+    const process = lab.processes.find((p) => p.id === processId)
+    const step = process?.steps.find((s) => s.id === stepId)
+    if (!step || !window.confirm(`Delete step “${step.title}”?`)) return
+    const now = new Date().toISOString()
+    void store.commit(
+      {
+        ...lab,
+        processes: lab.processes.map((p) => {
+          if (p.id !== processId) return p
+          const remaining = sortProcessSteps(
+            p.steps.filter((s) => s.id !== stepId),
+          ).map((s, i) => ({ ...s, order: i + 1 }))
+          return { ...p, updatedAt: now, steps: remaining }
+        }),
+      },
+      'Step deleted',
+    )
+    if (editingStepId === stepId) setEditingStepId(null)
   }
 
   function createProduction(input: { name: string; vehicleName?: string }) {
@@ -218,6 +272,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                   aria-pressed={selected?.id === process.id}
                   onClick={() => {
                     setCreating(false)
+                    setEditingStepId(null)
                     setSelectedId(process.id)
                   }}
                 >
@@ -287,33 +342,63 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
               <ol className="simple-step-list">
                 {steps.map((step) => (
                   <li key={step.id} className="simple-step">
-                    <span className="simple-step-title">
-                      <strong>
-                        {step.order}. {step.title}
-                      </strong>
-                      {step.detail ? (
-                        <span className="simple-muted">{step.detail}</span>
-                      ) : null}
-                    </span>
-                    <div
-                      className="prod-status-row"
-                      role="group"
-                      aria-label={`${step.title} status`}
-                    >
-                      {PROCESS_STEP_STATUS_ORDER.map((status) => (
-                        <button
-                          key={status}
-                          type="button"
-                          className="prod-status-btn"
-                          aria-pressed={step.status === status}
-                          onClick={() =>
-                            updateStep(selected.id, step.id, status)
-                          }
+                    {editingStepId === step.id ? (
+                      <EditStepForm
+                        step={step}
+                        onSave={(patch) =>
+                          editStep(selected.id, step.id, patch)
+                        }
+                        onCancel={() => setEditingStepId(null)}
+                      />
+                    ) : (
+                      <>
+                        <div className="simple-step-top">
+                          <span className="simple-step-title">
+                            <strong>
+                              {step.order}. {step.title}
+                            </strong>
+                            {step.detail ? (
+                              <span className="simple-muted">{step.detail}</span>
+                            ) : null}
+                          </span>
+                          <div className="prod-step-actions">
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => setEditingStepId(step.id)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => deleteStep(selected.id, step.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                        <div
+                          className="prod-status-row"
+                          role="group"
+                          aria-label={`${step.title} status`}
                         >
-                          {PROCESS_STEP_STATUS_LABELS[status]}
-                        </button>
-                      ))}
-                    </div>
+                          {PROCESS_STEP_STATUS_ORDER.map((status) => (
+                            <button
+                              key={status}
+                              type="button"
+                              className="prod-status-btn"
+                              aria-pressed={step.status === status}
+                              onClick={() =>
+                                updateStep(selected.id, step.id, status)
+                              }
+                            >
+                              {PROCESS_STEP_STATUS_LABELS[status]}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </li>
                 ))}
               </ol>
@@ -400,6 +485,55 @@ function NewProductionForm({
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent">
           Create
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function EditStepForm({
+  step,
+  onSave,
+  onCancel,
+}: {
+  step: VehicleProcessStep
+  onSave: (patch: { title: string; detail?: string }) => void
+  onCancel: () => void
+}) {
+  const [title, setTitle] = useState(step.title)
+  const [detail, setDetail] = useState(step.detail ?? '')
+
+  return (
+    <form
+      className="simple-form prod-edit-step"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSave({ title, detail })
+      }}
+    >
+      <label>
+        Step title
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+          autoFocus
+        />
+      </label>
+      <label>
+        Detail
+        <input
+          value={detail}
+          onChange={(e) => setDetail(e.target.value)}
+          placeholder="Optional notes"
+        />
+      </label>
+      <div className="simple-form-actions">
+        <button type="submit" className="btn btn-accent">
+          Save
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel}>
           Cancel
