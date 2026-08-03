@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import {
   PROCESS_STEP_STATUS_LABELS,
+  PROCESS_STEP_STATUS_ORDER,
   newId,
   processCompletion,
   sortProcessSteps,
@@ -9,17 +10,11 @@ import {
   sortUnits,
 } from '../hardwareData'
 import type {
-  HardwareUnit,
   ProcessStepStatus,
   VehicleProcess,
   VehicleProcessStep,
 } from '../types'
 import { useLabStore } from '../useLabStore'
-
-const STEP_STATUS_OPTIONS = Object.entries(PROCESS_STEP_STATUS_LABELS) as [
-  ProcessStepStatus,
-  string,
-][]
 
 const RECOMMENDED_PRODUCTIONS = [
   { name: 'B1M production', vehicleName: 'B1M' },
@@ -35,12 +30,9 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const [creating, setCreating] = useState(false)
 
   const units = useMemo(() => sortUnits(lab.units), [lab.units])
-  const vehicles = useMemo(
-    () => units.filter((u) => u.kind === 'vehicle'),
-    [units],
-  )
   const processes = useMemo(() => sortProcesses(lab.processes), [lab.processes])
-  const selected = processes.find((p) => p.id === selectedId) ?? null
+  const selected =
+    processes.find((p) => p.id === selectedId) ?? processes[0] ?? null
   const selectedVehicle = selected
     ? units.find((u) => u.id === selected.vehicleUnitId)
     : null
@@ -111,51 +103,40 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     )
   }
 
-  function createProduction(input: {
-    name: string
-    vehicleUnitId?: string
-    newVehicleName?: string
-  }) {
+  function createProduction(input: { name: string; vehicleName?: string }) {
     const now = new Date().toISOString()
-    let vehicleUnitId = input.vehicleUnitId
+    const wanted = (input.vehicleName || input.name)
+      .replace(/\s+production\s*$/i, '')
+      .trim()
     let nextUnits = lab.units
+    let vehicle = nextUnits.find(
+      (u) =>
+        u.kind === 'vehicle' && u.name.toLowerCase() === wanted.toLowerCase(),
+    )
 
-    if (!vehicleUnitId) {
-      const wanted = (input.newVehicleName || input.name)
-        .replace(/\s+production\s*$/i, '')
-        .trim()
-      const existing = nextUnits.find(
-        (u) =>
-          u.kind === 'vehicle' &&
-          u.name.toLowerCase() === wanted.toLowerCase(),
-      )
-      if (existing) {
-        vehicleUnitId = existing.id
-      } else {
-        const vehicle: HardwareUnit = {
-          id: newId('hw'),
-          name: wanted || input.name.trim(),
-          kind: 'vehicle',
-          serial: `VEH-${Date.now().toString(36).toUpperCase()}`,
-          hwRev: '—',
-          status: 'concept',
-          location: 'Goods Shed',
-          owner: user?.name,
-          notes: 'Created from Production',
-          updatedAt: now,
-          quantity: 1,
-        }
-        vehicleUnitId = vehicle.id
-        nextUnits = [...lab.units, vehicle]
+    if (!vehicle) {
+      vehicle = {
+        id: newId('hw'),
+        name: wanted || input.name.trim(),
+        kind: 'vehicle',
+        serial: `VEH-${Date.now().toString(36).toUpperCase()}`,
+        hwRev: '—',
+        status: 'concept',
+        location: 'Goods Shed',
+        owner: user?.name,
+        notes: 'Created from Production',
+        updatedAt: now,
+        quantity: 1,
       }
+      nextUnits = [...lab.units, vehicle]
     }
 
     const process: VehicleProcess = {
       id: newId('proc'),
-      vehicleUnitId,
+      vehicleUnitId: vehicle.id,
       name: input.name.trim(),
       updatedAt: now,
-      steps: defaultSteps(vehicleUnitId),
+      steps: defaultSteps(vehicle.id),
     }
 
     void store.commit(
@@ -173,14 +154,15 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   function removeProduction(processId: string) {
     const process = lab.processes.find((p) => p.id === processId)
     if (!process || !window.confirm(`Remove ${process.name}?`)) return
+    const remaining = lab.processes.filter((p) => p.id !== processId)
     void store.commit(
       {
         ...lab,
-        processes: lab.processes.filter((p) => p.id !== processId),
+        processes: remaining,
       },
       'Removed',
     )
-    setSelectedId(null)
+    setSelectedId(remaining[0]?.id ?? null)
   }
 
   const completion = selected ? processCompletion(selected) : null
@@ -192,9 +174,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
         <div>
           <h2>Production</h2>
           <p className="simple-muted">
-            {selected
-              ? 'Track build and checkout steps for this vehicle.'
-              : 'Open a vehicle production tracker, or create a new one.'}
+            Choose a vehicle production tracker below.
           </p>
         </div>
         <div className="simple-head-actions">
@@ -207,23 +187,13 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
           >
             Refresh
           </button>
-          {selected ? (
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => setSelectedId(null)}
-            >
-              All productions
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn btn-accent"
-              onClick={() => setCreating(true)}
-            >
-              New production
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn btn-accent"
+            onClick={() => setCreating((v) => !v)}
+          >
+            {creating ? 'Cancel' : 'New production'}
+          </button>
         </div>
       </header>
 
@@ -235,91 +205,28 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
 
       {sync === 'loading' ? (
         <p className="simple-muted">Loading…</p>
-      ) : selected ? (
-        <section className="simple-steps" aria-label={selected.name}>
-          <div className="prod-detail-head">
-            <div>
-              <h3>{selected.name}</h3>
-              <p className="simple-muted">
-                {selectedVehicle?.name ?? 'Vehicle'}
-                {completion
-                  ? ` · ${completion.done}/${completion.total} steps done`
-                  : ''}
-              </p>
-            </div>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => removeProduction(selected.id)}
-            >
-              Delete
-            </button>
-          </div>
-
-          <ol className="simple-step-list">
-            {steps.map((step) => (
-              <li key={step.id} className="simple-step">
-                <span className="simple-step-title">
-                  <strong>
-                    {step.order}. {step.title}
-                  </strong>
-                  {step.detail ? (
-                    <span className="simple-muted">{step.detail}</span>
-                  ) : null}
-                </span>
-                <select
-                  aria-label={`${step.title} status`}
-                  value={step.status}
-                  onChange={(e) =>
-                    updateStep(
-                      selected.id,
-                      step.id,
-                      e.target.value as ProcessStepStatus,
-                    )
-                  }
-                >
-                  {STEP_STATUS_OPTIONS.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </li>
-            ))}
-          </ol>
-
-          <AddStepForm onAdd={(title) => addStep(selected.id, title)} />
-        </section>
       ) : (
         <>
-          {creating ? (
-            <NewProductionForm
-              vehicles={vehicles}
-              onCreate={createProduction}
-              onCancel={() => setCreating(false)}
-            />
-          ) : null}
-
-          <div className="prod-grid" role="list">
+          <div className="prod-buttons" role="toolbar" aria-label="Productions">
             {processes.map((process) => {
               const { done, total } = processCompletion(process)
-              const vehicle = units.find((u) => u.id === process.vehicleUnitId)
               return (
                 <button
                   key={process.id}
                   type="button"
-                  className="prod-tile"
-                  role="listitem"
+                  className="prod-btn"
+                  aria-pressed={selected?.id === process.id}
                   onClick={() => {
                     setCreating(false)
                     setSelectedId(process.id)
                   }}
                 >
-                  <strong>{process.name}</strong>
-                  <span className="simple-muted">
-                    {vehicle?.name ?? 'Vehicle'}
-                    {total > 0 ? ` · ${done}/${total} done` : ''}
-                  </span>
+                  <span className="prod-btn-label">{process.name}</span>
+                  {total > 0 ? (
+                    <span className="prod-btn-meta">
+                      {done}/{total}
+                    </span>
+                  ) : null}
                 </button>
               )
             })}
@@ -328,33 +235,96 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
               <button
                 key={rec.name}
                 type="button"
-                className="prod-tile prod-tile-suggested"
-                role="listitem"
+                className="prod-btn prod-btn-add"
                 onClick={() =>
                   createProduction({
                     name: rec.name,
-                    newVehicleName: rec.vehicleName,
+                    vehicleName: rec.vehicleName,
                   })
                 }
               >
-                <strong>{rec.name}</strong>
-                <span className="simple-muted">Tap to add this tracker</span>
+                <span className="prod-btn-label">+ {rec.name}</span>
               </button>
             ))}
 
-            {!creating ? (
-              <button
-                type="button"
-                className="prod-tile prod-tile-new"
-                onClick={() => setCreating(true)}
-              >
-                <strong>New production</strong>
-                <span className="simple-muted">
-                  Name your own vehicle tracker
-                </span>
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className="prod-btn prod-btn-add"
+              onClick={() => setCreating(true)}
+            >
+              <span className="prod-btn-label">+ New</span>
+            </button>
           </div>
+
+          {creating ? (
+            <NewProductionForm
+              onCreate={createProduction}
+              onCancel={() => setCreating(false)}
+            />
+          ) : null}
+
+          {selected ? (
+            <section className="simple-steps" aria-label={selected.name}>
+              <div className="prod-detail-head">
+                <div>
+                  <h3>{selected.name}</h3>
+                  <p className="simple-muted">
+                    {selectedVehicle?.name ?? 'Vehicle'}
+                    {completion
+                      ? ` · ${completion.done}/${completion.total} steps done`
+                      : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => removeProduction(selected.id)}
+                >
+                  Delete
+                </button>
+              </div>
+
+              <ol className="simple-step-list">
+                {steps.map((step) => (
+                  <li key={step.id} className="simple-step">
+                    <span className="simple-step-title">
+                      <strong>
+                        {step.order}. {step.title}
+                      </strong>
+                      {step.detail ? (
+                        <span className="simple-muted">{step.detail}</span>
+                      ) : null}
+                    </span>
+                    <div
+                      className="prod-status-row"
+                      role="group"
+                      aria-label={`${step.title} status`}
+                    >
+                      {PROCESS_STEP_STATUS_ORDER.map((status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          className="prod-status-btn"
+                          aria-pressed={step.status === status}
+                          onClick={() =>
+                            updateStep(selected.id, step.id, status)
+                          }
+                        >
+                          {PROCESS_STEP_STATUS_LABELS[status]}
+                        </button>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+
+              <AddStepForm onAdd={(title) => addStep(selected.id, title)} />
+            </section>
+          ) : (
+            <p className="simple-muted">
+              Add a production tracker above to get started.
+            </p>
+          )}
         </>
       )}
 
@@ -388,37 +358,21 @@ function defaultSteps(vehicleUnitId: string): VehicleProcessStep[] {
 }
 
 function NewProductionForm({
-  vehicles,
   onCreate,
   onCancel,
 }: {
-  vehicles: HardwareUnit[]
-  onCreate: (input: {
-    name: string
-    vehicleUnitId?: string
-    newVehicleName?: string
-  }) => void
+  onCreate: (input: { name: string; vehicleName?: string }) => void
   onCancel: () => void
 }) {
   const [name, setName] = useState('')
-  const [mode, setMode] = useState<'existing' | 'new'>(
-    vehicles.length > 0 ? 'existing' : 'new',
-  )
-  const [vehicleUnitId, setVehicleUnitId] = useState(vehicles[0]?.id ?? '')
-  const [newVehicleName, setNewVehicleName] = useState('')
+  const [vehicleName, setVehicleName] = useState('')
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
-    if (mode === 'existing') {
-      const id = vehicleUnitId || vehicles[0]?.id
-      if (!id) return
-      onCreate({ name: name.trim(), vehicleUnitId: id })
-      return
-    }
     onCreate({
       name: name.trim(),
-      newVehicleName: newVehicleName.trim() || name.trim(),
+      vehicleName: vehicleName.trim() || name.trim(),
     })
   }
 
@@ -435,45 +389,14 @@ function NewProductionForm({
           autoFocus
         />
       </label>
-
-      {vehicles.length > 0 ? (
-        <label>
-          Vehicle source
-          <select
-            value={mode}
-            onChange={(e) => setMode(e.target.value as 'existing' | 'new')}
-          >
-            <option value="existing">Link existing vehicle</option>
-            <option value="new">Create new vehicle</option>
-          </select>
-        </label>
-      ) : null}
-
-      {mode === 'existing' && vehicles.length > 0 ? (
-        <label>
-          Vehicle
-          <select
-            value={vehicleUnitId || vehicles[0]?.id}
-            onChange={(e) => setVehicleUnitId(e.target.value)}
-          >
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : (
-        <label>
-          Vehicle name
-          <input
-            value={newVehicleName}
-            onChange={(e) => setNewVehicleName(e.target.value)}
-            placeholder="TVC"
-          />
-        </label>
-      )}
-
+      <label>
+        Vehicle name
+        <input
+          value={vehicleName}
+          onChange={(e) => setVehicleName(e.target.value)}
+          placeholder="TVC"
+        />
+      </label>
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent">
           Create
