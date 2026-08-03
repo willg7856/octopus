@@ -14,7 +14,7 @@ Deployed on Vercel as `beyondstagezero/octopus`.
 - **Hardware** — HW/FW versions and status for vehicles, motors, avionics, pad, GSE
 - **Production** — vehicle production process tracker (ordered build / checkout steps)
 
-Seed defaults live in `src/hardwareSeed.ts`. On the live site, data is **shared for everyone signed in** via `/api/hardware/lab` (**Vercel Blob**). Local Vite without the API falls back to browser storage.
+Seed defaults live in `src/hardwareSeed.ts`. On the live site, data is **shared for everyone signed in** via `/api/hardware/lab`. Local Vite without the API falls back to browser storage.
 
 Deep links: `#/inventory`, `#/hardware`, `#/vehicles`.
 
@@ -28,23 +28,25 @@ Set these Vercel env vars on the `octopus` project:
 - `AUTH_SECRET` — random string used to sign session cookies
 - `OPS_USERS` — comma-separated allowed emails for the whole team. If empty, any email + correct password works
 
-### Shared storage (Vercel Blob)
+### Shared storage (Redis preferred)
 
-Inventory / Hardware / Production sync through a **Vercel Blob** store — not Redis.
+Inventory / Hardware / Production prefer **Upstash Redis**. If Redis isn’t connected yet, the app falls back to the connected **Vercel Blob** store.
+
+**Connect Redis (recommended):**
 
 1. Vercel → `octopus` → **Storage**
-2. Create a Blob store (or connect the existing one) to **Production** (and Preview if needed)
+2. Create or connect an **Upstash Redis** database to **Production** (and Preview if needed)
 3. Redeploy Production (uncheck “Use existing Build Cache”)
 
-Connected stores inject credentials automatically (`BLOB_STORE_ID` / token / OIDC). You should not need hand-pasted Redis env vars.
+Prefer connecting through Storage rather than pasting Sensitive env vars by hand — marketplace-connected vars are what the runtime reliably sees.
 
-Upstash Redis is not used.
+The integration injects `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (or `KV_REST_API_*`).
 
 ### Team access checklist
 
 1. Put every teammate’s email in `OPS_USERS` (or clear it if you want any email + the shared password).
-2. Confirm a Blob store is connected under Storage.
-3. Redeploy. Open Inventory / Hardware / Production — edits sync for all signed-in users.
+2. Connect Upstash Redis under Storage (Blob can stay connected as fallback).
+3. Redeploy. Open Inventory — edits should feel snappy and sync for everyone.
 
 Local Vite uses password `goods-shed` (or `VITE_OPS_PASSWORD`) when `/api` isn’t available.
 
@@ -59,7 +61,7 @@ Or: `./start.sh` → **http://127.0.0.1:5173**
 
 Requires Node.js 20+.
 
-For local shared API storage with `vercel dev`, either connect Blob (`BLOB_READ_WRITE_TOKEN` in `.env.local`) or the API falls back to a local `.data/` file.
+For local shared API storage with `vercel dev`, put Redis vars in `.env.local`, or the API falls back to a local `.data/` file.
 
 ## Build
 
