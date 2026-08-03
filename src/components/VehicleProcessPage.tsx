@@ -194,6 +194,33 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     if (editingStepId === stepId) setEditingStepId(null)
   }
 
+  function moveStep(processId: string, stepId: string, direction: -1 | 1) {
+    const process = lab.processes.find((p) => p.id === processId)
+    if (!process) return
+    const ordered = sortProcessSteps(process.steps)
+    const index = ordered.findIndex((s) => s.id === stepId)
+    const target = index + direction
+    if (index < 0 || target < 0 || target >= ordered.length) return
+
+    const next = [...ordered]
+    const [item] = next.splice(index, 1)
+    next.splice(target, 0, item)
+    const renumbered = next.map((step, i) => ({ ...step, order: i + 1 }))
+    const now = new Date().toISOString()
+
+    void store.commit(
+      {
+        ...lab,
+        processes: lab.processes.map((p) =>
+          p.id === processId
+            ? { ...p, updatedAt: now, steps: renumbered }
+            : p,
+        ),
+      },
+      'Steps reordered',
+    )
+  }
+
   function createProduction(input: { name: string; vehicleName?: string }) {
     const now = new Date().toISOString()
     const wanted = (input.vehicleName || input.name)
@@ -431,7 +458,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
               ) : null}
 
               <ol className="simple-step-list">
-                {steps.map((step) => {
+                {steps.map((step, index) => {
                   const isEditing = editingStepId === step.id
                   return (
                     <li
@@ -474,6 +501,28 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                             </span>
                             {editingSteps ? (
                               <div className="prod-step-actions">
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  aria-label={`Move ${step.title} up`}
+                                  disabled={index === 0}
+                                  onClick={() =>
+                                    moveStep(selected.id, step.id, -1)
+                                  }
+                                >
+                                  Up
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  aria-label={`Move ${step.title} down`}
+                                  disabled={index === steps.length - 1}
+                                  onClick={() =>
+                                    moveStep(selected.id, step.id, 1)
+                                  }
+                                >
+                                  Down
+                                </button>
                                 <button
                                   type="button"
                                   className="btn btn-ghost"
