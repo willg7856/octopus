@@ -14,7 +14,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@vercel/blob": "^2.6.1",
+    "@upstash/redis": "^1.38.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

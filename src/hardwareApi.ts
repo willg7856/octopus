@@ -52,7 +52,7 @@ export async function fetchSharedHardwareLab(): Promise<
     if (!lab) {
       return { ok: false, error: 'Shared inventory response was empty', status: 500 }
     }
-    return { ok: true, lab, storage: data?.storage || 'blob' }
+    return { ok: true, lab, storage: data?.storage || 'redis' }
   } catch {
     return { ok: false, error: 'Could not reach inventory API', status: 0 }
   }

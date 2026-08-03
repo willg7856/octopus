@@ -14,7 +14,7 @@ Deployed on Vercel as `beyondstagezero/octopus`.
 - **Hardware** — HW/FW versions and status for vehicles, motors, avionics, pad, GSE
 - **Production** — vehicle production process tracker (ordered build / checkout steps)
 
-Seed defaults live in `src/hardwareSeed.ts`. On the live site, data is **shared for everyone signed in** via `/api/hardware/lab` (Vercel Blob). Local Vite without the API falls back to browser storage.
+Seed defaults live in `src/hardwareSeed.ts`. On the live site, data is **shared for everyone signed in** via `/api/hardware/lab` (Upstash Redis). Local Vite without the API falls back to browser storage.
 
 Deep links: `#/inventory`, `#/hardware`, `#/vehicles`.
 
@@ -27,34 +27,25 @@ Set these Vercel env vars on the `octopus` project:
 - `OPS_PASSWORD` — shared team password
 - `AUTH_SECRET` — random string used to sign session cookies
 - `OPS_USERS` — comma-separated allowed emails for the whole team. If empty, any email + correct password works
-- `BLOB_READ_WRITE_TOKEN` and/or `BLOB_STORE_ID` — set automatically when a Blob store is connected to the project
-- `BLOB_ACCESS` _(optional)_ — `private` (default) or `public`, must match the Blob store type
+- `UPSTASH_REDIS_REST_URL` — from your Upstash Redis database
+- `UPSTASH_REDIS_REST_TOKEN` — from your Upstash Redis database
 
-### Add Vercel Blob (required for shared inventory)
+### Add Upstash Redis (required for shared inventory)
 
-The app already uses `@vercel/blob`. You only need to create the store once:
+1. Open **[console.upstash.com](https://console.upstash.com/)** and create a free Redis database
+2. Copy **REST URL** and **REST TOKEN**
+3. In Vercel → `octopus` → **Settings → Environment Variables**, add:
+   - `UPSTASH_REDIS_REST_URL`
+   - `UPSTASH_REDIS_REST_TOKEN`
+4. Apply to **Production** and **Preview**
+5. **Redeploy** production
 
-1. Open **[octopus → Storage](https://vercel.com/beyondstagezero/octopus/stores)**
-2. **Create Database** → **Blob**
-3. Choose **Private**
-4. Name it e.g. `octopus-lab`
-5. Connect to the `octopus` project for **Production** and **Preview**
-6. **Redeploy** the latest production deployment
-
-Vercel will inject `BLOB_STORE_ID` (OIDC) and/or `BLOB_READ_WRITE_TOKEN`. After redeploy, Inventory / Hardware / Production sync for everyone signed in.
-
-Or via CLI (from a machine logged into Vercel):
-
-```bash
-npx vercel link
-npx vercel blob create-store octopus-lab --access private --yes
-npx vercel redeploy --prod
-```
+After that, Inventory / Hardware / Production sync for everyone signed in.
 
 ### Team access checklist
 
 1. Put every teammate’s email in `OPS_USERS` (or clear it if you want any email + the shared password).
-2. Create/connect Blob as above.
+2. Add the Upstash Redis env vars as above.
 3. Redeploy. Open Inventory / Hardware / Production — edits sync for all signed-in users.
 
 Local Vite uses password `goods-shed` (or `VITE_OPS_PASSWORD`) when `/api` isn’t available.
@@ -69,6 +60,8 @@ npm start
 Or: `./start.sh` → **http://127.0.0.1:5173**
 
 Requires Node.js 20+.
+
+For local shared API storage with `vercel dev`, put the Upstash vars in `.env.local`.
 
 ## Build
 
