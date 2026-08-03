@@ -59,22 +59,50 @@ function normalize(raw: StoredLab | null | undefined, updatedBy = 'system'): Sha
   }
 }
 
-function redisConfigured() {
-  return Boolean(
-    process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN,
+function redisUrl() {
+  return (
+    process.env.UPSTASH_REDIS_REST_URL?.trim() ||
+    process.env.KV_REST_API_URL?.trim() ||
+    ''
   )
 }
 
+function redisToken() {
+  return (
+    process.env.UPSTASH_REDIS_REST_TOKEN?.trim() ||
+    process.env.KV_REST_API_TOKEN?.trim() ||
+    ''
+  )
+}
+
+function redisConfigured() {
+  return Boolean(redisUrl() && redisToken())
+}
+
 export function redisSetupHint() {
+  const missing = [
+    !redisUrl() ? 'UPSTASH_REDIS_REST_URL (or KV_REST_API_URL)' : null,
+    !redisToken() ? 'UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_TOKEN)' : null,
+  ].filter(Boolean)
+
+  const missingText =
+    missing.length > 0
+      ? ` Missing on this deployment: ${missing.join(', ')}.`
+      : ''
+
   return (
     'Create a free Upstash Redis database, then add UPSTASH_REDIS_REST_URL and ' +
-    'UPSTASH_REDIS_REST_TOKEN to the octopus Vercel project (Production + Preview), then Redeploy. ' +
-    'Console: https://console.upstash.com/'
+    'UPSTASH_REDIS_REST_TOKEN to the octopus Vercel project (Production + Preview), then Redeploy.' +
+    missingText +
+    ' Console: https://console.upstash.com/'
   )
 }
 
 function getRedis() {
-  return Redis.fromEnv()
+  return new Redis({
+    url: redisUrl(),
+    token: redisToken(),
+  })
 }
 
 async function readLocal(): Promise<SharedHardwareLab | null> {
