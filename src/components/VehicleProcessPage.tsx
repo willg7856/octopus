@@ -21,6 +21,13 @@ const STEP_STATUS_OPTIONS = Object.entries(PROCESS_STEP_STATUS_LABELS) as [
   string,
 ][]
 
+const RECOMMENDED_PRODUCTIONS = [
+  { name: 'B1M production', vehicleName: 'B1M' },
+  { name: 'TVC production', vehicleName: 'TVC' },
+  { name: 'STRAVOX B1M production', vehicleName: 'STRAVOX airframe' },
+  { name: '100M hopper production', vehicleName: '100M hopper' },
+] as const
+
 export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
   const { lab, sync, syncError, saving, toast } = store
@@ -37,6 +44,16 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const selectedVehicle = selected
     ? units.find((u) => u.id === selected.vehicleUnitId)
     : null
+  const missingRecommended = useMemo(
+    () =>
+      RECOMMENDED_PRODUCTIONS.filter(
+        (rec) =>
+          !processes.some(
+            (p) => p.name.toLowerCase() === rec.name.toLowerCase(),
+          ),
+      ),
+    [processes],
+  )
 
   function updateStep(
     processId: string,
@@ -104,24 +121,33 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     let nextUnits = lab.units
 
     if (!vehicleUnitId) {
-      const vehicleName = (input.newVehicleName || input.name)
+      const wanted = (input.newVehicleName || input.name)
         .replace(/\s+production\s*$/i, '')
         .trim()
-      const vehicle: HardwareUnit = {
-        id: newId('hw'),
-        name: vehicleName || input.name.trim(),
-        kind: 'vehicle',
-        serial: `VEH-${Date.now().toString(36).toUpperCase()}`,
-        hwRev: '—',
-        status: 'concept',
-        location: 'Goods Shed',
-        owner: user?.name,
-        notes: 'Created from Production',
-        updatedAt: now,
-        quantity: 1,
+      const existing = nextUnits.find(
+        (u) =>
+          u.kind === 'vehicle' &&
+          u.name.toLowerCase() === wanted.toLowerCase(),
+      )
+      if (existing) {
+        vehicleUnitId = existing.id
+      } else {
+        const vehicle: HardwareUnit = {
+          id: newId('hw'),
+          name: wanted || input.name.trim(),
+          kind: 'vehicle',
+          serial: `VEH-${Date.now().toString(36).toUpperCase()}`,
+          hwRev: '—',
+          status: 'concept',
+          location: 'Goods Shed',
+          owner: user?.name,
+          notes: 'Created from Production',
+          updatedAt: now,
+          quantity: 1,
+        }
+        vehicleUnitId = vehicle.id
+        nextUnits = [...lab.units, vehicle]
       }
-      vehicleUnitId = vehicle.id
-      nextUnits = [...lab.units, vehicle]
     }
 
     const process: VehicleProcess = {
@@ -274,50 +300,61 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
             />
           ) : null}
 
-          {processes.length === 0 && !creating ? (
-            <p className="simple-muted">
-              No vehicle productions yet. Create one to start tracking.
-            </p>
-          ) : null}
-
-          {processes.length > 0 ? (
-            <div className="prod-grid" role="list">
-              {processes.map((process) => {
-                const { done, total } = processCompletion(process)
-                const vehicle = units.find((u) => u.id === process.vehicleUnitId)
-                return (
-                  <button
-                    key={process.id}
-                    type="button"
-                    className="prod-tile"
-                    role="listitem"
-                    onClick={() => {
-                      setCreating(false)
-                      setSelectedId(process.id)
-                    }}
-                  >
-                    <strong>{process.name}</strong>
-                    <span className="simple-muted">
-                      {vehicle?.name ?? 'Vehicle'}
-                      {total > 0 ? ` · ${done}/${total} done` : ''}
-                    </span>
-                  </button>
-                )
-              })}
-              {!creating ? (
+          <div className="prod-grid" role="list">
+            {processes.map((process) => {
+              const { done, total } = processCompletion(process)
+              const vehicle = units.find((u) => u.id === process.vehicleUnitId)
+              return (
                 <button
+                  key={process.id}
                   type="button"
-                  className="prod-tile prod-tile-new"
-                  onClick={() => setCreating(true)}
+                  className="prod-tile"
+                  role="listitem"
+                  onClick={() => {
+                    setCreating(false)
+                    setSelectedId(process.id)
+                  }}
                 >
-                  <strong>New production</strong>
+                  <strong>{process.name}</strong>
                   <span className="simple-muted">
-                    Add another vehicle tracker
+                    {vehicle?.name ?? 'Vehicle'}
+                    {total > 0 ? ` · ${done}/${total} done` : ''}
                   </span>
                 </button>
-              ) : null}
-            </div>
-          ) : null}
+              )
+            })}
+
+            {missingRecommended.map((rec) => (
+              <button
+                key={rec.name}
+                type="button"
+                className="prod-tile prod-tile-suggested"
+                role="listitem"
+                onClick={() =>
+                  createProduction({
+                    name: rec.name,
+                    newVehicleName: rec.vehicleName,
+                  })
+                }
+              >
+                <strong>{rec.name}</strong>
+                <span className="simple-muted">Tap to add this tracker</span>
+              </button>
+            ))}
+
+            {!creating ? (
+              <button
+                type="button"
+                className="prod-tile prod-tile-new"
+                onClick={() => setCreating(true)}
+              >
+                <strong>New production</strong>
+                <span className="simple-muted">
+                  Name your own vehicle tracker
+                </span>
+              </button>
+            ) : null}
+          </div>
         </>
       )}
 
