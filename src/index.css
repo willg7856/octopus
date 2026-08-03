@@ -4311,9 +4311,9 @@ button {
 }
 
 .prod-btn[aria-pressed='true'] {
-  background: var(--accent-soft, color-mix(in srgb, var(--accent) 16%, transparent));
-  border-color: var(--accent);
-  color: var(--fg);
+  background: color-mix(in srgb, var(--ignition) 8%, var(--bg-panel-solid, var(--bg)));
+  border-color: color-mix(in srgb, var(--ignition) 35%, var(--line));
+  color: var(--ignition);
 }
 
 .prod-btn-meta {
@@ -4357,9 +4357,9 @@ button {
 }
 
 .prod-status-btn[aria-pressed='true'] {
-  background: var(--accent-soft, color-mix(in srgb, var(--accent) 16%, transparent));
-  border-color: var(--accent);
-  color: var(--fg);
+  background: color-mix(in srgb, var(--ignition) 8%, var(--bg-panel-solid, var(--bg)));
+  border-color: color-mix(in srgb, var(--ignition) 35%, var(--line));
+  color: var(--ignition);
   font-weight: 560;
 }
 
