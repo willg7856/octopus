@@ -279,7 +279,7 @@ function NewProcessForm({
   if (vehicles.length === 0) {
     return (
       <p className="simple-muted">
-        Add a vehicle in Inventory before creating a process.
+        Add a vehicle under Hardware before creating a process.
       </p>
     )
   }

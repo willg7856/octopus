@@ -10,8 +10,8 @@ Deployed on Vercel as `beyondstagezero/octopus`.
 
 ## Sections
 
-- **Inventory** — add/edit items (serials, qty, location, status)
-- **Hardware** — HW/FW versions and status for vehicles, motors, avionics, pad, GSE
+- **Inventory** — general stock (parts, consumables, tools)
+- **Hardware** — vehicles and subsystems (motors, avionics, pad, GSE)
 - **Production** — vehicle production process tracker (ordered build / checkout steps)
 
 Seed defaults live in `src/hardwareSeed.ts`. On the live site, data is **shared for everyone signed in** via `/api/hardware/lab`. Local Vite without the API falls back to browser storage.

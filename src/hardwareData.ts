@@ -20,11 +20,39 @@ export { SEED_HARDWARE, SEED_PROCESSES, SEED_PROGRESS, SEED_TESTS }
 
 export const HARDWARE_KIND_LABELS: Record<HardwareUnit['kind'], string> = {
   vehicle: 'Vehicle',
-  motor: 'Motor',
+  motor: 'Motor / propulsion',
   avionics: 'Avionics',
   pad: 'Pad / stand',
   ground: 'Ground support',
+  part: 'Part',
+  consumable: 'Consumable',
+  tool: 'Tool',
   other: 'Other',
+}
+
+/** Vehicles and flight/GSE subsystems — shown under Hardware. */
+export const SYSTEM_KINDS: HardwareUnit['kind'][] = [
+  'vehicle',
+  'motor',
+  'avionics',
+  'pad',
+  'ground',
+]
+
+/** General stock — shown under Inventory. */
+export const INVENTORY_KINDS: HardwareUnit['kind'][] = [
+  'part',
+  'consumable',
+  'tool',
+  'other',
+]
+
+export function isSystemKind(kind: HardwareUnit['kind']) {
+  return SYSTEM_KINDS.includes(kind)
+}
+
+export function isInventoryKind(kind: HardwareUnit['kind']) {
+  return !isSystemKind(kind)
 }
 
 export const HARDWARE_STATUS_LABELS: Record<HardwareStatus, string> = {

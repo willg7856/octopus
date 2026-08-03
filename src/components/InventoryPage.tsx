@@ -3,6 +3,8 @@ import type { AuthUser } from '../auth'
 import {
   HARDWARE_KIND_LABELS,
   HARDWARE_STATUS_LABELS,
+  INVENTORY_KINDS,
+  isInventoryKind,
   newId,
   sortUnits,
   unitQuantity,
@@ -15,10 +17,9 @@ import type {
 } from '../types'
 import { useLabStore } from '../useLabStore'
 
-const KIND_OPTIONS = Object.entries(HARDWARE_KIND_LABELS) as [
-  HardwareKind,
-  string,
-][]
+const KIND_OPTIONS = INVENTORY_KINDS.map(
+  (kind) => [kind, HARDWARE_KIND_LABELS[kind]] as const,
+)
 const STATUS_OPTIONS = Object.entries(HARDWARE_STATUS_LABELS) as [
   HardwareStatus,
   string,
@@ -31,12 +32,15 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
 
-  const units = useMemo(() => sortUnits(lab.units), [lab.units])
+  const units = useMemo(
+    () => sortUnits(lab.units.filter((u) => isInventoryKind(u.kind))),
+    [lab.units],
+  )
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return units
     return units.filter((u) =>
-      [u.name, u.serial, u.location, u.owner, u.partNumber, u.status]
+      [u.name, u.serial, u.location, u.owner, u.partNumber, u.kind, u.status]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -45,20 +49,19 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   }, [units, query])
 
   const selected =
-    units.find((u) => u.id === selectedId) ??
-    filtered[0] ??
-    null
+    units.find((u) => u.id === selectedId) ?? filtered[0] ?? null
 
   function saveUnit(
     input: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string },
   ) {
+    const kind = isInventoryKind(input.kind) ? input.kind : 'other'
     const updatedAt = new Date().toISOString()
     if (input.id) {
       void store.commit(
         {
           ...lab,
           units: lab.units.map((u) =>
-            u.id === input.id ? { ...u, ...input, updatedAt } : u,
+            u.id === input.id ? { ...u, ...input, kind, updatedAt } : u,
           ),
         },
         'Saved',
@@ -68,6 +71,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
 
     const next: HardwareUnit = {
       ...input,
+      kind,
       id: newId('hw'),
       updatedAt,
     }
@@ -119,7 +123,10 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   return (
     <main className="simple-page" aria-label="Inventory">
       <header className="simple-head">
-        <h2>Inventory</h2>
+        <div>
+          <h2>Inventory</h2>
+          <p className="simple-muted">Parts, consumables, tools, and other stock.</p>
+        </div>
         <div className="simple-head-actions">
           {saving ? <span className="simple-muted">Saving…</span> : null}
           <button
@@ -178,18 +185,17 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                     <span>
                       <strong>{unit.name}</strong>
                       <span className="simple-muted">
-                        {unit.serial}
+                        {HARDWARE_KIND_LABELS[unit.kind]} · qty{' '}
+                        {unitQuantity(unit)}
                         {unit.location ? ` · ${unit.location}` : ''}
                       </span>
                     </span>
-                    <span className="simple-muted">
-                      {HARDWARE_STATUS_LABELS[unit.status]}
-                    </span>
+                    <span className="simple-muted">{unit.serial}</span>
                   </button>
                 </li>
               ))}
               {filtered.length === 0 ? (
-                <li className="simple-muted">No items.</li>
+                <li className="simple-muted">No stock items yet.</li>
               ) : null}
             </ul>
           </section>
@@ -241,15 +247,17 @@ function UnitForm({
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [serial, setSerial] = useState(initial?.serial ?? '')
-  const [kind, setKind] = useState<HardwareKind>(initial?.kind ?? 'other')
+  const [kind, setKind] = useState<HardwareKind>(
+    initial && isInventoryKind(initial.kind) ? initial.kind : 'part',
+  )
   const [status, setStatus] = useState<HardwareStatus>(
-    initial?.status ?? 'concept',
+    initial?.status ?? 'flight-ready',
   )
   const [location, setLocation] = useState(initial?.location ?? '')
   const [quantity, setQuantity] = useState(
     String(initial ? unitQuantity(initial) : 1),
   )
-  const [hwRev, setHwRev] = useState(initial?.hwRev ?? '')
+  const [partNumber, setPartNumber] = useState(initial?.partNumber ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
 
   function handleSubmit(e: FormEvent) {
@@ -264,9 +272,9 @@ function UnitForm({
       status,
       location: location.trim() || undefined,
       quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
-      hwRev: hwRev.trim() || '—',
+      hwRev: initial?.hwRev?.trim() || '—',
       fwVersion: initial?.fwVersion,
-      partNumber: initial?.partNumber,
+      partNumber: partNumber.trim() || undefined,
       owner: initial?.owner,
       notes: notes.trim() || undefined,
     })
@@ -274,13 +282,13 @@ function UnitForm({
 
   return (
     <form className="simple-form" onSubmit={handleSubmit}>
-      <h3>{initial ? initial.name : 'New item'}</h3>
+      <h3>{initial ? initial.name : 'New stock item'}</h3>
       <label>
         Name
         <input value={name} onChange={(e) => setName(e.target.value)} required />
       </label>
       <label>
-        Serial
+        SKU / serial
         <input
           value={serial}
           onChange={(e) => setSerial(e.target.value)}
@@ -334,8 +342,11 @@ function UnitForm({
         </label>
       </div>
       <label>
-        HW rev
-        <input value={hwRev} onChange={(e) => setHwRev(e.target.value)} />
+        Part number
+        <input
+          value={partNumber}
+          onChange={(e) => setPartNumber(e.target.value)}
+        />
       </label>
       <label>
         Notes

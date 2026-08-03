@@ -150,13 +150,20 @@ export interface Notice {
   body: string
 }
 
-/** Physical / electronic assets tracked in the Hardware lab. */
+/**
+ * Unit kinds across both catalogs:
+ * - System (vehicles & subsystems): vehicle, motor, avionics, pad, ground
+ * - General inventory (stock): part, consumable, tool, other
+ */
 export type HardwareKind =
   | 'vehicle'
   | 'motor'
   | 'avionics'
   | 'pad'
   | 'ground'
+  | 'part'
+  | 'consumable'
+  | 'tool'
   | 'other'
 
 /** Build / checkout progress for a hardware unit. */

@@ -1,14 +1,24 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import {
   HARDWARE_KIND_LABELS,
   HARDWARE_STATUS_LABELS,
+  SYSTEM_KINDS,
+  isSystemKind,
   newId,
   sortUnits,
 } from '../hardwareData'
-import type { HardwareStatus, HardwareUnit } from '../types'
+import type {
+  HardwareKind,
+  HardwareProgressNote,
+  HardwareStatus,
+  HardwareUnit,
+} from '../types'
 import { useLabStore } from '../useLabStore'
 
+const KIND_OPTIONS = SYSTEM_KINDS.map(
+  (kind) => [kind, HARDWARE_KIND_LABELS[kind]] as const,
+)
 const STATUS_OPTIONS = Object.entries(HARDWARE_STATUS_LABELS) as [
   HardwareStatus,
   string,
@@ -18,57 +28,106 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
   const { lab, sync, syncError, saving, toast } = store
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [adding, setAdding] = useState(false)
 
   const units = useMemo(
-    () => sortUnits(lab.units.filter((u) => u.kind !== 'other')),
+    () => sortUnits(lab.units.filter((u) => isSystemKind(u.kind))),
     [lab.units],
   )
-  const selected = units.find((u) => u.id === selectedId) ?? units[0] ?? null
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return units
+    return units.filter((u) =>
+      [u.name, u.serial, u.location, u.owner, u.kind, u.status, u.hwRev]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    )
+  }, [units, query])
 
-  function updateStatus(unit: HardwareUnit, status: HardwareStatus) {
+  const selected =
+    units.find((u) => u.id === selectedId) ?? filtered[0] ?? null
+
+  function saveUnit(
+    input: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string },
+  ) {
+    const kind = isSystemKind(input.kind) ? input.kind : 'vehicle'
     const updatedAt = new Date().toISOString()
+    if (input.id) {
+      void store.commit(
+        {
+          ...lab,
+          units: lab.units.map((u) =>
+            u.id === input.id ? { ...u, ...input, kind, updatedAt } : u,
+          ),
+        },
+        'Saved',
+      )
+      return
+    }
+
+    const next: HardwareUnit = {
+      ...input,
+      kind,
+      id: newId('hw'),
+      updatedAt,
+    }
+    const note: HardwareProgressNote = {
+      id: newId('pg'),
+      unitId: next.id,
+      date: updatedAt.slice(0, 10),
+      status: next.status,
+      note: 'Added to hardware',
+      author: user?.name,
+    }
     void store.commit(
       {
         ...lab,
-        units: lab.units.map((u) =>
-          u.id === unit.id ? { ...u, status, updatedAt } : u,
-        ),
-        progress: [
-          {
-            id: newId('pg'),
-            unitId: unit.id,
-            date: updatedAt.slice(0, 10),
-            status,
-            note: `Status → ${HARDWARE_STATUS_LABELS[status]}`,
-            author: user?.name,
-          },
-          ...lab.progress,
-        ],
+        units: [...lab.units, next],
+        progress: [note, ...lab.progress],
       },
-      'Saved',
+      'Added',
     )
+    setSelectedId(next.id)
+    setAdding(false)
   }
 
-  function updateField(
-    unit: HardwareUnit,
-    patch: Partial<Pick<HardwareUnit, 'hwRev' | 'fwVersion' | 'location' | 'notes'>>,
-  ) {
-    const updatedAt = new Date().toISOString()
+  function removeUnit(id: string) {
+    const unit = lab.units.find((u) => u.id === id)
+    if (!unit || !window.confirm(`Remove ${unit.name}?`)) return
     void store.commit(
       {
         ...lab,
-        units: lab.units.map((u) =>
-          u.id === unit.id ? { ...u, ...patch, updatedAt } : u,
-        ),
+        units: lab.units.filter((u) => u.id !== id),
+        progress: lab.progress.filter((p) => p.unitId !== id),
+        tests: lab.tests.map((t) => ({
+          ...t,
+          unitIds: t.unitIds.filter((uid) => uid !== id),
+        })),
+        processes: lab.processes
+          .filter((p) => p.vehicleUnitId !== id)
+          .map((p) => ({
+            ...p,
+            steps: p.steps.map((s) => ({
+              ...s,
+              linkedUnitIds: (s.linkedUnitIds ?? []).filter((uid) => uid !== id),
+            })),
+          })),
       },
-      'Saved',
+      'Removed',
     )
+    setSelectedId(null)
   }
 
   return (
     <main className="simple-page" aria-label="Hardware">
       <header className="simple-head">
-        <h2>Hardware</h2>
+        <div>
+          <h2>Hardware</h2>
+          <p className="simple-muted">Vehicles and subsystems (motors, avionics, pad, GSE).</p>
+        </div>
         <div className="simple-head-actions">
           {saving ? <span className="simple-muted">Saving…</span> : null}
           <button
@@ -78,6 +137,16 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
             disabled={sync === 'loading'}
           >
             Refresh
+          </button>
+          <button
+            type="button"
+            className="btn btn-accent"
+            onClick={() => {
+              setAdding(true)
+              setSelectedId(null)
+            }}
+          >
+            Add unit
           </button>
         </div>
       </header>
@@ -93,14 +162,26 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
       ) : (
         <div className="simple-split">
           <section className="simple-list-panel">
+            <input
+              className="simple-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search…"
+              aria-label="Search hardware"
+            />
             <ul className="simple-list">
-              {units.map((unit) => (
+              {filtered.map((unit) => (
                 <li key={unit.id}>
                   <button
                     type="button"
                     className="simple-list-row"
-                    data-selected={selected?.id === unit.id ? 'true' : 'false'}
-                    onClick={() => setSelectedId(unit.id)}
+                    data-selected={
+                      !adding && selected?.id === unit.id ? 'true' : 'false'
+                    }
+                    onClick={() => {
+                      setAdding(false)
+                      setSelectedId(unit.id)
+                    }}
                   >
                     <span>
                       <strong>{unit.name}</strong>
@@ -114,97 +195,30 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                   </button>
                 </li>
               ))}
-              {units.length === 0 ? (
-                <li className="simple-muted">
-                  No hardware units yet. Add them under Inventory.
-                </li>
+              {filtered.length === 0 ? (
+                <li className="simple-muted">No vehicles or subsystems yet.</li>
               ) : null}
             </ul>
           </section>
 
           <section className="simple-detail">
-            {selected ? (
-              <div className="simple-form">
-                <h3>{selected.name}</h3>
-                <p className="simple-muted">
-                  {selected.serial} · {HARDWARE_KIND_LABELS[selected.kind]}
-                </p>
-
-                <label>
-                  Status
-                  <select
-                    value={selected.status}
-                    onChange={(e) =>
-                      updateStatus(selected, e.target.value as HardwareStatus)
-                    }
-                  >
-                    {STATUS_OPTIONS.map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  HW rev
-                  <input
-                    key={`${selected.id}-hw-${selected.updatedAt}`}
-                    defaultValue={selected.hwRev}
-                    onBlur={(e) => {
-                      const hwRev = e.target.value.trim() || '—'
-                      if (hwRev !== selected.hwRev) {
-                        updateField(selected, { hwRev })
-                      }
-                    }}
-                  />
-                </label>
-
-                <label>
-                  Firmware
-                  <input
-                    key={`${selected.id}-fw-${selected.updatedAt}`}
-                    defaultValue={selected.fwVersion ?? ''}
-                    placeholder="—"
-                    onBlur={(e) => {
-                      const fwVersion = e.target.value.trim() || undefined
-                      if ((fwVersion ?? '') !== (selected.fwVersion ?? '')) {
-                        updateField(selected, { fwVersion })
-                      }
-                    }}
-                  />
-                </label>
-
-                <label>
-                  Location
-                  <input
-                    key={`${selected.id}-loc-${selected.updatedAt}`}
-                    defaultValue={selected.location ?? ''}
-                    onBlur={(e) => {
-                      const location = e.target.value.trim() || undefined
-                      if ((location ?? '') !== (selected.location ?? '')) {
-                        updateField(selected, { location })
-                      }
-                    }}
-                  />
-                </label>
-
-                <label>
-                  Notes
-                  <input
-                    key={`${selected.id}-notes-${selected.updatedAt}`}
-                    defaultValue={selected.notes ?? ''}
-                    onBlur={(e) => {
-                      const notes = e.target.value.trim() || undefined
-                      if ((notes ?? '') !== (selected.notes ?? '')) {
-                        updateField(selected, { notes })
-                      }
-                    }}
-                  />
-                </label>
-              </div>
+            {adding ? (
+              <SystemForm
+                key="new"
+                submitLabel="Add"
+                onCancel={() => setAdding(false)}
+                onSave={saveUnit}
+              />
+            ) : selected ? (
+              <SystemForm
+                key={selected.id}
+                initial={selected}
+                submitLabel="Save"
+                onSave={saveUnit}
+                onDelete={() => removeUnit(selected.id)}
+              />
             ) : (
-              <p className="simple-muted">Select a hardware unit.</p>
+              <p className="simple-muted">Select a unit or add one.</p>
             )}
           </section>
         </div>
@@ -216,5 +230,144 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
         </div>
       ) : null}
     </main>
+  )
+}
+
+function SystemForm({
+  initial,
+  submitLabel,
+  onSave,
+  onDelete,
+  onCancel,
+}: {
+  initial?: HardwareUnit
+  submitLabel: string
+  onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
+  onDelete?: () => void
+  onCancel?: () => void
+}) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [serial, setSerial] = useState(initial?.serial ?? '')
+  const [kind, setKind] = useState<HardwareKind>(
+    initial && isSystemKind(initial.kind) ? initial.kind : 'vehicle',
+  )
+  const [status, setStatus] = useState<HardwareStatus>(
+    initial?.status ?? 'concept',
+  )
+  const [location, setLocation] = useState(initial?.location ?? '')
+  const [hwRev, setHwRev] = useState(initial?.hwRev ?? '')
+  const [fwVersion, setFwVersion] = useState(initial?.fwVersion ?? '')
+  const [owner, setOwner] = useState(initial?.owner ?? '')
+  const [notes, setNotes] = useState(initial?.notes ?? '')
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!name.trim() || !serial.trim()) return
+    onSave({
+      id: initial?.id,
+      name: name.trim(),
+      serial: serial.trim(),
+      kind,
+      status,
+      location: location.trim() || undefined,
+      quantity: 1,
+      hwRev: hwRev.trim() || '—',
+      fwVersion: fwVersion.trim() || undefined,
+      partNumber: initial?.partNumber,
+      owner: owner.trim() || undefined,
+      notes: notes.trim() || undefined,
+    })
+  }
+
+  return (
+    <form className="simple-form" onSubmit={handleSubmit}>
+      <h3>{initial ? initial.name : 'New vehicle / subsystem'}</h3>
+      <label>
+        Name
+        <input value={name} onChange={(e) => setName(e.target.value)} required />
+      </label>
+      <label>
+        Serial
+        <input
+          value={serial}
+          onChange={(e) => setSerial(e.target.value)}
+          required
+        />
+      </label>
+      <div className="simple-form-row">
+        <label>
+          Kind
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as HardwareKind)}
+          >
+            {KIND_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Status
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as HardwareStatus)}
+          >
+            {STATUS_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="simple-form-row">
+        <label>
+          HW rev
+          <input value={hwRev} onChange={(e) => setHwRev(e.target.value)} />
+        </label>
+        <label>
+          Firmware
+          <input
+            value={fwVersion}
+            onChange={(e) => setFwVersion(e.target.value)}
+            placeholder="—"
+          />
+        </label>
+      </div>
+      <div className="simple-form-row">
+        <label>
+          Location
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+          />
+        </label>
+        <label>
+          Owner
+          <input value={owner} onChange={(e) => setOwner(e.target.value)} />
+        </label>
+      </div>
+      <label>
+        Notes
+        <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </label>
+      <div className="simple-form-actions">
+        <button type="submit" className="btn btn-accent">
+          {submitLabel}
+        </button>
+        {onCancel ? (
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            Cancel
+          </button>
+        ) : null}
+        {onDelete ? (
+          <button type="button" className="btn btn-ghost" onClick={onDelete}>
+            Delete
+          </button>
+        ) : null}
+      </div>
+    </form>
   )
 }
