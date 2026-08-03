@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { get, put } from '@vercel/blob'
+import { Redis } from '@upstash/redis'
 import {
   SEED_HARDWARE,
   SEED_PROCESSES,
@@ -21,7 +21,7 @@ export type HardwareLabState = {
   processes: VehicleProcess[]
 }
 
-export const HARDWARE_BLOB_PATH = 'octopus/hardware-lab.json'
+export const HARDWARE_REDIS_KEY = 'octopus:hardware-lab'
 
 export type SharedHardwareLab = HardwareLabState & {
   revision: number
@@ -59,28 +59,22 @@ function normalize(raw: StoredLab | null | undefined, updatedBy = 'system'): Sha
   }
 }
 
-/** True when a Blob store is connected (OIDC via BLOB_STORE_ID) or a RW token is set. */
-function blobConfigured() {
-  // Do not treat VERCEL_OIDC_TOKEN alone as configured — Vercel injects it on every deploy.
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID)
-}
-
-function blobAccess(): 'private' | 'public' {
-  return process.env.BLOB_ACCESS === 'public' ? 'public' : 'private'
-}
-
-export function blobSetupHint() {
-  return (
-    'Create a Vercel Blob store for the octopus project: ' +
-    'Vercel → octopus → Storage → Create Database → Blob → Private → ' +
-    'connect Production + Preview, then Redeploy. ' +
-    'Dashboard: https://vercel.com/beyondstagezero/octopus/stores'
+function redisConfigured() {
+  return Boolean(
+    process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN,
   )
 }
 
-async function streamToText(stream: ReadableStream<Uint8Array> | null) {
-  if (!stream) return ''
-  return new Response(stream).text()
+export function redisSetupHint() {
+  return (
+    'Create a free Upstash Redis database, then add UPSTASH_REDIS_REST_URL and ' +
+    'UPSTASH_REDIS_REST_TOKEN to the octopus Vercel project (Production + Preview), then Redeploy. ' +
+    'Console: https://console.upstash.com/'
+  )
+}
+
+function getRedis() {
+  return Redis.fromEnv()
 }
 
 async function readLocal(): Promise<SharedHardwareLab | null> {
@@ -97,54 +91,49 @@ async function writeLocal(lab: SharedHardwareLab) {
   await writeFile(LOCAL_PATH, JSON.stringify(lab, null, 2), 'utf8')
 }
 
-async function readBlob(): Promise<SharedHardwareLab | null> {
-  const access = blobAccess()
-  const result = await get(HARDWARE_BLOB_PATH, {
-    access,
-    useCache: false,
-  })
-  if (!result || result.statusCode !== 200) return null
-  const text = await streamToText(result.stream)
-  if (!text.trim()) return null
-  return normalize(JSON.parse(text) as StoredLab)
+async function readRedis(): Promise<SharedHardwareLab | null> {
+  const redis = getRedis()
+  const value = await redis.get<StoredLab | string>(HARDWARE_REDIS_KEY)
+  if (value == null) return null
+  if (typeof value === 'string') {
+    if (!value.trim()) return null
+    return normalize(JSON.parse(value) as StoredLab)
+  }
+  return normalize(value)
 }
 
-async function writeBlob(lab: SharedHardwareLab) {
-  await put(HARDWARE_BLOB_PATH, JSON.stringify(lab), {
-    access: blobAccess(),
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: 'application/json',
-  })
+async function writeRedis(lab: SharedHardwareLab) {
+  const redis = getRedis()
+  await redis.set(HARDWARE_REDIS_KEY, lab)
 }
 
-export function storageMode(): 'blob' | 'file' {
-  if (blobConfigured()) return 'blob'
+export function storageMode(): 'redis' | 'file' {
+  if (redisConfigured()) return 'redis'
   if (process.env.VERCEL === '1') {
-    throw new Error(`Shared inventory needs Vercel Blob. ${blobSetupHint()}`)
+    throw new Error(`Shared inventory needs Upstash Redis. ${redisSetupHint()}`)
   }
   return 'file'
 }
 
-async function withBlobErrors<T>(fn: () => Promise<T>): Promise<T> {
+async function withRedisErrors<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(
-      `Vercel Blob read/write failed (${message}). Check the store is connected and BLOB_ACCESS matches the store type (private/public). ${blobSetupHint()}`,
+      `Upstash Redis read/write failed (${message}). Check UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN. ${redisSetupHint()}`,
     )
   }
 }
 
 export async function loadSharedLab(): Promise<SharedHardwareLab> {
   const mode = storageMode()
-  if (mode === 'blob') {
-    return withBlobErrors(async () => {
-      const existing = await readBlob()
+  if (mode === 'redis') {
+    return withRedisErrors(async () => {
+      const existing = await readRedis()
       if (existing) return existing
       const seeded = seedLab('system')
-      await writeBlob(seeded)
+      await writeRedis(seeded)
       return seeded
     })
   }
@@ -179,9 +168,9 @@ export async function saveSharedLab(
     processes: next.processes,
   }
 
-  if (storageMode() === 'blob') {
-    await withBlobErrors(async () => {
-      await writeBlob(lab)
+  if (storageMode() === 'redis') {
+    await withRedisErrors(async () => {
+      await writeRedis(lab)
     })
   } else {
     await writeLocal(lab)
@@ -199,9 +188,9 @@ export async function resetSharedLab(updatedBy: string): Promise<SharedHardwareL
     updatedBy,
   }
 
-  if (storageMode() === 'blob') {
-    await withBlobErrors(async () => {
-      await writeBlob(lab)
+  if (storageMode() === 'redis') {
+    await withRedisErrors(async () => {
+      await writeRedis(lab)
     })
   } else {
     await writeLocal(lab)
