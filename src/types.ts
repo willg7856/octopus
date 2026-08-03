@@ -205,6 +205,8 @@ export interface HardwareUnit {
   status: HardwareStatus
   /** Inventory-only stock status. Prefer this over `status` for stock items. */
   stockStatus?: StockStatus
+  /** Inventory reorder URL (McMaster, DigiKey, vendor cart, etc.). */
+  orderUrl?: string
   location?: string
   owner?: string
   notes?: string

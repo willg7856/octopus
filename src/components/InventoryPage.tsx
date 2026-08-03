@@ -45,7 +45,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     const q = query.trim().toLowerCase()
     if (!q) return units
     return units.filter((u) =>
-      [u.name, u.serial, u.location, u.owner, u.partNumber, u.kind, u.status]
+      [u.name, u.serial, u.location, u.owner, u.partNumber, u.kind, u.status, u.orderUrl]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -183,29 +183,44 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
             <ul className="simple-list">
               {filtered.map((unit) => (
                 <li key={unit.id}>
-                  <button
-                    type="button"
+                  <div
                     className="simple-list-row"
                     data-selected={
                       !adding && selected?.id === unit.id ? 'true' : 'false'
                     }
-                    onClick={() => {
-                      setAdding(false)
-                      setSelectedId(unit.id)
-                    }}
                   >
-                    <span>
-                      <strong>{unit.name}</strong>
-                      <span className="simple-muted">
-                        {HARDWARE_KIND_LABELS[unit.kind]} · qty{' '}
-                        {unitQuantity(unit)}
-                        {unit.location ? ` · ${unit.location}` : ''}
+                    <button
+                      type="button"
+                      className="simple-list-main"
+                      onClick={() => {
+                        setAdding(false)
+                        setSelectedId(unit.id)
+                      }}
+                    >
+                      <span>
+                        <strong>{unit.name}</strong>
+                        <span className="simple-muted">
+                          {HARDWARE_KIND_LABELS[unit.kind]} · qty{' '}
+                          {unitQuantity(unit)}
+                          {unit.location ? ` · ${unit.location}` : ''}
+                        </span>
                       </span>
-                    </span>
-                    <span className="simple-muted">
-                      {stockStatusLabel(stockStatusOf(unit))}
-                    </span>
-                  </button>
+                      <span className="simple-muted">
+                        {stockStatusLabel(stockStatusOf(unit))}
+                      </span>
+                    </button>
+                    {unit.orderUrl ? (
+                      <a
+                        className="inv-order-link"
+                        href={normalizeOrderUrl(unit.orderUrl)}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Order
+                      </a>
+                    ) : null}
+                  </div>
                 </li>
               ))}
               {filtered.length === 0 ? (
@@ -278,6 +293,7 @@ function UnitForm({
   )
   const [partNumber, setPartNumber] = useState(initial?.partNumber ?? '')
   const [supplier, setSupplier] = useState(initial?.owner ?? '')
+  const [orderUrl, setOrderUrl] = useState(initial?.orderUrl ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
 
   function handleSubmit(e: FormEvent) {
@@ -297,9 +313,12 @@ function UnitForm({
       fwVersion: undefined,
       partNumber: partNumber.trim() || undefined,
       owner: supplier.trim() || undefined,
+      orderUrl: orderUrl.trim() || undefined,
       notes: notes.trim() || undefined,
     })
   }
+
+  const orderHref = orderUrl.trim() ? normalizeOrderUrl(orderUrl.trim()) : null
 
   return (
     <form className="simple-form" onSubmit={handleSubmit}>
@@ -307,6 +326,19 @@ function UnitForm({
       <p className="simple-muted">
         Track bin stock — quantity, SKU, and stock status. Not vehicle hardware.
       </p>
+      {orderHref ? (
+        <div className="inv-order-panel">
+          <a
+            className="btn btn-accent inv-order-cta"
+            href={orderHref}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Order more
+          </a>
+          <span className="simple-muted">Opens the saved vendor link.</span>
+        </div>
+      ) : null}
       <label>
         Item name
         <input
@@ -388,9 +420,25 @@ function UnitForm({
         <input
           value={supplier}
           onChange={(e) => setSupplier(e.target.value)}
-          placeholder="McMaster, in-house, donated…"
+          placeholder="McMaster, DigiKey, in-house…"
         />
       </label>
+      <div className="inv-link-section">
+        <h4>Order link</h4>
+        <p className="simple-muted">
+          Paste a McMaster, DigiKey, or vendor URL so anyone can reorder fast.
+        </p>
+        <label>
+          URL
+          <input
+            type="url"
+            value={orderUrl}
+            onChange={(e) => setOrderUrl(e.target.value)}
+            placeholder="https://www.mcmaster.com/…"
+            inputMode="url"
+          />
+        </label>
+      </div>
       <label>
         Notes
         <input
@@ -416,4 +464,11 @@ function UnitForm({
       </div>
     </form>
   )
+}
+
+function normalizeOrderUrl(raw: string) {
+  const trimmed = raw.trim()
+  if (!trimmed) return trimmed
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed}`
 }
