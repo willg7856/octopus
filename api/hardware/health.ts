@@ -7,6 +7,8 @@ import {
 } from '../_lib/hardwareStore.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  res.setHeader('Cache-Control', 'no-store')
+
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return
@@ -18,18 +20,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  let mode: ReturnType<typeof storageMode> | 'error' = 'error'
-  let error: string | null = null
-  try {
-    mode = storageMode()
-  } catch (err) {
-    error = err instanceof Error ? err.message : String(err)
-  }
+  const mode = storageMode()
 
   res.status(200).json({
     mode,
-    error,
-    hint: error ? storageSetupHint() : null,
+    hint: mode === 'blob' ? null : storageSetupHint(),
     env: storageEnvFlags(),
   })
 }
