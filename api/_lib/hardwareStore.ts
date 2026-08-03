@@ -32,9 +32,13 @@ export type SharedHardwareLab = HardwareLabState & {
 
 export type StorageMode = 'blob' | 'file'
 
+type BlobAccess = 'public' | 'private'
 type StoredLab = Partial<SharedHardwareLab>
 
 const LOCAL_PATH = join(process.cwd(), '.data', 'hardware-lab.json')
+
+/** Remember which access mode worked so later writes match the store type. */
+let resolvedAccess: BlobAccess | null = null
 
 function seedLab(updatedBy = 'system'): SharedHardwareLab {
   return {
@@ -63,8 +67,6 @@ function normalize(raw: StoredLab | null | undefined, updatedBy = 'system'): Sha
 }
 
 function blobConfigured() {
-  // Marketplace-connected Blob stores inject BLOB_STORE_ID (and often a token).
-  // OIDC on Vercel can authenticate without a manual token.
   return (
     hasEnv('BLOB_READ_WRITE_TOKEN') ||
     hasEnv('BLOB_STORE_ID') ||
@@ -75,10 +77,16 @@ function blobConfigured() {
 export function storageSetupHint() {
   return (
     'Shared inventory needs a Vercel Blob store connected to this project. ' +
-    'In Vercel → octopus → Storage, create or connect a Blob store to Production ' +
-    '(and Preview if you use it), then Redeploy. ' +
-    'If the store is already connected, Redeploy without build cache so the runtime picks up BLOB_STORE_ID.'
+    'In Vercel → octopus → Storage, create or connect a Blob store to Production, then Redeploy. ' +
+    'If it is already connected, open the store → .env.local tab and confirm BLOB_READ_WRITE_TOKEN ' +
+    'is present on the octopus project for Production.'
   )
+}
+
+function accessCandidates(): BlobAccess[] {
+  if (resolvedAccess) return [resolvedAccess]
+  // Most stores are public; private + useCache:false on a public store returns 400.
+  return ['public', 'private']
 }
 
 async function streamToJson(stream: ReadableStream<Uint8Array>): Promise<unknown> {
@@ -87,28 +95,74 @@ async function streamToJson(stream: ReadableStream<Uint8Array>): Promise<unknown
   return JSON.parse(text) as unknown
 }
 
-async function readBlob(): Promise<SharedHardwareLab | null> {
-  const result = await get(LAB_BLOB_PATHNAME, {
-    access: 'private',
-    useCache: false,
-  })
-  if (!result?.stream) return null
+async function tryGet(access: BlobAccess): Promise<SharedHardwareLab | null | undefined> {
+  // undefined = this access mode is wrong for the store (try the other)
+  // null = blob does not exist yet (seed)
   try {
-    const raw = await streamToJson(result.stream)
-    return normalize(raw as StoredLab)
-  } catch {
-    return null
+    const result = await get(LAB_BLOB_PATHNAME, {
+      access,
+      // cache=0 is only valid on private stores; sending it to public → 400
+      ...(access === 'private' ? { useCache: false as const } : {}),
+    })
+    resolvedAccess = access
+    if (!result?.stream) return null
+    try {
+      const raw = await streamToJson(result.stream)
+      return normalize(raw as StoredLab)
+    } catch {
+      return null
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    // Wrong access mode / public store rejecting private URL or cache=0
+    if (/\b400\b/.test(message) || /access|private|public|cache/i.test(message)) {
+      return undefined
+    }
+    // 404 is returned as null by the SDK; other errors should surface
+    if (/not found|404/i.test(message)) return null
+    throw error
   }
 }
 
+async function readBlob(): Promise<SharedHardwareLab | null> {
+  let sawWrongAccess = false
+  for (const access of accessCandidates()) {
+    const result = await tryGet(access)
+    if (result === undefined) {
+      sawWrongAccess = true
+      continue
+    }
+    return result
+  }
+  if (sawWrongAccess && !resolvedAccess) {
+    // Neither access mode could read; still try writing as public on first seed.
+    return null
+  }
+  return null
+}
+
 async function writeBlob(lab: SharedHardwareLab) {
-  await put(LAB_BLOB_PATHNAME, JSON.stringify(lab), {
-    access: 'private',
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: 'application/json',
-    cacheControlMaxAge: 60,
-  })
+  const body = JSON.stringify(lab)
+  const attempts = accessCandidates()
+  let lastError: unknown
+
+  for (const access of attempts) {
+    try {
+      await put(LAB_BLOB_PATHNAME, body, {
+        access,
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: 'application/json',
+        cacheControlMaxAge: 60,
+      })
+      resolvedAccess = access
+      return
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError))
 }
 
 async function readLocal(): Promise<SharedHardwareLab | null> {
@@ -126,9 +180,6 @@ async function writeLocal(lab: SharedHardwareLab) {
 }
 
 export function storageMode(): StorageMode {
-  // On Vercel, always use Blob. Connected stores authenticate via injected
-  // BLOB_STORE_ID / token / OIDC — do not gate on process.env visibility
-  // (that check was falsely failing for Redis Sensitive vars).
   if (readEnv('VERCEL') === '1' || blobConfigured()) return 'blob'
   return 'file'
 }
@@ -219,5 +270,6 @@ export function storageEnvFlags() {
     BLOB_STORE_ID: hasEnv('BLOB_STORE_ID'),
     VERCEL_OIDC_TOKEN: hasEnv('VERCEL_OIDC_TOKEN'),
     VERCEL: readEnv('VERCEL') === '1',
+    blobAccess: resolvedAccess,
   }
 }
