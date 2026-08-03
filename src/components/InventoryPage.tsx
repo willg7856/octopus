@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
+import { useConfirm } from './ConfirmDialog'
 import {
   HARDWARE_KIND_LABELS,
   HARDWARE_STATUS_LABELS,
@@ -28,6 +29,7 @@ const STATUS_OPTIONS = Object.entries(HARDWARE_STATUS_LABELS) as [
 export function InventoryPage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
   const { lab, sync, syncError, saving, toast } = store
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
@@ -95,9 +97,11 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     setAdding(false)
   }
 
-  function removeUnit(id: string) {
+  async function removeUnit(id: string) {
     const unit = lab.units.find((u) => u.id === id)
-    if (!unit || !window.confirm(`Remove ${unit.name}?`)) return
+    if (!unit) return
+    const ok = await confirm(`Remove “${unit.name}” from inventory?`)
+    if (!ok) return
     void store.commit(
       {
         ...lab,
@@ -235,6 +239,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
           {toast}
         </div>
       ) : null}
+      {confirmDialog}
     </main>
   )
 }

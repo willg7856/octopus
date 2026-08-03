@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
+import { useConfirm } from './ConfirmDialog'
 import {
   PROCESS_STEP_STATUS_LABELS,
   newId,
@@ -28,6 +29,7 @@ const MORE_STATUSES: ProcessStepStatus[] = ['pending', 'skipped']
 export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
   const { lab, sync, syncError, saving, toast } = store
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [editingSteps, setEditingSteps] = useState(false)
@@ -169,10 +171,12 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     setEditingStepId(null)
   }
 
-  function deleteStep(processId: string, stepId: string) {
+  async function deleteStep(processId: string, stepId: string) {
     const process = lab.processes.find((p) => p.id === processId)
     const step = process?.steps.find((s) => s.id === stepId)
-    if (!step || !window.confirm(`Delete step “${step.title}”?`)) return
+    if (!step) return
+    const ok = await confirm(`Delete step “${step.title}”?`)
+    if (!ok) return
     const now = new Date().toISOString()
     void store.commit(
       {
@@ -238,9 +242,11 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     setSelectedId(process.id)
   }
 
-  function removeProduction(processId: string) {
+  async function removeProduction(processId: string) {
     const process = lab.processes.find((p) => p.id === processId)
-    if (!process || !window.confirm(`Remove ${process.name}?`)) return
+    if (!process) return
+    const ok = await confirm(`Remove “${process.name}” tracker?`)
+    if (!ok) return
     const remaining = lab.processes.filter((p) => p.id !== processId)
     void store.commit(
       {
@@ -579,6 +585,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
           {toast}
         </div>
       ) : null}
+      {confirmDialog}
     </main>
   )
 }

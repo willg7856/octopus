@@ -104,12 +104,6 @@ export function useLabStore() {
   }
 
   async function reset() {
-    const sharedWarning =
-      sync === 'shared'
-        ? 'Reset the shared team lab to seed data? This affects everyone.'
-        : 'Reset lab to seed data? Browser-only edits will be cleared.'
-    if (!window.confirm(sharedWarning)) return
-
     if (sync === 'local') {
       const next = resetHardwareLab()
       setLab(next)

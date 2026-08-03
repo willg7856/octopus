@@ -1831,6 +1831,10 @@ button {
   color: var(--ignition);
   background: color-mix(in srgb, var(--ignition) 8%, transparent);
 }
+
+.btn-accent {
+  background: var(--ignition);
+  border-color: var(--ignition);
   color: #fff;
 }
 
@@ -2131,6 +2135,41 @@ button {
   font-family: var(--font-display);
   font-size: 0.8rem;
   animation: rise 0.3s var(--ease);
+}
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: color-mix(in srgb, var(--ink-900) 42%, transparent);
+  animation: rise 0.2s var(--ease);
+}
+
+.confirm-dialog {
+  width: min(22rem, 100%);
+  padding: 1.15rem 1.2rem 1.05rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  background: var(--bg-panel-solid);
+  box-shadow: var(--shadow-panel);
+  color: var(--fg);
+}
+
+.confirm-message {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: 1rem;
 }
 
 @keyframes rise {
