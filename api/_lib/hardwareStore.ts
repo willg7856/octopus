@@ -13,6 +13,7 @@ import type {
   TestLogEntry,
   VehicleProcess,
 } from '../../src/types.js'
+import { hasEnv, readEnv } from './env.js'
 
 export type HardwareLabState = {
   units: HardwareUnit[]
@@ -62,19 +63,11 @@ function normalize(raw: StoredLab | null | undefined, updatedBy = 'system'): Sha
 }
 
 function redisUrl() {
-  return (
-    process.env.UPSTASH_REDIS_REST_URL?.trim() ||
-    process.env.KV_REST_API_URL?.trim() ||
-    ''
-  )
+  return readEnv('UPSTASH_REDIS_REST_URL') || readEnv('KV_REST_API_URL')
 }
 
 function redisToken() {
-  return (
-    process.env.UPSTASH_REDIS_REST_TOKEN?.trim() ||
-    process.env.KV_REST_API_TOKEN?.trim() ||
-    ''
-  )
+  return readEnv('UPSTASH_REDIS_REST_TOKEN') || readEnv('KV_REST_API_TOKEN')
 }
 
 function redisConfigured() {
@@ -138,7 +131,7 @@ async function writeRedis(lab: SharedHardwareLab) {
 
 export function storageMode(): StorageMode {
   if (redisConfigured()) return 'redis'
-  if (process.env.VERCEL === '1') {
+  if (readEnv('VERCEL') === '1') {
     throw new Error(storageSetupHint())
   }
   return 'file'
@@ -226,10 +219,10 @@ export async function resetSharedLab(updatedBy: string): Promise<SharedHardwareL
 
 export function storageEnvFlags() {
   return {
-    UPSTASH_REDIS_REST_URL: Boolean(process.env.UPSTASH_REDIS_REST_URL?.trim()),
-    UPSTASH_REDIS_REST_TOKEN: Boolean(process.env.UPSTASH_REDIS_REST_TOKEN?.trim()),
-    KV_REST_API_URL: Boolean(process.env.KV_REST_API_URL?.trim()),
-    KV_REST_API_TOKEN: Boolean(process.env.KV_REST_API_TOKEN?.trim()),
-    VERCEL: process.env.VERCEL === '1',
+    UPSTASH_REDIS_REST_URL: hasEnv('UPSTASH_REDIS_REST_URL'),
+    UPSTASH_REDIS_REST_TOKEN: hasEnv('UPSTASH_REDIS_REST_TOKEN'),
+    KV_REST_API_URL: hasEnv('KV_REST_API_URL'),
+    KV_REST_API_TOKEN: hasEnv('KV_REST_API_TOKEN'),
+    VERCEL: readEnv('VERCEL') === '1',
   }
 }

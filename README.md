@@ -38,6 +38,8 @@ Set these Vercel env vars on the `octopus` project:
 4. Add both vars for **Production** and **Preview** (paste values carefully, no quotes)
 5. **Deployments → latest Production → Redeploy** (uncheck “Use existing Build Cache”)
 
+If Inventory still says the vars are missing, edit each Redis var in Vercel and turn **off Sensitive**, save, then Redeploy again. Sensitive vars can fail to load if the API bundle inlines `process.env` at build time; the app now reads them dynamically to avoid that.
+
 Blob storage is not used.
 
 ### Team access checklist

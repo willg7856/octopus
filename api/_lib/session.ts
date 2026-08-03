@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { readEnv } from './env.js'
 
 const COOKIE = 'octopus_session'
 const MAX_AGE_SEC = 60 * 60 * 24 * 7 // 7 days
@@ -10,7 +11,7 @@ export type SessionPayload = {
 }
 
 function secret() {
-  return process.env.AUTH_SECRET || process.env.OPS_PASSWORD || 'dev-octopus-secret'
+  return readEnv('AUTH_SECRET') || readEnv('OPS_PASSWORD') || 'dev-octopus-secret'
 }
 
 function b64url(input: string | Buffer) {
@@ -71,18 +72,18 @@ export function readCookie(req: { headers?: { cookie?: string } }, name = COOKIE
 }
 
 export function sessionCookie(token: string) {
-  const secure = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1'
+  const secure = readEnv('NODE_ENV') === 'production' || readEnv('VERCEL') === '1'
   return `${COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${MAX_AGE_SEC}${secure ? '; Secure' : ''}`
 }
 
 export function clearSessionCookie() {
-  const secure = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1'
+  const secure = readEnv('NODE_ENV') === 'production' || readEnv('VERCEL') === '1'
   return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? '; Secure' : ''}`
 }
 
 export function checkCredentials(email: string, password: string) {
-  const expected = process.env.OPS_PASSWORD || 'goods-shed'
-  const allowed = (process.env.OPS_USERS || '')
+  const expected = readEnv('OPS_PASSWORD') || 'goods-shed'
+  const allowed = readEnv('OPS_USERS')
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean)
