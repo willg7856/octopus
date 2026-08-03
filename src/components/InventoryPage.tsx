@@ -3,10 +3,13 @@ import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
 import {
   HARDWARE_KIND_LABELS,
-  HARDWARE_STATUS_LABELS,
   INVENTORY_KINDS,
+  INVENTORY_STATUS_LABELS,
+  INVENTORY_STATUS_ORDER,
+  inventoryStatusLabel,
   isInventoryKind,
   newId,
+  normalizeInventoryStatus,
   sortUnits,
   unitQuantity,
 } from '../hardwareData'
@@ -21,10 +24,9 @@ import { useLabStore } from '../useLabStore'
 const KIND_OPTIONS = INVENTORY_KINDS.map(
   (kind) => [kind, HARDWARE_KIND_LABELS[kind]] as const,
 )
-const STATUS_OPTIONS = Object.entries(HARDWARE_STATUS_LABELS) as [
-  HardwareStatus,
-  string,
-][]
+const STATUS_OPTIONS = INVENTORY_STATUS_ORDER.map(
+  (status) => [status, INVENTORY_STATUS_LABELS[status]] as const,
+)
 
 export function InventoryPage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
@@ -129,7 +131,9 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       <header className="simple-head">
         <div>
           <h2>Inventory</h2>
-          <p className="simple-muted">Parts, consumables, tools, and other stock.</p>
+          <p className="simple-muted">
+            Stock room — parts, consumables, tools. Different fields than Hardware.
+          </p>
         </div>
         <div className="simple-head-actions">
           {saving ? <span className="simple-sync">Saving…</span> : null}
@@ -197,7 +201,9 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                         {unit.location ? ` · ${unit.location}` : ''}
                       </span>
                     </span>
-                    <span className="simple-muted">{unit.serial}</span>
+                    <span className="simple-muted">
+                      {inventoryStatusLabel(unit.status)}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -263,13 +269,16 @@ function UnitForm({
     initial && isInventoryKind(initial.kind) ? initial.kind : 'part',
   )
   const [status, setStatus] = useState<HardwareStatus>(
-    initial?.status ?? 'flight-ready',
+    initial
+      ? normalizeInventoryStatus(initial.status)
+      : 'flight-ready',
   )
   const [location, setLocation] = useState(initial?.location ?? '')
   const [quantity, setQuantity] = useState(
     String(initial ? unitQuantity(initial) : 1),
   )
   const [partNumber, setPartNumber] = useState(initial?.partNumber ?? '')
+  const [supplier, setSupplier] = useState(initial?.owner ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
 
   function handleSubmit(e: FormEvent) {
@@ -281,13 +290,13 @@ function UnitForm({
       name: name.trim(),
       serial: serial.trim(),
       kind,
-      status,
+      status: normalizeInventoryStatus(status),
       location: location.trim() || undefined,
-      quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
-      hwRev: initial?.hwRev?.trim() || '—',
-      fwVersion: initial?.fwVersion,
+      quantity: Number.isFinite(qty) && qty >= 0 ? qty : 1,
+      hwRev: '—',
+      fwVersion: undefined,
       partNumber: partNumber.trim() || undefined,
-      owner: initial?.owner,
+      owner: supplier.trim() || undefined,
       notes: notes.trim() || undefined,
     })
   }
@@ -295,21 +304,40 @@ function UnitForm({
   return (
     <form className="simple-form" onSubmit={handleSubmit}>
       <h3>{initial ? initial.name : 'New stock item'}</h3>
+      <p className="simple-muted">
+        Track bin stock — quantity, SKU, and stock status. Not vehicle hardware.
+      </p>
       <label>
-        Name
-        <input value={name} onChange={(e) => setName(e.target.value)} required />
-      </label>
-      <label>
-        SKU / serial
+        Item name
         <input
-          value={serial}
-          onChange={(e) => setSerial(e.target.value)}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="AN-4 bolts"
           required
         />
       </label>
       <div className="simple-form-row">
         <label>
-          Kind
+          SKU / barcode
+          <input
+            value={serial}
+            onChange={(e) => setSerial(e.target.value)}
+            placeholder="INV-AN4-BOLT"
+            required
+          />
+        </label>
+        <label>
+          Catalog / PN
+          <input
+            value={partNumber}
+            onChange={(e) => setPartNumber(e.target.value)}
+            placeholder="AN4-14A"
+          />
+        </label>
+      </div>
+      <div className="simple-form-row">
+        <label>
+          Type
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as HardwareKind)}
@@ -322,7 +350,7 @@ function UnitForm({
           </select>
         </label>
         <label>
-          Status
+          Stock status
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as HardwareStatus)}
@@ -337,32 +365,39 @@ function UnitForm({
       </div>
       <div className="simple-form-row">
         <label>
-          Location
-          <input
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-          />
-        </label>
-        <label>
-          Qty
+          Qty on hand
           <input
             type="number"
-            min={1}
+            min={0}
+            step={1}
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
           />
         </label>
+        <label>
+          Bin / location
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="Goods Shed · fastener bin"
+          />
+        </label>
       </div>
       <label>
-        Part number
+        Supplier / source
         <input
-          value={partNumber}
-          onChange={(e) => setPartNumber(e.target.value)}
+          value={supplier}
+          onChange={(e) => setSupplier(e.target.value)}
+          placeholder="McMaster, in-house, donated…"
         />
       </label>
       <label>
         Notes
-        <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <input
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Expiry, min qty, cal due…"
+        />
       </label>
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent">

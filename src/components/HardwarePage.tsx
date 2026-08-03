@@ -130,7 +130,9 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
       <header className="simple-head">
         <div>
           <h2>Hardware</h2>
-          <p className="simple-muted">Vehicles and subsystems (motors, avionics, pad, GSE).</p>
+          <p className="simple-muted">
+            Vehicles & subsystems — build status, revs, and firmware. Not stock.
+          </p>
         </div>
         <div className="simple-head-actions">
           {saving ? <span className="simple-sync">Saving…</span> : null}
@@ -294,21 +296,30 @@ function SystemForm({
   return (
     <form className="simple-form" onSubmit={handleSubmit}>
       <h3>{initial ? initial.name : 'New vehicle / subsystem'}</h3>
+      <p className="simple-muted">
+        Track flight articles and GSE — serial, build status, HW/FW. Not bin stock.
+      </p>
       <label>
         Name
-        <input value={name} onChange={(e) => setName(e.target.value)} required />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="STRAVOX airframe"
+          required
+        />
       </label>
       <label>
-        Serial
+        Asset serial
         <input
           value={serial}
           onChange={(e) => setSerial(e.target.value)}
+          placeholder="SVX-B1M-001"
           required
         />
       </label>
       <div className="simple-form-row">
         <label>
-          Kind
+          Hardware type
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as HardwareKind)}
@@ -321,7 +332,7 @@ function SystemForm({
           </select>
         </label>
         <label>
-          Status
+          Build status
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as HardwareStatus)}
@@ -336,15 +347,19 @@ function SystemForm({
       </div>
       <div className="simple-form-row">
         <label>
-          HW rev
-          <input value={hwRev} onChange={(e) => setHwRev(e.target.value)} />
+          HW revision
+          <input
+            value={hwRev}
+            onChange={(e) => setHwRev(e.target.value)}
+            placeholder="B1M · rev A"
+          />
         </label>
         <label>
           Firmware
           <input
             value={fwVersion}
             onChange={(e) => setFwVersion(e.target.value)}
-            placeholder="—"
+            placeholder="0.4.2-dev"
           />
         </label>
       </div>
@@ -354,16 +369,25 @@ function SystemForm({
           <input
             value={location}
             onChange={(e) => setLocation(e.target.value)}
+            placeholder="Goods Shed · bench"
           />
         </label>
         <label>
-          Owner
-          <input value={owner} onChange={(e) => setOwner(e.target.value)} />
+          Owner / team
+          <input
+            value={owner}
+            onChange={(e) => setOwner(e.target.value)}
+            placeholder="Structures, Avionics…"
+          />
         </label>
       </div>
       <label>
         Notes
-        <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <input
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Open work, constraints, next gate…"
+        />
       </label>
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent">

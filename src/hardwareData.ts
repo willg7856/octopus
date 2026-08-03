@@ -77,6 +77,37 @@ export const HARDWARE_STATUS_ORDER: HardwareStatus[] = [
   'failed',
 ]
 
+/** Stock-facing labels for inventory items (same status field, different meaning). */
+export const INVENTORY_STATUS_LABELS: Record<HardwareStatus, string> = {
+  concept: 'Incoming',
+  design: 'Reserved',
+  fab: 'Receiving',
+  assembly: 'On order',
+  checkout: 'Low stock',
+  'flight-ready': 'In stock',
+  retired: 'Depleted',
+  failed: 'Quarantine',
+}
+
+export const INVENTORY_STATUS_ORDER: HardwareStatus[] = [
+  'flight-ready',
+  'checkout',
+  'assembly',
+  'design',
+  'fab',
+  'concept',
+  'failed',
+  'retired',
+]
+
+export function inventoryStatusLabel(status: HardwareStatus) {
+  return INVENTORY_STATUS_LABELS[status] ?? status
+}
+
+export function normalizeInventoryStatus(status: HardwareStatus): HardwareStatus {
+  return INVENTORY_STATUS_ORDER.includes(status) ? status : 'flight-ready'
+}
+
 export const TEST_KIND_LABELS: Record<TestLogEntry['kind'], string> = {
   'static-fire': 'Static fire',
   'cold-flow': 'Cold flow',
