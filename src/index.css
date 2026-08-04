@@ -4544,7 +4544,6 @@ button.simple-list-row {
   padding: 0;
   border: 0;
   min-width: 0;
-  display: contents;
 }
 
 .simple-form[data-editing='false'] .simple-form-fields input,
