@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
@@ -424,6 +424,21 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
   )
 }
 
+function fieldsFromUnit(unit?: HardwareUnit) {
+  return {
+    name: unit?.name ?? '',
+    serial: unit?.serial ?? '',
+    kind: (unit && isSystemKind(unit.kind) ? unit.kind : 'vehicle') as HardwareKind,
+    status: (unit?.status ?? 'concept') as HardwareStatus,
+    parentVehicleId: unit?.parentVehicleId ?? '',
+    location: unit?.location ?? '',
+    hwRev: unit?.hwRev ?? '',
+    fwVersion: unit?.fwVersion ?? '',
+    owner: unit?.owner ?? '',
+    notes: unit?.notes ?? '',
+  }
+}
+
 function SystemForm({
   initial,
   submitLabel,
@@ -431,7 +446,6 @@ function SystemForm({
   onSave,
   onDelete,
   onCancel,
-  disabled,
 }: {
   initial?: HardwareUnit
   submitLabel: string
@@ -439,36 +453,77 @@ function SystemForm({
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
-  disabled?: boolean
 }) {
-  const [name, setName] = useState(initial?.name ?? '')
-  const [serial, setSerial] = useState(initial?.serial ?? '')
-  const [kind, setKind] = useState<HardwareKind>(
-    initial && isSystemKind(initial.kind) ? initial.kind : 'vehicle',
-  )
-  const [status, setStatus] = useState<HardwareStatus>(
-    initial?.status ?? 'concept',
-  )
-  const [parentVehicleId, setParentVehicleId] = useState(
-    initial?.parentVehicleId ?? '',
-  )
-  const [location, setLocation] = useState(initial?.location ?? '')
-  const [hwRev, setHwRev] = useState(initial?.hwRev ?? '')
-  const [fwVersion, setFwVersion] = useState(initial?.fwVersion ?? '')
-  const [owner, setOwner] = useState(initial?.owner ?? '')
-  const [notes, setNotes] = useState(initial?.notes ?? '')
+  const isNew = !initial
+  const [editing, setEditing] = useState(isNew)
+  const [fields, setFields] = useState(() => fieldsFromUnit(initial))
+  const {
+    name,
+    serial,
+    kind,
+    status,
+    parentVehicleId,
+    location,
+    hwRev,
+    fwVersion,
+    owner,
+    notes,
+  } = fields
+
+  useEffect(() => {
+    if (!initial || editing) return
+    setFields(fieldsFromUnit(initial))
+  }, [
+    editing,
+    initial?.id,
+    initial?.updatedAt,
+    initial?.name,
+    initial?.serial,
+    initial?.kind,
+    initial?.status,
+    initial?.parentVehicleId,
+    initial?.location,
+    initial?.hwRev,
+    initial?.fwVersion,
+    initial?.owner,
+    initial?.notes,
+  ])
+
+  function setField<K extends keyof typeof fields>(
+    key: K,
+    value: (typeof fields)[K],
+  ) {
+    setFields((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function startEdit() {
+    setFields(fieldsFromUnit(initial))
+    setEditing(true)
+  }
+
+  function cancelEdit() {
+    if (isNew) {
+      onCancel?.()
+      return
+    }
+    setFields(fieldsFromUnit(initial))
+    setEditing(false)
+  }
 
   const parentOptions = vehicles.filter((v) => v.id !== initial?.id)
   const showParent = kind !== 'vehicle'
 
   function handleKindChange(next: HardwareKind) {
-    setKind(next)
-    if (next === 'vehicle') setParentVehicleId('')
+    setFields((prev) => ({
+      ...prev,
+      kind: next,
+      parentVehicleId: next === 'vehicle' ? '' : prev.parentVehicleId,
+    }))
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!name.trim() || !serial.trim() || disabled) return
+    if (!editing || !name.trim() || !serial.trim()) return
     onSave({
       id: initial?.id,
       name: name.trim(),
@@ -485,148 +540,154 @@ function SystemForm({
       owner: owner.trim() || undefined,
       notes: notes.trim() || undefined,
     })
+    if (!isNew) setEditing(false)
   }
 
   return (
-    <form className="simple-form" onSubmit={handleSubmit}>
-      <h3>{initial ? initial.name : 'New vehicle / subsystem'}</h3>
-      <p className="simple-muted">
-        Track flight articles and GSE — serial, build status, HW/FW. Not bin stock.
-        Changing build status appends a progress note.
-      </p>
-      <label>
-        Name
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="STRAVOX airframe"
-          required
-          disabled={disabled}
-        />
-      </label>
-      <label>
-        Asset serial
-        <input
-          value={serial}
-          onChange={(e) => setSerial(e.target.value)}
-          placeholder="SVX-B1M-001"
-          required
-          disabled={disabled}
-        />
-      </label>
-      <div className="simple-form-row">
-        <label>
-          Hardware type
-          <select
-            value={kind}
-            onChange={(e) => handleKindChange(e.target.value as HardwareKind)}
-            disabled={disabled}
-          >
-            {KIND_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Build status
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as HardwareStatus)}
-            disabled={disabled}
-          >
-            {STATUS_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {showParent ? (
-        <label>
-          Parent vehicle
-          <select
-            value={parentVehicleId}
-            onChange={(e) => setParentVehicleId(e.target.value)}
-            disabled={disabled}
-          >
-            <option value="">None</option>
-            {parentOptions.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-                {v.serial ? ` (${v.serial})` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-      <div className="simple-form-row">
-        <label>
-          HW revision
-          <input
-            value={hwRev}
-            onChange={(e) => setHwRev(e.target.value)}
-            placeholder="B1M · rev A"
-            disabled={disabled}
-          />
-        </label>
-        <label>
-          Firmware
-          <input
-            value={fwVersion}
-            onChange={(e) => setFwVersion(e.target.value)}
-            placeholder="0.4.2-dev"
-            disabled={disabled}
-          />
-        </label>
-      </div>
-      <div className="simple-form-row">
-        <label>
-          Location
-          <input
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Goods Shed · bench"
-            disabled={disabled}
-          />
-        </label>
-        <label>
-          Owner / team
-          <input
-            value={owner}
-            onChange={(e) => setOwner(e.target.value)}
-            placeholder="Structures, Avionics…"
-            disabled={disabled}
-          />
-        </label>
-      </div>
-      <label>
-        Notes
-        <input
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Open work, constraints, next gate…"
-          disabled={disabled}
-        />
-      </label>
-      <div className="simple-form-actions">
-        <button type="submit" className="btn btn-accent" disabled={disabled}>
-          {submitLabel}
-        </button>
-        {onCancel ? (
-          <button type="button" className="btn btn-ghost" onClick={onCancel}>
-            Cancel
+    <form
+      className="simple-form"
+      data-editing={editing ? 'true' : 'false'}
+      onSubmit={handleSubmit}
+    >
+      <div className="simple-form-title-row">
+        <div>
+          <h3>{initial ? initial.name : 'New vehicle / subsystem'}</h3>
+          <p className="simple-muted">
+            {editing
+              ? 'Edit details, then Save to lock the form. Status changes append a progress note.'
+              : 'Viewing saved details. Click Edit to make changes.'}
+          </p>
+        </div>
+        {!isNew && !editing ? (
+          <button type="button" className="btn btn-accent" onClick={startEdit}>
+            Edit
           </button>
         ) : null}
-        {onDelete ? (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={onDelete}
-            disabled={disabled}
-          >
+      </div>
+      <fieldset className="simple-form-fields" disabled={!editing}>
+        <label>
+          Name
+          <input
+            value={name}
+            onChange={(e) => setField('name', e.target.value)}
+            placeholder="STRAVOX airframe"
+            required={editing}
+          />
+        </label>
+        <label>
+          Asset serial
+          <input
+            value={serial}
+            onChange={(e) => setField('serial', e.target.value)}
+            placeholder="SVX-B1M-001"
+            required={editing}
+          />
+        </label>
+        <div className="simple-form-row">
+          <label>
+            Hardware type
+            <select
+              value={kind}
+              onChange={(e) => handleKindChange(e.target.value as HardwareKind)}
+            >
+              {KIND_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Build status
+            <select
+              value={status}
+              onChange={(e) =>
+                setField('status', e.target.value as HardwareStatus)
+              }
+            >
+              {STATUS_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {showParent ? (
+          <label>
+            Parent vehicle
+            <select
+              value={parentVehicleId}
+              onChange={(e) => setField('parentVehicleId', e.target.value)}
+            >
+              <option value="">None</option>
+              {parentOptions.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                  {v.serial ? ` (${v.serial})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <div className="simple-form-row">
+          <label>
+            HW revision
+            <input
+              value={hwRev}
+              onChange={(e) => setField('hwRev', e.target.value)}
+              placeholder="B1M · rev A"
+            />
+          </label>
+          <label>
+            Firmware
+            <input
+              value={fwVersion}
+              onChange={(e) => setField('fwVersion', e.target.value)}
+              placeholder="0.4.2-dev"
+            />
+          </label>
+        </div>
+        <div className="simple-form-row">
+          <label>
+            Location
+            <input
+              value={location}
+              onChange={(e) => setField('location', e.target.value)}
+              placeholder="Goods Shed · bench"
+            />
+          </label>
+          <label>
+            Owner / team
+            <input
+              value={owner}
+              onChange={(e) => setField('owner', e.target.value)}
+              placeholder="Structures, Avionics…"
+            />
+          </label>
+        </div>
+        <label>
+          Notes
+          <input
+            value={notes}
+            onChange={(e) => setField('notes', e.target.value)}
+            placeholder="Open work, constraints, next gate…"
+          />
+        </label>
+      </fieldset>
+      <div className="simple-form-actions">
+        {editing ? (
+          <>
+            <button type="submit" className="btn btn-accent">
+              {submitLabel}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={cancelEdit}>
+              Cancel
+            </button>
+          </>
+        ) : null}
+        {onDelete && editing ? (
+          <button type="button" className="btn btn-ghost" onClick={onDelete}>
             Delete
           </button>
         ) : null}
