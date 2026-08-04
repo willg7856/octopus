@@ -122,6 +122,55 @@ async function writeRedis(lab: SharedHardwareLab) {
   await getRedis().set(HARDWARE_REDIS_KEY, lab)
 }
 
+const REDIS_CAS_SCRIPT = `
+local raw = redis.call('GET', KEYS[1])
+local expected = tonumber(ARGV[1])
+if (not raw) then
+  if expected == 0 or expected == 1 then
+    redis.call('SET', KEYS[1], ARGV[2])
+    return {1, ARGV[2]}
+  end
+  return {0, ''}
+end
+local ok, data = pcall(cjson.decode, raw)
+if (not ok) or (type(data) ~= 'table') then
+  return {0, raw}
+end
+local rev = tonumber(data['revision'])
+if rev ~= expected then
+  return {0, raw}
+end
+redis.call('SET', KEYS[1], ARGV[2])
+return {1, ARGV[2]}
+`
+
+async function writeRedisCas(
+  expectedRevision: number,
+  lab: SharedHardwareLab,
+): Promise<{ ok: true } | { ok: false; current: SharedHardwareLab | null }> {
+  const redis = getRedis()
+  const payload = JSON.stringify(lab)
+  const result = (await redis.eval(REDIS_CAS_SCRIPT, [HARDWARE_REDIS_KEY], [
+    String(expectedRevision),
+    payload,
+  ])) as [number | string, string] | null
+
+  const flag = Number(Array.isArray(result) ? result[0] : 0)
+  if (flag === 1) return { ok: true }
+
+  const raw = Array.isArray(result) ? result[1] : ''
+  if (!raw) {
+    const current = await readRedis()
+    return { ok: false, current }
+  }
+  try {
+    return { ok: false, current: normalize(JSON.parse(raw) as StoredLab) }
+  } catch {
+    const current = await readRedis()
+    return { ok: false, current }
+  }
+}
+
 function blobAccessCandidates(): BlobAccess[] {
   if (resolvedBlobAccess) return [resolvedBlobAccess]
   return ['public', 'private']
@@ -256,13 +305,9 @@ export async function saveSharedLab(
   | { ok: false; conflict: true; lab: SharedHardwareLab }
 > {
   const mode = storageMode()
-  const current = await loadSharedLab()
-  if (current.revision !== expectedRevision) {
-    return { ok: false, conflict: true, lab: current }
-  }
 
   const lab: SharedHardwareLab = {
-    revision: current.revision + 1,
+    revision: expectedRevision + 1,
     updatedAt: new Date().toISOString(),
     updatedBy,
     units: next.units,
@@ -272,8 +317,25 @@ export async function saveSharedLab(
   }
 
   if (mode === 'redis') {
-    await withStorageErrors('Upstash Redis', async () => writeRedis(lab))
-  } else if (mode === 'blob') {
+    return withStorageErrors('Upstash Redis', async () => {
+      const cas = await writeRedisCas(expectedRevision, lab)
+      if (!cas.ok) {
+        const current = cas.current ?? (await loadSharedLab())
+        return { ok: false as const, conflict: true as const, lab: current }
+      }
+      return { ok: true as const, lab }
+    })
+  }
+
+  const current = await loadSharedLab()
+  if (current.revision !== expectedRevision) {
+    return { ok: false, conflict: true, lab: current }
+  }
+
+  // Keep revision from CAS path consistent when falling through
+  lab.revision = current.revision + 1
+
+  if (mode === 'blob') {
     await withStorageErrors('Vercel Blob', async () => writeBlob(lab))
   } else {
     await writeLocal(lab)

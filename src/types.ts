@@ -207,6 +207,8 @@ export interface HardwareUnit {
   stockStatus?: StockStatus
   /** Inventory reorder URL (McMaster, DigiKey, vendor cart, etc.). */
   orderUrl?: string
+  /** Inventory minimum quantity — at or below this, status becomes low. */
+  minQty?: number
   location?: string
   owner?: string
   notes?: string

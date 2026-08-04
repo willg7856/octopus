@@ -1,12 +1,17 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
+import { SyncBar } from './SyncBar'
 import {
   HARDWARE_KIND_LABELS,
   HARDWARE_STATUS_LABELS,
   SYSTEM_KINDS,
+  TEST_KIND_LABELS,
+  TEST_RESULT_LABELS,
   isSystemKind,
   newId,
+  sortProgress,
+  sortTests,
   sortUnits,
 } from '../hardwareData'
 import type {
@@ -14,6 +19,9 @@ import type {
   HardwareProgressNote,
   HardwareStatus,
   HardwareUnit,
+  TestKind,
+  TestLogEntry,
+  TestResult,
 } from '../types'
 import { useLabStore } from '../useLabStore'
 
@@ -24,14 +32,21 @@ const STATUS_OPTIONS = Object.entries(HARDWARE_STATUS_LABELS) as [
   HardwareStatus,
   string,
 ][]
+const TEST_KIND_OPTIONS = Object.entries(TEST_KIND_LABELS) as [TestKind, string][]
+const TEST_RESULT_OPTIONS = Object.entries(TEST_RESULT_LABELS) as [
+  TestResult,
+  string,
+][]
 
 export function HardwarePage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
-  const { lab, sync, syncError, saving, toast } = store
+  const { lab, sync, syncError, saving, conflict, toast, updatedAt, updatedBy } =
+    store
   const { confirm, dialog: confirmDialog } = useConfirm()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
+  const [mobileMode, setMobileMode] = useState<'list' | 'detail'>('list')
 
   const units = useMemo(
     () => sortUnits(lab.units.filter((u) => isSystemKind(u.kind))),
@@ -50,20 +65,61 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
   }, [units, query])
 
   const selected =
-    units.find((u) => u.id === selectedId) ?? filtered[0] ?? null
+    units.find((u) => u.id === selectedId) ??
+    (mobileMode === 'detail' ? null : filtered[0] ?? null)
+
+  const unitProgress = useMemo(
+    () =>
+      selected
+        ? sortProgress(lab.progress.filter((p) => p.unitId === selected.id))
+        : [],
+    [lab.progress, selected],
+  )
+  const unitTests = useMemo(
+    () =>
+      selected
+        ? sortTests(lab.tests.filter((t) => t.unitIds.includes(selected.id)))
+        : [],
+    [lab.tests, selected],
+  )
+
+  function openDetail(id: string | null, isAdding = false) {
+    setAdding(isAdding)
+    setSelectedId(id)
+    setMobileMode('detail')
+  }
 
   function saveUnit(
     input: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string },
   ) {
+    if (saving) return
     const kind = isSystemKind(input.kind) ? input.kind : 'vehicle'
-    const updatedAt = new Date().toISOString()
+    const updatedAtNow = new Date().toISOString()
     if (input.id) {
+      const prev = lab.units.find((u) => u.id === input.id)
+      const statusChanged = prev && prev.status !== input.status
+      const note: HardwareProgressNote | null =
+        statusChanged && prev
+          ? {
+              id: newId('pg'),
+              unitId: input.id,
+              date: updatedAtNow.slice(0, 10),
+              status: input.status,
+              note: `Status → ${HARDWARE_STATUS_LABELS[input.status]}${
+                input.notes?.trim() ? ` · ${input.notes.trim()}` : ''
+              }`,
+              author: user?.name,
+            }
+          : null
       void store.commit(
         {
           ...lab,
           units: lab.units.map((u) =>
-            u.id === input.id ? { ...u, ...input, kind, updatedAt } : u,
+            u.id === input.id
+              ? { ...u, ...input, kind, updatedAt: updatedAtNow }
+              : u,
           ),
+          progress: note ? [note, ...lab.progress] : lab.progress,
         },
         'Saved',
       )
@@ -74,12 +130,12 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
       ...input,
       kind,
       id: newId('hw'),
-      updatedAt,
+      updatedAt: updatedAtNow,
     }
     const note: HardwareProgressNote = {
       id: newId('pg'),
       unitId: next.id,
-      date: updatedAt.slice(0, 10),
+      date: updatedAtNow.slice(0, 10),
       status: next.status,
       note: 'Added to hardware',
       author: user?.name,
@@ -92,8 +148,37 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
       },
       'Added',
     )
-    setSelectedId(next.id)
-    setAdding(false)
+    openDetail(next.id)
+  }
+
+  function addTest(input: {
+    title: string
+    kind: TestKind
+    result: TestResult
+    summary: string
+    site?: string
+  }) {
+    if (!selected || saving) return
+    const now = new Date().toISOString()
+    const entry: TestLogEntry = {
+      id: newId('test'),
+      date: now.slice(0, 10),
+      title: input.title.trim(),
+      kind: input.kind,
+      result: input.result,
+      unitIds: [selected.id],
+      site: input.site?.trim() || undefined,
+      operator: user?.name,
+      summary: input.summary.trim(),
+      createdAt: now,
+    }
+    void store.commit(
+      {
+        ...lab,
+        tests: [entry, ...lab.tests],
+      },
+      'Test logged',
+    )
   }
 
   async function removeUnit(id: string) {
@@ -123,6 +208,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
       'Removed',
     )
     setSelectedId(null)
+    setMobileMode('list')
   }
 
   return (
@@ -134,42 +220,43 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
             Vehicles & subsystems — build status, revs, and firmware. Not stock.
           </p>
         </div>
-        <div className="simple-head-actions">
-          {saving ? <span className="simple-sync">Saving…</span> : null}
-          {sync === 'shared' && !saving ? (
-            <span className="simple-sync simple-sync-ok">Live</span>
-          ) : null}
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => void store.refresh({ quiet: true })}
-            disabled={sync === 'loading'}
-          >
-            Refresh
-          </button>
-          <button
-            type="button"
-            className="btn btn-accent"
-            onClick={() => {
-              setAdding(true)
-              setSelectedId(null)
-            }}
-          >
-            Add unit
-          </button>
-        </div>
+        <SyncBar
+          sync={sync}
+          saving={saving}
+          conflict={conflict}
+          updatedAt={updatedAt}
+          updatedBy={updatedBy}
+          lab={lab}
+          onRefresh={() => void store.refresh({ quiet: true })}
+        />
       </header>
+
+      <div className="simple-head-actions" style={{ marginBottom: '0.75rem' }}>
+        <button
+          type="button"
+          className="btn btn-accent"
+          disabled={saving}
+          onClick={() => openDetail(null, true)}
+        >
+          Add unit
+        </button>
+      </div>
 
       {sync === 'error' && syncError ? (
         <p className="simple-error" role="alert">
           {syncError}
         </p>
       ) : null}
+      {conflict ? (
+        <p className="simple-conflict" role="alert">
+          Someone else saved first. Review the live data, then re-apply your edit.
+        </p>
+      ) : null}
 
       {sync === 'loading' ? (
         <p className="simple-muted">Loading…</p>
       ) : (
-        <div className="simple-split">
+        <div className="simple-split" data-mode={mobileMode}>
           <section className="simple-list-panel">
             <input
               className="simple-search"
@@ -187,10 +274,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                     data-selected={
                       !adding && selected?.id === unit.id ? 'true' : 'false'
                     }
-                    onClick={() => {
-                      setAdding(false)
-                      setSelectedId(unit.id)
-                    }}
+                    onClick={() => openDetail(unit.id)}
                   >
                     <span>
                       <strong>{unit.name}</strong>
@@ -215,21 +299,82 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
           </section>
 
           <section className="simple-detail">
+            <button
+              type="button"
+              className="btn btn-ghost simple-back"
+              onClick={() => {
+                setAdding(false)
+                setMobileMode('list')
+              }}
+            >
+              ← Back to list
+            </button>
             {adding ? (
               <SystemForm
                 key="new"
                 submitLabel="Add"
-                onCancel={() => setAdding(false)}
+                disabled={saving}
+                onCancel={() => {
+                  setAdding(false)
+                  setMobileMode('list')
+                }}
                 onSave={saveUnit}
               />
             ) : selected ? (
-              <SystemForm
-                key={selected.id}
-                initial={selected}
-                submitLabel="Save"
-                onSave={saveUnit}
-                onDelete={() => removeUnit(selected.id)}
-              />
+              <>
+                <SystemForm
+                  key={selected.id}
+                  initial={selected}
+                  submitLabel="Save"
+                  disabled={saving}
+                  onSave={saveUnit}
+                  onDelete={() => removeUnit(selected.id)}
+                />
+                <section className="hw-history" aria-label="Progress history">
+                  <h4>Progress</h4>
+                  {unitProgress.length === 0 ? (
+                    <p className="simple-muted">
+                      No notes yet — status changes are logged here.
+                    </p>
+                  ) : (
+                    <ul className="hw-history-list">
+                      {unitProgress.slice(0, 12).map((note) => (
+                        <li key={note.id}>
+                          <strong>
+                            {note.date} · {HARDWARE_STATUS_LABELS[note.status]}
+                          </strong>
+                          <span className="simple-muted">
+                            {note.note}
+                            {note.author ? ` · ${note.author}` : ''}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+                <section className="hw-tests" aria-label="Tests">
+                  <h4>Tests</h4>
+                  {unitTests.length === 0 ? (
+                    <p className="simple-muted">No tests logged for this unit.</p>
+                  ) : (
+                    <ul className="hw-tests-list">
+                      {unitTests.slice(0, 12).map((test) => (
+                        <li key={test.id}>
+                          <strong>
+                            {test.date} · {test.title}
+                          </strong>
+                          <span className="simple-muted">
+                            {TEST_KIND_LABELS[test.kind]} ·{' '}
+                            {TEST_RESULT_LABELS[test.result]}
+                            {test.summary ? ` — ${test.summary}` : ''}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <AddTestForm disabled={saving} onAdd={addTest} />
+                </section>
+              </>
             ) : (
               <p className="simple-muted">Select a unit or add one.</p>
             )}
@@ -253,12 +398,14 @@ function SystemForm({
   onSave,
   onDelete,
   onCancel,
+  disabled,
 }: {
   initial?: HardwareUnit
   submitLabel: string
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
+  disabled?: boolean
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [serial, setSerial] = useState(initial?.serial ?? '')
@@ -276,7 +423,7 @@ function SystemForm({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!name.trim() || !serial.trim()) return
+    if (!name.trim() || !serial.trim() || disabled) return
     onSave({
       id: initial?.id,
       name: name.trim(),
@@ -298,6 +445,7 @@ function SystemForm({
       <h3>{initial ? initial.name : 'New vehicle / subsystem'}</h3>
       <p className="simple-muted">
         Track flight articles and GSE — serial, build status, HW/FW. Not bin stock.
+        Changing build status appends a progress note.
       </p>
       <label>
         Name
@@ -306,6 +454,7 @@ function SystemForm({
           onChange={(e) => setName(e.target.value)}
           placeholder="STRAVOX airframe"
           required
+          disabled={disabled}
         />
       </label>
       <label>
@@ -315,6 +464,7 @@ function SystemForm({
           onChange={(e) => setSerial(e.target.value)}
           placeholder="SVX-B1M-001"
           required
+          disabled={disabled}
         />
       </label>
       <div className="simple-form-row">
@@ -323,6 +473,7 @@ function SystemForm({
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as HardwareKind)}
+            disabled={disabled}
           >
             {KIND_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>
@@ -336,6 +487,7 @@ function SystemForm({
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as HardwareStatus)}
+            disabled={disabled}
           >
             {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>
@@ -352,6 +504,7 @@ function SystemForm({
             value={hwRev}
             onChange={(e) => setHwRev(e.target.value)}
             placeholder="B1M · rev A"
+            disabled={disabled}
           />
         </label>
         <label>
@@ -360,6 +513,7 @@ function SystemForm({
             value={fwVersion}
             onChange={(e) => setFwVersion(e.target.value)}
             placeholder="0.4.2-dev"
+            disabled={disabled}
           />
         </label>
       </div>
@@ -370,6 +524,7 @@ function SystemForm({
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             placeholder="Goods Shed · bench"
+            disabled={disabled}
           />
         </label>
         <label>
@@ -378,6 +533,7 @@ function SystemForm({
             value={owner}
             onChange={(e) => setOwner(e.target.value)}
             placeholder="Structures, Avionics…"
+            disabled={disabled}
           />
         </label>
       </div>
@@ -387,10 +543,11 @@ function SystemForm({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Open work, constraints, next gate…"
+          disabled={disabled}
         />
       </label>
       <div className="simple-form-actions">
-        <button type="submit" className="btn btn-accent">
+        <button type="submit" className="btn btn-accent" disabled={disabled}>
           {submitLabel}
         </button>
         {onCancel ? (
@@ -399,10 +556,116 @@ function SystemForm({
           </button>
         ) : null}
         {onDelete ? (
-          <button type="button" className="btn btn-ghost" onClick={onDelete}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onDelete}
+            disabled={disabled}
+          >
             Delete
           </button>
         ) : null}
+      </div>
+    </form>
+  )
+}
+
+function AddTestForm({
+  onAdd,
+  disabled,
+}: {
+  onAdd: (input: {
+    title: string
+    kind: TestKind
+    result: TestResult
+    summary: string
+    site?: string
+  }) => void
+  disabled?: boolean
+}) {
+  const [title, setTitle] = useState('')
+  const [kind, setKind] = useState<TestKind>('ground')
+  const [result, setResult] = useState<TestResult>('pass')
+  const [summary, setSummary] = useState('')
+  const [site, setSite] = useState('')
+
+  return (
+    <form
+      className="simple-form"
+      style={{ marginTop: '0.85rem' }}
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!title.trim() || !summary.trim() || disabled) return
+        onAdd({ title, kind, result, summary, site })
+        setTitle('')
+        setSummary('')
+        setSite('')
+      }}
+    >
+      <p className="simple-muted">Log a test against this unit.</p>
+      <label>
+        Title
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Checkout power-on"
+          required
+          disabled={disabled}
+        />
+      </label>
+      <div className="simple-form-row">
+        <label>
+          Kind
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as TestKind)}
+            disabled={disabled}
+          >
+            {TEST_KIND_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Result
+          <select
+            value={result}
+            onChange={(e) => setResult(e.target.value as TestResult)}
+            disabled={disabled}
+          >
+            {TEST_RESULT_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <label>
+        Summary
+        <input
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+          placeholder="What was measured / observed"
+          required
+          disabled={disabled}
+        />
+      </label>
+      <label>
+        Site
+        <input
+          value={site}
+          onChange={(e) => setSite(e.target.value)}
+          placeholder="Goods Shed"
+          disabled={disabled}
+        />
+      </label>
+      <div className="simple-form-actions">
+        <button type="submit" className="btn btn-ghost" disabled={disabled}>
+          Add test
+        </button>
       </div>
     </form>
   )

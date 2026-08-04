@@ -139,6 +139,34 @@ export function hardwareStatusForStock(stockStatus: StockStatus): HardwareStatus
   return STOCK_TO_HARDWARE_STATUS[stockStatus]
 }
 
+/** Statuses the user is managing manually — do not auto-override with minQty rules. */
+const STOCK_MANUAL_STATUSES: StockStatus[] = [
+  'on-order',
+  'reserved',
+  'receiving',
+  'incoming',
+  'quarantine',
+]
+
+/**
+ * Apply quantity / minQty rules after a stock edit.
+ * - qty ≤ 0 → depleted (unless a manual pipeline status)
+ * - qty ≤ minQty → low (when currently in-stock / low / depleted)
+ */
+export function applyInventoryStockRules(
+  stockStatus: StockStatus,
+  quantity: number,
+  minQty?: number,
+): StockStatus {
+  if (STOCK_MANUAL_STATUSES.includes(stockStatus)) return stockStatus
+  if (quantity <= 0) return 'depleted'
+  if (typeof minQty === 'number' && Number.isFinite(minQty) && minQty >= 0 && quantity <= minQty) {
+    return 'low'
+  }
+  if (stockStatus === 'depleted') return 'in-stock'
+  return stockStatus
+}
+
 export const TEST_KIND_LABELS: Record<TestLogEntry['kind'], string> = {
   'static-fire': 'Static fire',
   'cold-flow': 'Cold flow',

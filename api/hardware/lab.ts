@@ -28,6 +28,15 @@ function isLabState(value: unknown): value is HardwareLabState {
   )
 }
 
+function canAdminReset(email: string | undefined): boolean {
+  if (!email) return false
+  const admins = (process.env.OPS_ADMINS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+  return admins.includes(email.trim().toLowerCase())
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = requireUser(req, res)
   if (!user) return
@@ -73,15 +82,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'DELETE') {
+      // Destructive seed reset — admins only (OPS_ADMINS). Prefer PUT for normal edits.
+      if (!canAdminReset(user.email)) {
+        res.status(403).json({ error: 'Admin access required to reset shared lab' })
+        return
+      }
       const lab = await resetSharedLab(user.name || user.email)
       res.status(200).json({ lab, storage: storageMode() })
       return
     }
 
+    res.setHeader('Allow', 'GET, PUT, DELETE')
     res.status(405).json({ error: 'Method not allowed' })
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Hardware lab unavailable'
-    res.status(503).json({ error: message })
+    console.error('hardware lab API failed', error)
+    const message = error instanceof Error ? error.message : 'Shared inventory failed'
+    res.status(500).json({ error: message })
   }
 }

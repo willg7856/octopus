@@ -48,6 +48,14 @@ The integration injects `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (o
 2. Connect Upstash Redis under Storage (Blob can stay connected as fallback).
 3. Redeploy. Open Inventory — edits should feel snappy and sync for everyone.
 
+Optional: `OPS_ADMINS` — comma-separated emails allowed to `DELETE /api/hardware/lab` (full shared-lab reset). Everyone else can still edit via PUT.
+
+### Sync & conflict handling
+
+- Edits use revision checks (Redis Lua CAS when Redis is primary).
+- The UI queues saves, auto-refreshes ~every 20s / on tab focus, and surfaces conflicts so you can re-apply after reviewing.
+- Each section exposes **Export CSV**, last updated-by/when, and Live/Saving status.
+
 Local Vite uses password `goods-shed` (or `VITE_OPS_PASSWORD`) when `/api` isn’t available.
 
 ## Run locally

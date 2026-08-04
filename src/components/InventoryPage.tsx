@@ -1,11 +1,13 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
+import { SyncBar } from './SyncBar'
 import {
   HARDWARE_KIND_LABELS,
   INVENTORY_KINDS,
   STOCK_STATUS_LABELS,
   STOCK_STATUS_ORDER,
+  applyInventoryStockRules,
   hardwareStatusForStock,
   isInventoryKind,
   newId,
@@ -31,11 +33,13 @@ const STATUS_OPTIONS = STOCK_STATUS_ORDER.map(
 
 export function InventoryPage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
-  const { lab, sync, syncError, saving, toast } = store
+  const { lab, sync, syncError, saving, conflict, toast, updatedAt, updatedBy } =
+    store
   const { confirm, dialog: confirmDialog } = useConfirm()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
+  const [mobileMode, setMobileMode] = useState<'list' | 'detail'>('list')
 
   const units = useMemo(
     () => sortUnits(lab.units.filter((u) => isInventoryKind(u.kind))),
@@ -54,19 +58,45 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   }, [units, query])
 
   const selected =
-    units.find((u) => u.id === selectedId) ?? filtered[0] ?? null
+    units.find((u) => u.id === selectedId) ??
+    (mobileMode === 'detail' ? null : filtered[0] ?? null)
+
+  function openDetail(id: string | null, isAdding = false) {
+    setAdding(isAdding)
+    setSelectedId(id)
+    setMobileMode('detail')
+  }
 
   function saveUnit(
     input: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string },
   ) {
+    if (saving) return
     const kind = isInventoryKind(input.kind) ? input.kind : 'other'
-    const updatedAt = new Date().toISOString()
+    const qty =
+      typeof input.quantity === 'number' && Number.isFinite(input.quantity)
+        ? input.quantity
+        : 1
+    const stockStatus = applyInventoryStockRules(
+      input.stockStatus ?? 'in-stock',
+      qty,
+      input.minQty,
+    )
+    const updatedAtNow = new Date().toISOString()
+    const resolved = {
+      ...input,
+      kind,
+      stockStatus,
+      status: hardwareStatusForStock(stockStatus),
+      quantity: qty,
+      updatedAt: updatedAtNow,
+    }
+
     if (input.id) {
       void store.commit(
         {
           ...lab,
           units: lab.units.map((u) =>
-            u.id === input.id ? { ...u, ...input, kind, updatedAt } : u,
+            u.id === input.id ? { ...u, ...resolved } : u,
           ),
         },
         'Saved',
@@ -75,15 +105,13 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     }
 
     const next: HardwareUnit = {
-      ...input,
-      kind,
+      ...resolved,
       id: newId('hw'),
-      updatedAt,
     }
     const note: HardwareProgressNote = {
       id: newId('pg'),
       unitId: next.id,
-      date: updatedAt.slice(0, 10),
+      date: updatedAtNow.slice(0, 10),
       status: next.status,
       note: 'Added to inventory',
       author: user?.name,
@@ -96,8 +124,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       },
       'Added',
     )
-    setSelectedId(next.id)
-    setAdding(false)
+    openDetail(next.id)
   }
 
   async function removeUnit(id: string) {
@@ -125,6 +152,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       'Removed',
     )
     setSelectedId(null)
+    setMobileMode('list')
   }
 
   return (
@@ -136,42 +164,43 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
             Stock room — parts, consumables, tools. Different fields than Hardware.
           </p>
         </div>
-        <div className="simple-head-actions">
-          {saving ? <span className="simple-sync">Saving…</span> : null}
-          {sync === 'shared' && !saving ? (
-            <span className="simple-sync simple-sync-ok">Live</span>
-          ) : null}
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => void store.refresh({ quiet: true })}
-            disabled={sync === 'loading'}
-          >
-            Refresh
-          </button>
-          <button
-            type="button"
-            className="btn btn-accent"
-            onClick={() => {
-              setAdding(true)
-              setSelectedId(null)
-            }}
-          >
-            Add item
-          </button>
-        </div>
+        <SyncBar
+          sync={sync}
+          saving={saving}
+          conflict={conflict}
+          updatedAt={updatedAt}
+          updatedBy={updatedBy}
+          lab={lab}
+          onRefresh={() => void store.refresh({ quiet: true })}
+        />
       </header>
+
+      <div className="simple-head-actions" style={{ marginBottom: '0.75rem' }}>
+        <button
+          type="button"
+          className="btn btn-accent"
+          disabled={saving}
+          onClick={() => openDetail(null, true)}
+        >
+          Add item
+        </button>
+      </div>
 
       {sync === 'error' && syncError ? (
         <p className="simple-error" role="alert">
           {syncError}
         </p>
       ) : null}
+      {conflict ? (
+        <p className="simple-conflict" role="alert">
+          Someone else saved first. Review the live data, then re-apply your edit.
+        </p>
+      ) : null}
 
       {sync === 'loading' ? (
         <p className="simple-muted">Loading…</p>
       ) : (
-        <div className="simple-split">
+        <div className="simple-split" data-mode={mobileMode}>
           <section className="simple-list-panel">
             <input
               className="simple-search"
@@ -192,16 +221,14 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                     <button
                       type="button"
                       className="simple-list-main"
-                      onClick={() => {
-                        setAdding(false)
-                        setSelectedId(unit.id)
-                      }}
+                      onClick={() => openDetail(unit.id)}
                     >
                       <span>
                         <strong>{unit.name}</strong>
                         <span className="simple-muted">
                           {HARDWARE_KIND_LABELS[unit.kind]} · qty{' '}
                           {unitQuantity(unit)}
+                          {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
                           {unit.location ? ` · ${unit.location}` : ''}
                         </span>
                       </span>
@@ -234,11 +261,25 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
           </section>
 
           <section className="simple-detail">
+            <button
+              type="button"
+              className="btn btn-ghost simple-back"
+              onClick={() => {
+                setAdding(false)
+                setMobileMode('list')
+              }}
+            >
+              ← Back to list
+            </button>
             {adding ? (
               <UnitForm
                 key="new"
                 submitLabel="Add"
-                onCancel={() => setAdding(false)}
+                disabled={saving}
+                onCancel={() => {
+                  setAdding(false)
+                  setMobileMode('list')
+                }}
                 onSave={saveUnit}
               />
             ) : selected ? (
@@ -246,6 +287,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                 key={selected.id}
                 initial={selected}
                 submitLabel="Save"
+                disabled={saving}
                 onSave={saveUnit}
                 onDelete={() => removeUnit(selected.id)}
               />
@@ -272,12 +314,14 @@ function UnitForm({
   onSave,
   onDelete,
   onCancel,
+  disabled,
 }: {
   initial?: HardwareUnit
   submitLabel: string
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
+  disabled?: boolean
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [serial, setSerial] = useState(initial?.serial ?? '')
@@ -291,6 +335,9 @@ function UnitForm({
   const [quantity, setQuantity] = useState(
     String(initial ? unitQuantity(initial) : 1),
   )
+  const [minQty, setMinQty] = useState(
+    initial?.minQty != null ? String(initial.minQty) : '',
+  )
   const [partNumber, setPartNumber] = useState(initial?.partNumber ?? '')
   const [supplier, setSupplier] = useState(initial?.owner ?? '')
   const [orderUrl, setOrderUrl] = useState(initial?.orderUrl ?? '')
@@ -298,8 +345,9 @@ function UnitForm({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!name.trim() || !serial.trim()) return
+    if (!name.trim() || !serial.trim() || disabled) return
     const qty = Number(quantity)
+    const min = minQty.trim() === '' ? undefined : Number(minQty)
     onSave({
       id: initial?.id,
       name: name.trim(),
@@ -309,6 +357,8 @@ function UnitForm({
       stockStatus,
       location: location.trim() || undefined,
       quantity: Number.isFinite(qty) && qty >= 0 ? qty : 1,
+      minQty:
+        min != null && Number.isFinite(min) && min >= 0 ? min : undefined,
       hwRev: '—',
       fwVersion: undefined,
       partNumber: partNumber.trim() || undefined,
@@ -324,7 +374,8 @@ function UnitForm({
     <form className="simple-form" onSubmit={handleSubmit}>
       <h3>{initial ? initial.name : 'New stock item'}</h3>
       <p className="simple-muted">
-        Track bin stock — quantity, SKU, and stock status. Not vehicle hardware.
+        Track bin stock — quantity, SKU, min qty, and stock status. Not vehicle
+        hardware.
       </p>
       {orderHref ? (
         <div className="inv-order-panel">
@@ -346,6 +397,7 @@ function UnitForm({
           onChange={(e) => setName(e.target.value)}
           placeholder="AN-4 bolts"
           required
+          disabled={disabled}
         />
       </label>
       <div className="simple-form-row">
@@ -356,6 +408,7 @@ function UnitForm({
             onChange={(e) => setSerial(e.target.value)}
             placeholder="INV-AN4-BOLT"
             required
+            disabled={disabled}
           />
         </label>
         <label>
@@ -364,6 +417,7 @@ function UnitForm({
             value={partNumber}
             onChange={(e) => setPartNumber(e.target.value)}
             placeholder="AN4-14A"
+            disabled={disabled}
           />
         </label>
       </div>
@@ -373,6 +427,7 @@ function UnitForm({
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as HardwareKind)}
+            disabled={disabled}
           >
             {KIND_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>
@@ -386,6 +441,7 @@ function UnitForm({
           <select
             value={stockStatus}
             onChange={(e) => setStockStatus(e.target.value as StockStatus)}
+            disabled={disabled}
           >
             {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>
@@ -404,23 +460,38 @@ function UnitForm({
             step={1}
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
+            disabled={disabled}
           />
         </label>
         <label>
-          Bin / location
+          Min qty (auto low)
           <input
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Goods Shed · fastener bin"
+            type="number"
+            min={0}
+            step={1}
+            value={minQty}
+            onChange={(e) => setMinQty(e.target.value)}
+            placeholder="e.g. 10"
+            disabled={disabled}
           />
         </label>
       </div>
+      <label>
+        Bin / location
+        <input
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          placeholder="Goods Shed · fastener bin"
+          disabled={disabled}
+        />
+      </label>
       <label>
         Supplier / source
         <input
           value={supplier}
           onChange={(e) => setSupplier(e.target.value)}
           placeholder="McMaster, DigiKey, in-house…"
+          disabled={disabled}
         />
       </label>
       <div className="inv-link-section">
@@ -436,6 +507,7 @@ function UnitForm({
             onChange={(e) => setOrderUrl(e.target.value)}
             placeholder="https://www.mcmaster.com/…"
             inputMode="url"
+            disabled={disabled}
           />
         </label>
       </div>
@@ -444,11 +516,12 @@ function UnitForm({
         <input
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Expiry, min qty, cal due…"
+          placeholder="Expiry, cal due…"
+          disabled={disabled}
         />
       </label>
       <div className="simple-form-actions">
-        <button type="submit" className="btn btn-accent">
+        <button type="submit" className="btn btn-accent" disabled={disabled}>
           {submitLabel}
         </button>
         {onCancel ? (
@@ -457,7 +530,12 @@ function UnitForm({
           </button>
         ) : null}
         {onDelete ? (
-          <button type="button" className="btn btn-ghost" onClick={onDelete}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onDelete}
+            disabled={disabled}
+          >
             Delete
           </button>
         ) : null}

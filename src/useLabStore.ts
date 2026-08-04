@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   fetchSharedHardwareLab,
   resetSharedHardwareLab,
@@ -23,6 +23,25 @@ function toLabState(shared: SharedHardwareLab): HardwareLabState {
   }
 }
 
+export function formatUpdatedLabel(updatedAt: string | null, updatedBy: string | null) {
+  if (!updatedAt) return null
+  const when = formatRelativeTime(updatedAt)
+  if (updatedBy) return `Updated by ${updatedBy} · ${when}`
+  return `Updated ${when}`
+}
+
+function formatRelativeTime(iso: string) {
+  const ms = Date.now() - new Date(iso).getTime()
+  if (!Number.isFinite(ms) || ms < 0) return 'just now'
+  const mins = Math.floor(ms / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 48) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
 export function useLabStore() {
   const [lab, setLab] = useState<HardwareLabState>(() => ({
     units: [],
@@ -36,16 +55,21 @@ export function useLabStore() {
   const [sync, setSync] = useState<LabSyncState>('loading')
   const [syncError, setSyncError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [conflict, setConflict] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const revisionRef = useRef(1)
+  const commitChain = useRef(Promise.resolve(true))
+  const savingRef = useRef(false)
 
   function flash(message: string) {
     setToast(message)
-    window.setTimeout(() => setToast(null), 2400)
+    window.setTimeout(() => setToast(null), 2800)
   }
 
   function applyShared(shared: SharedHardwareLab) {
     setLab(toLabState(shared))
     setRevision(shared.revision)
+    revisionRef.current = shared.revision
     setUpdatedAt(shared.updatedAt)
     setUpdatedBy(shared.updatedBy)
     setSync('shared')
@@ -53,8 +77,11 @@ export function useLabStore() {
   }
 
   async function refresh(opts?: { quiet?: boolean }) {
+    if (savingRef.current) return
     const result = await fetchSharedHardwareLab()
     if (result.ok) {
+      // Don't clobber a newer local revision mid-edit race
+      if (result.lab.revision < revisionRef.current) return
       applyShared(result.lab)
       if (!opts?.quiet) flash('Team lab loaded')
       return
@@ -75,32 +102,69 @@ export function useLabStore() {
     void refresh({ quiet: true })
   }, [])
 
+  useEffect(() => {
+    if (sync !== 'shared') return
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void refresh({ quiet: true })
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void refresh({ quiet: true })
+      }
+    }, 20000)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.clearInterval(timer)
+    }
+  }, [sync])
+
   async function commit(next: HardwareLabState, message: string) {
-    if (sync === 'local') {
-      saveHardwareLab(next)
-      setLab(next)
+    const run = async () => {
+      if (sync === 'local') {
+        saveHardwareLab(next)
+        setLab(next)
+        setConflict(false)
+        flash(message)
+        return true
+      }
+
+      savingRef.current = true
+      setSaving(true)
+      setConflict(false)
+      const expected = revisionRef.current
+      const result = await saveSharedHardwareLab(next, expected)
+      savingRef.current = false
+      setSaving(false)
+
+      if ('conflict' in result && result.conflict) {
+        applyShared(result.lab)
+        setConflict(true)
+        flash('Someone else saved first — your edit was not applied. Re-try after reviewing.')
+        return false
+      }
+
+      if (!result.ok) {
+        flash(result.error)
+        return false
+      }
+
+      applyShared(result.lab)
+      setConflict(false)
       flash(message)
       return true
     }
 
-    setSaving(true)
-    const result = await saveSharedHardwareLab(next, revision)
-    setSaving(false)
-
-    if ('conflict' in result && result.conflict) {
-      applyShared(result.lab)
-      flash('Someone else saved first — refreshed. Re-apply your change.')
-      return false
-    }
-
-    if (!result.ok) {
-      flash(result.error)
-      return false
-    }
-
-    applyShared(result.lab)
-    flash(message)
-    return true
+    const queued = commitChain.current.then(run, run)
+    commitChain.current = queued.then(
+      () => true,
+      () => true,
+    )
+    return queued
   }
 
   async function reset() {
@@ -111,8 +175,10 @@ export function useLabStore() {
       return
     }
 
+    savingRef.current = true
     setSaving(true)
     const result = await resetSharedHardwareLab()
+    savingRef.current = false
     setSaving(false)
     if (!result.ok) {
       flash(result.error)
@@ -130,6 +196,7 @@ export function useLabStore() {
     sync,
     syncError,
     saving,
+    conflict,
     toast,
     refresh,
     commit,

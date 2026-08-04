@@ -2,8 +2,11 @@ import {
   HARDWARE_KIND_LABELS,
   HARDWARE_STATUS_LABELS,
   PROCESS_STEP_STATUS_LABELS,
+  STOCK_STATUS_LABELS,
   TEST_KIND_LABELS,
   TEST_RESULT_LABELS,
+  isInventoryKind,
+  stockStatusOf,
   unitQuantity,
 } from './hardwareData'
 import type {
@@ -46,7 +49,7 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
     `# exported,${new Date().toISOString()}`,
     '',
     '## hardware_units',
-    'id,name,kind,serial,part_number,quantity,hw_rev,fw_version,status,location,owner,notes,updated_at',
+    'id,name,kind,serial,part_number,quantity,min_qty,hw_rev,fw_version,status,stock_status,order_url,location,owner,notes,updated_at',
     ...units.map((u) =>
       [
         u.id,
@@ -55,9 +58,12 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
         csvEscape(u.serial),
         csvEscape(u.partNumber ?? ''),
         String(unitQuantity(u)),
+        u.minQty != null ? String(u.minQty) : '',
         csvEscape(u.hwRev),
         csvEscape(u.fwVersion ?? ''),
         HARDWARE_STATUS_LABELS[u.status],
+        isInventoryKind(u.kind) ? STOCK_STATUS_LABELS[stockStatusOf(u)] : '',
+        csvEscape(u.orderUrl ?? ''),
         csvEscape(u.location ?? ''),
         csvEscape(u.owner ?? ''),
         csvEscape(u.notes ?? ''),

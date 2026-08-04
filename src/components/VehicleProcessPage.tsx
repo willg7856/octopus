@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
+import { SyncBar } from './SyncBar'
 import {
+  HARDWARE_KIND_LABELS,
   PROCESS_STEP_STATUS_LABELS,
+  isSystemKind,
   newId,
   processCompletion,
   sortProcessSteps,
@@ -10,6 +13,7 @@ import {
   sortUnits,
 } from '../hardwareData'
 import type {
+  HardwareUnit,
   ProcessStepStatus,
   VehicleProcess,
   VehicleProcessStep,
@@ -28,7 +32,8 @@ const MORE_STATUSES: ProcessStepStatus[] = ['pending', 'skipped']
 
 export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
-  const { lab, sync, syncError, saving, toast } = store
+  const { lab, sync, syncError, saving, conflict, toast, updatedAt, updatedBy } =
+    store
   const { confirm, dialog: confirmDialog } = useConfirm()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -36,6 +41,10 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
 
   const units = useMemo(() => sortUnits(lab.units), [lab.units])
+  const systemUnits = useMemo(
+    () => units.filter((u) => isSystemKind(u.kind)),
+    [units],
+  )
   const processes = useMemo(() => sortProcesses(lab.processes), [lab.processes])
   const selected =
     processes.find((p) => p.id === selectedId) ?? processes[0] ?? null
@@ -63,6 +72,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     status: ProcessStepStatus,
     blockedReason?: string,
   ) {
+    if (saving) return
     const now = new Date().toISOString()
     void store.commit(
       {
@@ -94,6 +104,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   }
 
   function setBlockedReason(processId: string, stepId: string, reason: string) {
+    if (saving) return
     const now = new Date().toISOString()
     void store.commit(
       {
@@ -115,8 +126,24 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     )
   }
 
+  function setVehicleUnit(processId: string, vehicleUnitId: string) {
+    if (saving || !vehicleUnitId) return
+    const now = new Date().toISOString()
+    void store.commit(
+      {
+        ...lab,
+        processes: lab.processes.map((p) =>
+          p.id === processId
+            ? { ...p, vehicleUnitId, updatedAt: now }
+            : p,
+        ),
+      },
+      'Vehicle linked',
+    )
+  }
+
   function addStep(processId: string, title: string) {
-    if (!title.trim()) return
+    if (!title.trim() || saving) return
     const now = new Date().toISOString()
     void store.commit(
       {
@@ -142,9 +169,9 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   function editStep(
     processId: string,
     stepId: string,
-    patch: { title: string; detail?: string },
+    patch: { title: string; detail?: string; linkedUnitIds: string[] },
   ) {
-    if (!patch.title.trim()) return
+    if (!patch.title.trim() || saving) return
     const now = new Date().toISOString()
     void store.commit(
       {
@@ -160,6 +187,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                     ...s,
                     title: patch.title.trim(),
                     detail: patch.detail?.trim() || undefined,
+                    linkedUnitIds: patch.linkedUnitIds,
                   }
                 : s,
             ),
@@ -195,6 +223,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   }
 
   function moveStep(processId: string, stepId: string, direction: -1 | 1) {
+    if (saving) return
     const process = lab.processes.find((p) => p.id === processId)
     if (!process) return
     const ordered = sortProcessSteps(process.steps)
@@ -222,6 +251,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   }
 
   function createProduction(input: { name: string; vehicleName?: string }) {
+    if (saving) return
     const now = new Date().toISOString()
     const wanted = (input.vehicleName || input.name)
       .replace(/\s+production\s*$/i, '')
@@ -305,32 +335,25 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
             Vehicle build & checkout trackers for the Goods Shed.
           </p>
         </div>
-        <div className="simple-head-actions">
-          {saving ? <span className="simple-sync">Saving…</span> : null}
-          {sync === 'shared' && !saving ? (
-            <span className="simple-sync simple-sync-ok">Live</span>
-          ) : null}
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => void store.refresh({ quiet: true })}
-            disabled={sync === 'loading'}
-          >
-            Refresh
-          </button>
-          <button
-            type="button"
-            className="btn btn-accent"
-            onClick={() => setCreating((v) => !v)}
-          >
-            {creating ? 'Cancel' : 'New production'}
-          </button>
-        </div>
+        <SyncBar
+          sync={sync}
+          saving={saving}
+          conflict={conflict}
+          updatedAt={updatedAt}
+          updatedBy={updatedBy}
+          lab={lab}
+          onRefresh={() => void store.refresh({ quiet: true })}
+        />
       </header>
 
       {sync === 'error' && syncError ? (
         <p className="simple-error" role="alert">
           {syncError}
+        </p>
+      ) : null}
+      {conflict ? (
+        <p className="simple-conflict" role="alert">
+          Someone else saved first. Review the live data, then re-apply your edit.
         </p>
       ) : null}
 
@@ -347,6 +370,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                   type="button"
                   className="prod-btn"
                   aria-pressed={selected?.id === process.id}
+                  disabled={saving}
                   onClick={() => {
                     setCreating(false)
                     setEditingStepId(null)
@@ -369,6 +393,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                   key={rec.name}
                   type="button"
                   className="prod-btn prod-btn-add"
+                  disabled={saving}
                   onClick={() =>
                     createProduction({
                       name: rec.name,
@@ -389,6 +414,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                       key={rec.name}
                       type="button"
                       className="prod-btn prod-btn-add"
+                      disabled={saving}
                       onClick={() =>
                         createProduction({
                           name: rec.name,
@@ -402,6 +428,15 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                 </div>
               </details>
             ) : null}
+
+            <button
+              type="button"
+              className="btn btn-accent"
+              disabled={saving}
+              onClick={() => setCreating((v) => !v)}
+            >
+              {creating ? 'Cancel' : 'New production'}
+            </button>
           </div>
 
           {creating ? (
@@ -427,6 +462,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                     type="button"
                     className="btn btn-ghost"
                     aria-pressed={editingSteps}
+                    disabled={saving}
                     onClick={() => {
                       setEditingSteps((v) => !v)
                       setEditingStepId(null)
@@ -438,6 +474,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                     <button
                       type="button"
                       className="btn btn-ghost"
+                      disabled={saving}
                       onClick={() => removeProduction(selected.id)}
                     >
                       Delete tracker
@@ -445,6 +482,25 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                   ) : null}
                 </div>
               </div>
+
+              {editingSteps ? (
+                <label className="simple-form" style={{ maxWidth: '28rem' }}>
+                  Linked Hardware vehicle
+                  <select
+                    value={selected.vehicleUnitId}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setVehicleUnit(selected.id, e.target.value)
+                    }
+                  >
+                    {systemUnits.map((unit) => (
+                      <option key={unit.id} value={unit.id}>
+                        {unit.name} ({HARDWARE_KIND_LABELS[unit.kind]})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
 
               {completion && completion.total > 0 ? (
                 <div className="prod-progress" aria-hidden="true">
@@ -460,6 +516,9 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
               <ol className="simple-step-list">
                 {steps.map((step, index) => {
                   const isEditing = editingStepId === step.id
+                  const linked = (step.linkedUnitIds ?? [])
+                    .map((id) => units.find((u) => u.id === id))
+                    .filter(Boolean) as HardwareUnit[]
                   return (
                     <li
                       key={step.id}
@@ -469,6 +528,8 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                       {isEditing ? (
                         <EditStepForm
                           step={step}
+                          units={systemUnits}
+                          disabled={saving}
                           onSave={(patch) =>
                             editStep(selected.id, step.id, patch)
                           }
@@ -484,6 +545,12 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                               </strong>
                               {step.detail ? (
                                 <span className="simple-muted">{step.detail}</span>
+                              ) : null}
+                              {linked.length > 0 ? (
+                                <span className="simple-muted">
+                                  Hardware:{' '}
+                                  {linked.map((u) => u.name).join(', ')}
+                                </span>
                               ) : null}
                               {step.status === 'done' && step.completedBy ? (
                                 <span className="prod-step-meta">
@@ -505,7 +572,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                   type="button"
                                   className="btn btn-ghost"
                                   aria-label={`Move ${step.title} up`}
-                                  disabled={index === 0}
+                                  disabled={index === 0 || saving}
                                   onClick={() =>
                                     moveStep(selected.id, step.id, -1)
                                   }
@@ -516,7 +583,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                   type="button"
                                   className="btn btn-ghost"
                                   aria-label={`Move ${step.title} down`}
-                                  disabled={index === steps.length - 1}
+                                  disabled={index === steps.length - 1 || saving}
                                   onClick={() =>
                                     moveStep(selected.id, step.id, 1)
                                   }
@@ -526,6 +593,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 <button
                                   type="button"
                                   className="btn btn-ghost"
+                                  disabled={saving}
                                   onClick={() => setEditingStepId(step.id)}
                                 >
                                   Edit
@@ -533,6 +601,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 <button
                                   type="button"
                                   className="btn btn-ghost"
+                                  disabled={saving}
                                   onClick={() =>
                                     deleteStep(selected.id, step.id)
                                   }
@@ -562,6 +631,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 className="prod-status-btn"
                                 data-status={status}
                                 aria-pressed={step.status === status}
+                                disabled={saving}
                                 onClick={() =>
                                   updateStep(selected.id, step.id, status)
                                 }
@@ -576,6 +646,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 className="prod-status-btn prod-status-btn-quiet"
                                 data-status={status}
                                 aria-pressed={step.status === status}
+                                disabled={saving}
                                 onClick={() =>
                                   updateStep(selected.id, step.id, status)
                                 }
@@ -592,6 +663,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 key={`${step.id}-block`}
                                 defaultValue={step.blockedReason ?? ''}
                                 placeholder="Waiting on hardware, weather, review…"
+                                disabled={saving}
                                 onBlur={(e) => {
                                   const next = e.target.value.trim()
                                   if (next !== (step.blockedReason ?? '')) {
@@ -613,7 +685,10 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
               </ol>
 
               {editingSteps || steps.length === 0 ? (
-                <AddStepForm onAdd={(title) => addStep(selected.id, title)} />
+                <AddStepForm
+                  disabled={saving}
+                  onAdd={(title) => addStep(selected.id, title)}
+                />
               ) : null}
             </section>
           ) : (
@@ -733,22 +808,39 @@ function NewProductionForm({
 
 function EditStepForm({
   step,
+  units,
   onSave,
   onCancel,
+  disabled,
 }: {
   step: VehicleProcessStep
-  onSave: (patch: { title: string; detail?: string }) => void
+  units: HardwareUnit[]
+  onSave: (patch: {
+    title: string
+    detail?: string
+    linkedUnitIds: string[]
+  }) => void
   onCancel: () => void
+  disabled?: boolean
 }) {
   const [title, setTitle] = useState(step.title)
   const [detail, setDetail] = useState(step.detail ?? '')
+  const [linkedUnitIds, setLinkedUnitIds] = useState<string[]>(
+    step.linkedUnitIds ?? [],
+  )
+
+  function toggleUnit(id: string) {
+    setLinkedUnitIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
 
   return (
     <form
       className="simple-form prod-edit-step"
       onSubmit={(e) => {
         e.preventDefault()
-        onSave({ title, detail })
+        onSave({ title, detail, linkedUnitIds })
       }}
     >
       <label>
@@ -758,6 +850,7 @@ function EditStepForm({
           onChange={(e) => setTitle(e.target.value)}
           required
           autoFocus
+          disabled={disabled}
         />
       </label>
       <label>
@@ -766,10 +859,34 @@ function EditStepForm({
           value={detail}
           onChange={(e) => setDetail(e.target.value)}
           placeholder="Optional notes for the team"
+          disabled={disabled}
         />
       </label>
+      <fieldset>
+        <legend>Linked Hardware units</legend>
+        <div className="hw-link-units">
+          {units.length === 0 ? (
+            <span className="simple-muted">No hardware units yet.</span>
+          ) : (
+            units.map((unit) => (
+              <label key={unit.id}>
+                <input
+                  type="checkbox"
+                  checked={linkedUnitIds.includes(unit.id)}
+                  disabled={disabled}
+                  onChange={() => toggleUnit(unit.id)}
+                />
+                {unit.name}
+                <span className="simple-muted">
+                  {HARDWARE_KIND_LABELS[unit.kind]}
+                </span>
+              </label>
+            ))
+          )}
+        </div>
+      </fieldset>
       <div className="simple-form-actions">
-        <button type="submit" className="btn btn-accent">
+        <button type="submit" className="btn btn-accent" disabled={disabled}>
           Save
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel}>
@@ -780,7 +897,13 @@ function EditStepForm({
   )
 }
 
-function AddStepForm({ onAdd }: { onAdd: (title: string) => void }) {
+function AddStepForm({
+  onAdd,
+  disabled,
+}: {
+  onAdd: (title: string) => void
+  disabled?: boolean
+}) {
   const [title, setTitle] = useState('')
   return (
     <form
@@ -796,8 +919,9 @@ function AddStepForm({ onAdd }: { onAdd: (title: string) => void }) {
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Add a step…"
         aria-label="New step title"
+        disabled={disabled}
       />
-      <button type="submit" className="btn btn-ghost">
+      <button type="submit" className="btn btn-ghost" disabled={disabled}>
         Add
       </button>
     </form>
