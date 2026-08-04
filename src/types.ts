@@ -207,6 +207,10 @@ export interface HardwareUnit {
   stockStatus?: StockStatus
   /** Inventory reorder URL (McMaster, DigiKey, vendor cart, etc.). */
   orderUrl?: string
+  /** Inventory: date the PO / order was placed (YYYY-MM-DD). */
+  orderedAt?: string
+  /** Inventory: expected delivery / ETA (YYYY-MM-DD). */
+  expectedAt?: string
   /** Inventory minimum quantity — at or below this, status becomes low. */
   minQty?: number
   location?: string

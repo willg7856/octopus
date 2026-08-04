@@ -49,7 +49,7 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
     `# exported,${new Date().toISOString()}`,
     '',
     '## hardware_units',
-    'id,name,kind,serial,part_number,quantity,min_qty,hw_rev,fw_version,status,stock_status,order_url,location,owner,notes,updated_at',
+    'id,name,kind,serial,part_number,quantity,min_qty,hw_rev,fw_version,status,stock_status,order_url,ordered_at,expected_at,location,owner,notes,updated_at',
     ...units.map((u) =>
       [
         u.id,
@@ -64,6 +64,8 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
         HARDWARE_STATUS_LABELS[u.status],
         isInventoryKind(u.kind) ? STOCK_STATUS_LABELS[stockStatusOf(u)] : '',
         csvEscape(u.orderUrl ?? ''),
+        u.orderedAt ?? '',
+        u.expectedAt ?? '',
         csvEscape(u.location ?? ''),
         csvEscape(u.owner ?? ''),
         csvEscape(u.notes ?? ''),

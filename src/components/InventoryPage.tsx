@@ -169,6 +169,8 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
           quantity: qty,
           stockStatus,
           status: hardwareStatusForStock(stockStatus),
+          orderedAt: undefined,
+          expectedAt: undefined,
           updatedAt: new Date().toISOString(),
         }
       },
@@ -379,6 +381,11 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                             {unitQuantity(unit)}
                             {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
                             {unit.location ? ` · ${unit.location}` : ''}
+                            {unit.expectedAt
+                              ? ` · ETA ${formatOrderDate(unit.expectedAt)}`
+                              : unit.orderedAt
+                                ? ` · ordered ${formatOrderDate(unit.orderedAt)}`
+                                : ''}
                           </span>
                         </span>
                         <span
@@ -532,13 +539,35 @@ function UnitForm({
   const [partNumber, setPartNumber] = useState(initial?.partNumber ?? '')
   const [supplier, setSupplier] = useState(initial?.owner ?? '')
   const [orderUrl, setOrderUrl] = useState(initial?.orderUrl ?? '')
+  const [orderedAt, setOrderedAt] = useState(initial?.orderedAt ?? '')
+  const [expectedAt, setExpectedAt] = useState(initial?.expectedAt ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
+
+  const showOrderDates =
+    stockStatus === 'on-order' ||
+    stockStatus === 'receiving' ||
+    stockStatus === 'incoming' ||
+    Boolean(orderedAt || expectedAt)
+
+  function handleStockStatusChange(next: StockStatus) {
+    setStockStatus(next)
+    if (
+      (next === 'on-order' || next === 'receiving' || next === 'incoming') &&
+      !orderedAt
+    ) {
+      setOrderedAt(todayDateInput())
+    }
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!name.trim() || !serial.trim()) return
     const qty = Number(quantity)
     const min = minQty.trim() === '' ? undefined : Number(minQty)
+    const inOrderPipeline =
+      stockStatus === 'on-order' ||
+      stockStatus === 'receiving' ||
+      stockStatus === 'incoming'
     onSave({
       id: initial?.id,
       name: name.trim(),
@@ -555,6 +584,12 @@ function UnitForm({
       partNumber: partNumber.trim() || undefined,
       owner: supplier.trim() || undefined,
       orderUrl: orderUrl.trim() || undefined,
+      orderedAt:
+        inOrderPipeline || orderedAt.trim()
+          ? normalizeDateInput(orderedAt) ||
+            (inOrderPipeline ? todayDateInput() : undefined)
+          : undefined,
+      expectedAt: normalizeDateInput(expectedAt),
       notes: notes.trim() || undefined,
     })
   }
@@ -627,7 +662,9 @@ function UnitForm({
           Stock status
           <select
             value={stockStatus}
-            onChange={(e) => setStockStatus(e.target.value as StockStatus)}
+            onChange={(e) =>
+              handleStockStatusChange(e.target.value as StockStatus)
+            }
           >
             {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>
@@ -677,9 +714,9 @@ function UnitForm({
         />
       </label>
       <div className="inv-link-section">
-        <h4>Order link</h4>
+        <h4>Order</h4>
         <p className="simple-muted">
-          Paste a McMaster, DigiKey, or vendor URL so anyone can reorder fast.
+          Vendor link plus when it was ordered and when it should arrive.
         </p>
         <label>
           URL
@@ -691,6 +728,26 @@ function UnitForm({
             inputMode="url"
           />
         </label>
+        {showOrderDates ? (
+          <div className="simple-form-row">
+            <label>
+              Order date
+              <input
+                type="date"
+                value={orderedAt}
+                onChange={(e) => setOrderedAt(e.target.value)}
+              />
+            </label>
+            <label>
+              Expected delivery
+              <input
+                type="date"
+                value={expectedAt}
+                onChange={(e) => setExpectedAt(e.target.value)}
+              />
+            </label>
+          </div>
+        ) : null}
       </div>
       <label>
         Notes
@@ -724,4 +781,27 @@ function normalizeOrderUrl(raw: string) {
   if (!trimmed) return trimmed
   if (/^https?:\/\//i.test(trimmed)) return trimmed
   return `https://${trimmed}`
+}
+
+function todayDateInput() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function normalizeDateInput(raw: string) {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : undefined
+}
+
+function formatOrderDate(isoDate: string) {
+  try {
+    const [y, m, d] = isoDate.split('-').map(Number)
+    if (!y || !m || !d) return isoDate
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return isoDate
+  }
 }
