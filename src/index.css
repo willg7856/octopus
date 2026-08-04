@@ -4167,6 +4167,31 @@ button {
   letter-spacing: -0.03em;
 }
 
+.simple-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.55rem 0.85rem;
+}
+
+.inv-total-count {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  color: var(--fg-muted);
+}
+
+.inv-total-count strong {
+  color: var(--fg);
+  font-weight: 650;
+}
+
+.inv-total-sep {
+  margin: 0 0.35rem;
+  color: var(--fg-faint);
+}
+
 .simple-head > div > .simple-muted {
   margin: 0.2rem 0 0;
 }

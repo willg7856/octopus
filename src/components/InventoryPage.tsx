@@ -80,6 +80,20 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     return { attention, low, onOrder, quarantine }
   }, [units])
 
+  const inventoryTotals = useMemo(() => {
+    let onHand = 0
+    let onOrder = 0
+    for (const unit of units) {
+      onHand += unitQuantity(unit)
+      onOrder += unitOnOrderQty(unit)
+    }
+    return {
+      items: units.length,
+      onHand,
+      onOrder,
+    }
+  }, [units])
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return units.filter((u) => {
@@ -332,7 +346,24 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     <main className="simple-page" aria-label="Inventory">
       <header className="simple-head">
         <div>
-          <h2>Inventory</h2>
+          <div className="simple-title-row">
+            <h2>Inventory</h2>
+            {sync !== 'loading' ? (
+              <p className="inv-total-count" aria-live="polite">
+                <strong>{inventoryTotals.items}</strong>
+                {inventoryTotals.items === 1 ? ' item' : ' items'}
+                <span className="inv-total-sep" aria-hidden="true">
+                  ·
+                </span>
+                <span>
+                  {inventoryTotals.onHand} on hand
+                  {inventoryTotals.onOrder > 0
+                    ? ` · ${inventoryTotals.onOrder} on order`
+                    : ''}
+                </span>
+              </p>
+            ) : null}
+          </div>
           <p className="simple-muted">
             Stock room — parts, consumables, tools. Different fields than Hardware.
           </p>
