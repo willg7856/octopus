@@ -12,6 +12,7 @@ import {
   isInventoryKind,
   newId,
   sortUnits,
+  stockStatusAfterReceive,
   stockStatusLabel,
   stockStatusOf,
   unitQuantity,
@@ -159,23 +160,19 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       id,
       (unit) => {
         const qty = unitQuantity(unit) + 1
-        const stockStatus = applyInventoryStockRules(
-          'in-stock',
-          qty,
-          unit.minQty,
-        )
+        // Leave the order pipeline (on-order / receiving / incoming) explicitly.
+        const stockStatus = stockStatusAfterReceive(qty, unit.minQty)
+        const { orderedAt: _o, expectedAt: _e, ...rest } = unit
         return {
-          ...unit,
+          ...rest,
           quantity: qty,
           stockStatus,
           status: hardwareStatusForStock(stockStatus),
-          orderedAt: undefined,
-          expectedAt: undefined,
           updatedAt: new Date().toISOString(),
         }
       },
       'Received +1',
-      'Received +1',
+      'Received +1 — moved to stock',
     )
   }
 
@@ -485,7 +482,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
               />
             ) : selected ? (
               <UnitForm
-                key={selected.id}
+                key={`${selected.id}:${selected.updatedAt}:${stockStatusOf(selected)}:${unitQuantity(selected)}`}
                 initial={selected}
                 submitLabel="Save"
                 onSave={saveUnit}

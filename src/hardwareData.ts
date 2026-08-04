@@ -167,6 +167,18 @@ export function applyInventoryStockRules(
   return stockStatus
 }
 
+/** Status after receiving stock from an order pipeline (on-order / receiving / incoming). */
+export function stockStatusAfterReceive(
+  quantity: number,
+  minQty?: number,
+): StockStatus {
+  if (quantity <= 0) return 'depleted'
+  if (typeof minQty === 'number' && Number.isFinite(minQty) && minQty >= 0 && quantity <= minQty) {
+    return 'low'
+  }
+  return 'in-stock'
+}
+
 export const TEST_KIND_LABELS: Record<TestLogEntry['kind'], string> = {
   'static-fire': 'Static fire',
   'cold-flow': 'Cold flow',
