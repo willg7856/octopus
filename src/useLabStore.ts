@@ -14,6 +14,10 @@ import {
 
 export type LabSyncState = 'loading' | 'shared' | 'local' | 'error'
 
+export type LabUpdater =
+  | HardwareLabState
+  | ((prev: HardwareLabState) => HardwareLabState)
+
 function toLabState(shared: SharedHardwareLab): HardwareLabState {
   return {
     units: shared.units,
@@ -58,8 +62,13 @@ export function useLabStore() {
   const [conflict, setConflict] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const revisionRef = useRef(1)
+  const labRef = useRef<HardwareLabState>(lab)
+  const syncRef = useRef<LabSyncState>(sync)
   const commitChain = useRef(Promise.resolve(true))
   const savingRef = useRef(false)
+  const pendingCount = useRef(0)
+
+  syncRef.current = sync
 
   function flash(message: string) {
     setToast(message)
@@ -67,7 +76,9 @@ export function useLabStore() {
   }
 
   function applyShared(shared: SharedHardwareLab) {
-    setLab(toLabState(shared))
+    const state = toLabState(shared)
+    labRef.current = state
+    setLab(state)
     setRevision(shared.revision)
     revisionRef.current = shared.revision
     setUpdatedAt(shared.updatedAt)
@@ -88,7 +99,9 @@ export function useLabStore() {
     }
 
     if (import.meta.env.DEV && (result.status === 0 || result.status === 404)) {
-      setLab(loadHardwareLab())
+      const local = loadHardwareLab()
+      labRef.current = local
+      setLab(local)
       setSync('local')
       setSyncError(null)
       return
@@ -123,23 +136,31 @@ export function useLabStore() {
     }
   }, [sync])
 
-  async function commit(next: HardwareLabState, message: string) {
+  async function commit(next: LabUpdater, message: string) {
     const run = async () => {
-      if (sync === 'local') {
-        saveHardwareLab(next)
-        setLab(next)
+      const resolved =
+        typeof next === 'function' ? next(labRef.current) : next
+
+      if (syncRef.current === 'local') {
+        saveHardwareLab(resolved)
+        labRef.current = resolved
+        setLab(resolved)
         setConflict(false)
         flash(message)
         return true
       }
 
+      pendingCount.current += 1
       savingRef.current = true
       setSaving(true)
       setConflict(false)
       const expected = revisionRef.current
-      const result = await saveSharedHardwareLab(next, expected)
-      savingRef.current = false
-      setSaving(false)
+      const result = await saveSharedHardwareLab(resolved, expected)
+      pendingCount.current = Math.max(0, pendingCount.current - 1)
+      if (pendingCount.current === 0) {
+        savingRef.current = false
+        setSaving(false)
+      }
 
       if ('conflict' in result && result.conflict) {
         applyShared(result.lab)
@@ -168,8 +189,9 @@ export function useLabStore() {
   }
 
   async function reset() {
-    if (sync === 'local') {
+    if (syncRef.current === 'local') {
       const next = resetHardwareLab()
+      labRef.current = next
       setLab(next)
       flash('Reset to seed data')
       return

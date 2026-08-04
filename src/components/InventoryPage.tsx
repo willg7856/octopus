@@ -31,6 +31,22 @@ const STATUS_OPTIONS = STOCK_STATUS_ORDER.map(
   (status) => [status, STOCK_STATUS_LABELS[status]] as const,
 )
 
+type AttentionFilter = 'all' | 'attention' | 'low' | 'on-order' | 'quarantine'
+
+const ATTENTION_STATUSES: StockStatus[] = [
+  'low',
+  'on-order',
+  'quarantine',
+  'depleted',
+]
+
+function matchesAttention(unit: HardwareUnit, filter: AttentionFilter) {
+  const status = stockStatusOf(unit)
+  if (filter === 'all') return true
+  if (filter === 'attention') return ATTENTION_STATUSES.includes(status)
+  return status === filter
+}
+
 export function InventoryPage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
   const { lab, sync, syncError, saving, conflict, toast, updatedAt, updatedBy } =
@@ -38,6 +54,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   const { confirm, dialog: confirmDialog } = useConfirm()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<AttentionFilter>('all')
   const [adding, setAdding] = useState(false)
   const [mobileMode, setMobileMode] = useState<'list' | 'detail'>('list')
 
@@ -45,17 +62,34 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     () => sortUnits(lab.units.filter((u) => isInventoryKind(u.kind))),
     [lab.units],
   )
+
+  const attentionCounts = useMemo(() => {
+    let attention = 0
+    let low = 0
+    let onOrder = 0
+    let quarantine = 0
+    for (const unit of units) {
+      const status = stockStatusOf(unit)
+      if (ATTENTION_STATUSES.includes(status)) attention += 1
+      if (status === 'low') low += 1
+      if (status === 'on-order') onOrder += 1
+      if (status === 'quarantine') quarantine += 1
+    }
+    return { attention, low, onOrder, quarantine }
+  }, [units])
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return units
-    return units.filter((u) =>
-      [u.name, u.serial, u.location, u.owner, u.partNumber, u.kind, u.status, u.orderUrl]
+    return units.filter((u) => {
+      if (!matchesAttention(u, filter)) return false
+      if (!q) return true
+      return [u.name, u.serial, u.location, u.owner, u.partNumber, u.kind, u.status, u.orderUrl]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
-        .includes(q),
-    )
-  }, [units, query])
+        .includes(q)
+    })
+  }, [units, query, filter])
 
   const selected =
     units.find((u) => u.id === selectedId) ??
@@ -67,10 +101,85 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     setMobileMode('detail')
   }
 
+  function patchUnit(
+    id: string,
+    patch: (unit: HardwareUnit) => HardwareUnit,
+    message: string,
+    noteText?: string,
+  ) {
+    void store.commit((prev) => {
+      const current = prev.units.find((u) => u.id === id)
+      if (!current || !isInventoryKind(current.kind)) return prev
+      const nextUnit = patch(current)
+      const progressNote: HardwareProgressNote | null = noteText
+        ? {
+            id: newId('pg'),
+            unitId: id,
+            date: nextUnit.updatedAt.slice(0, 10),
+            status: nextUnit.status,
+            note: noteText,
+            author: user?.name,
+          }
+        : null
+      return {
+        ...prev,
+        units: prev.units.map((u) => (u.id === id ? nextUnit : u)),
+        progress: progressNote
+          ? [progressNote, ...prev.progress]
+          : prev.progress,
+      }
+    }, message)
+  }
+
+  function adjustQty(id: string, delta: number) {
+    patchUnit(
+      id,
+      (unit) => {
+        const qty = Math.max(0, unitQuantity(unit) + delta)
+        const stockStatus = applyInventoryStockRules(
+          stockStatusOf(unit),
+          qty,
+          unit.minQty,
+        )
+        return {
+          ...unit,
+          quantity: qty,
+          stockStatus,
+          status: hardwareStatusForStock(stockStatus),
+          updatedAt: new Date().toISOString(),
+        }
+      },
+      delta >= 0 ? `Qty +${delta}` : `Qty ${delta}`,
+      delta >= 0 ? `Qty +${delta}` : `Qty ${delta}`,
+    )
+  }
+
+  function receiveOne(id: string) {
+    patchUnit(
+      id,
+      (unit) => {
+        const qty = unitQuantity(unit) + 1
+        const stockStatus = applyInventoryStockRules(
+          'in-stock',
+          qty,
+          unit.minQty,
+        )
+        return {
+          ...unit,
+          quantity: qty,
+          stockStatus,
+          status: hardwareStatusForStock(stockStatus),
+          updatedAt: new Date().toISOString(),
+        }
+      },
+      'Received +1',
+      'Received +1',
+    )
+  }
+
   function saveUnit(
     input: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string },
   ) {
-    if (saving) return
     const kind = isInventoryKind(input.kind) ? input.kind : 'other'
     const qty =
       typeof input.quantity === 'number' && Number.isFinite(input.quantity)
@@ -93,12 +202,12 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
 
     if (input.id) {
       void store.commit(
-        {
-          ...lab,
-          units: lab.units.map((u) =>
+        (prev) => ({
+          ...prev,
+          units: prev.units.map((u) =>
             u.id === input.id ? { ...u, ...resolved } : u,
           ),
-        },
+        }),
         'Saved',
       )
       return
@@ -117,11 +226,11 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       author: user?.name,
     }
     void store.commit(
-      {
-        ...lab,
-        units: [...lab.units, next],
-        progress: [note, ...lab.progress],
-      },
+      (prev) => ({
+        ...prev,
+        units: [...prev.units, next],
+        progress: [note, ...prev.progress],
+      }),
       'Added',
     )
     openDetail(next.id)
@@ -133,27 +242,43 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     const ok = await confirm(`Remove “${unit.name}” from inventory?`)
     if (!ok) return
     void store.commit(
-      {
-        ...lab,
-        units: lab.units.filter((u) => u.id !== id),
-        progress: lab.progress.filter((p) => p.unitId !== id),
-        tests: lab.tests.map((t) => ({
+      (prev) => ({
+        ...prev,
+        units: prev.units.filter((u) => u.id !== id),
+        progress: prev.progress.filter((p) => p.unitId !== id),
+        tests: prev.tests.map((t) => ({
           ...t,
           unitIds: t.unitIds.filter((uid) => uid !== id),
         })),
-        processes: lab.processes.map((p) => ({
+        processes: prev.processes.map((p) => ({
           ...p,
           steps: p.steps.map((s) => ({
             ...s,
             linkedUnitIds: (s.linkedUnitIds ?? []).filter((uid) => uid !== id),
           })),
         })),
-      },
+      }),
       'Removed',
     )
     setSelectedId(null)
     setMobileMode('list')
   }
+
+  const filterChips: { id: AttentionFilter; label: string; count?: number }[] = [
+    { id: 'all', label: 'All' },
+    {
+      id: 'attention',
+      label: 'Needs attention',
+      count: attentionCounts.attention,
+    },
+    { id: 'low', label: 'Low', count: attentionCounts.low },
+    { id: 'on-order', label: 'On order', count: attentionCounts.onOrder },
+    {
+      id: 'quarantine',
+      label: 'Quarantine',
+      count: attentionCounts.quarantine,
+    },
+  ]
 
   return (
     <main className="simple-page" aria-label="Inventory">
@@ -177,7 +302,6 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
           <button
             type="button"
             className="btn btn-accent"
-            disabled={saving}
             onClick={() => openDetail(null, true)}
           >
             Add item
@@ -201,6 +325,26 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       ) : (
         <div className="simple-split" data-mode={mobileMode}>
           <section className="simple-list-panel">
+            <div
+              className="inv-filter-row"
+              role="toolbar"
+              aria-label="Stock filters"
+            >
+              {filterChips.map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  className="inv-filter-chip"
+                  aria-pressed={filter === chip.id}
+                  onClick={() => setFilter(chip.id)}
+                >
+                  {chip.label}
+                  {chip.count != null && chip.count > 0 ? (
+                    <span className="inv-filter-count">{chip.count}</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
             <input
               className="simple-search"
               value={query}
@@ -209,54 +353,102 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
               aria-label="Search inventory"
             />
             <ul className="simple-list">
-              {filtered.map((unit) => (
-                <li key={unit.id}>
-                  <div
-                    className="simple-list-row"
-                    data-selected={
-                      !adding && selected?.id === unit.id ? 'true' : 'false'
-                    }
-                  >
-                    <button
-                      type="button"
-                      className="simple-list-main"
-                      onClick={() => openDetail(unit.id)}
+              {filtered.map((unit) => {
+                const status = stockStatusOf(unit)
+                const canReceive =
+                  status === 'on-order' ||
+                  status === 'receiving' ||
+                  status === 'incoming'
+                return (
+                  <li key={unit.id}>
+                    <div
+                      className="simple-list-row inv-list-row"
+                      data-selected={
+                        !adding && selected?.id === unit.id ? 'true' : 'false'
+                      }
                     >
-                      <span>
-                        <strong>{unit.name}</strong>
-                        <span className="simple-muted">
-                          {HARDWARE_KIND_LABELS[unit.kind]} · qty{' '}
-                          {unitQuantity(unit)}
-                          {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
-                          {unit.location ? ` · ${unit.location}` : ''}
+                      <button
+                        type="button"
+                        className="simple-list-main"
+                        onClick={() => openDetail(unit.id)}
+                      >
+                        <span>
+                          <strong>{unit.name}</strong>
+                          <span className="simple-muted">
+                            {HARDWARE_KIND_LABELS[unit.kind]} · qty{' '}
+                            {unitQuantity(unit)}
+                            {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
+                            {unit.location ? ` · ${unit.location}` : ''}
+                          </span>
                         </span>
-                      </span>
-                      <span
-                        className="status-badge"
-                        data-kind="stock"
-                        data-status={stockStatusOf(unit)}
-                      >
-                        {stockStatusLabel(stockStatusOf(unit))}
-                      </span>
-                    </button>
-                    {unit.orderUrl ? (
-                      <a
-                        className="inv-order-link"
-                        href={normalizeOrderUrl(unit.orderUrl)}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Order
-                      </a>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
+                        <span
+                          className="status-badge"
+                          data-kind="stock"
+                          data-status={status}
+                        >
+                          {stockStatusLabel(status)}
+                        </span>
+                      </button>
+                      <div className="inv-qty-actions">
+                        <button
+                          type="button"
+                          className="inv-qty-btn"
+                          aria-label={`Decrease ${unit.name} quantity`}
+                          disabled={unitQuantity(unit) <= 0}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            adjustQty(unit.id, -1)
+                          }}
+                        >
+                          −
+                        </button>
+                        <span className="inv-qty-value" aria-hidden="true">
+                          {unitQuantity(unit)}
+                        </span>
+                        <button
+                          type="button"
+                          className="inv-qty-btn"
+                          aria-label={`Increase ${unit.name} quantity`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            adjustQty(unit.id, 1)
+                          }}
+                        >
+                          +
+                        </button>
+                        {canReceive ? (
+                          <button
+                            type="button"
+                            className="inv-qty-btn inv-qty-receive"
+                            aria-label={`Receive one ${unit.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              receiveOne(unit.id)
+                            }}
+                          >
+                            Recv
+                          </button>
+                        ) : null}
+                        {unit.orderUrl ? (
+                          <a
+                            className="inv-order-link"
+                            href={normalizeOrderUrl(unit.orderUrl)}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Order
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
               {filtered.length === 0 ? (
                 <li className="simple-muted">
-                  {query.trim()
-                    ? 'No stock matches that search.'
+                  {query.trim() || filter !== 'all'
+                    ? 'No stock matches that filter.'
                     : 'No stock yet — add parts, consumables, or tools.'}
                 </li>
               ) : null}
@@ -278,7 +470,6 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
               <UnitForm
                 key="new"
                 submitLabel="Add"
-                disabled={saving}
                 onCancel={() => {
                   setAdding(false)
                   setMobileMode('list')
@@ -290,7 +481,6 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                 key={selected.id}
                 initial={selected}
                 submitLabel="Save"
-                disabled={saving}
                 onSave={saveUnit}
                 onDelete={() => removeUnit(selected.id)}
               />
@@ -317,14 +507,12 @@ function UnitForm({
   onSave,
   onDelete,
   onCancel,
-  disabled,
 }: {
   initial?: HardwareUnit
   submitLabel: string
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
-  disabled?: boolean
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [serial, setSerial] = useState(initial?.serial ?? '')
@@ -348,7 +536,7 @@ function UnitForm({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!name.trim() || !serial.trim() || disabled) return
+    if (!name.trim() || !serial.trim()) return
     const qty = Number(quantity)
     const min = minQty.trim() === '' ? undefined : Number(minQty)
     onSave({
@@ -400,7 +588,6 @@ function UnitForm({
           onChange={(e) => setName(e.target.value)}
           placeholder="AN-4 bolts"
           required
-          disabled={disabled}
         />
       </label>
       <div className="simple-form-row">
@@ -411,7 +598,6 @@ function UnitForm({
             onChange={(e) => setSerial(e.target.value)}
             placeholder="INV-AN4-BOLT"
             required
-            disabled={disabled}
           />
         </label>
         <label>
@@ -420,7 +606,6 @@ function UnitForm({
             value={partNumber}
             onChange={(e) => setPartNumber(e.target.value)}
             placeholder="AN4-14A"
-            disabled={disabled}
           />
         </label>
       </div>
@@ -430,7 +615,6 @@ function UnitForm({
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as HardwareKind)}
-            disabled={disabled}
           >
             {KIND_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>
@@ -444,7 +628,6 @@ function UnitForm({
           <select
             value={stockStatus}
             onChange={(e) => setStockStatus(e.target.value as StockStatus)}
-            disabled={disabled}
           >
             {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>
@@ -463,7 +646,6 @@ function UnitForm({
             step={1}
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
-            disabled={disabled}
           />
         </label>
         <label>
@@ -475,7 +657,6 @@ function UnitForm({
             value={minQty}
             onChange={(e) => setMinQty(e.target.value)}
             placeholder="e.g. 10"
-            disabled={disabled}
           />
         </label>
       </div>
@@ -485,7 +666,6 @@ function UnitForm({
           value={location}
           onChange={(e) => setLocation(e.target.value)}
           placeholder="Goods Shed · fastener bin"
-          disabled={disabled}
         />
       </label>
       <label>
@@ -494,7 +674,6 @@ function UnitForm({
           value={supplier}
           onChange={(e) => setSupplier(e.target.value)}
           placeholder="McMaster, DigiKey, in-house…"
-          disabled={disabled}
         />
       </label>
       <div className="inv-link-section">
@@ -510,7 +689,6 @@ function UnitForm({
             onChange={(e) => setOrderUrl(e.target.value)}
             placeholder="https://www.mcmaster.com/…"
             inputMode="url"
-            disabled={disabled}
           />
         </label>
       </div>
@@ -520,11 +698,10 @@ function UnitForm({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Expiry, cal due…"
-          disabled={disabled}
         />
       </label>
       <div className="simple-form-actions">
-        <button type="submit" className="btn btn-accent" disabled={disabled}>
+        <button type="submit" className="btn btn-accent">
           {submitLabel}
         </button>
         {onCancel ? (
@@ -533,12 +710,7 @@ function UnitForm({
           </button>
         ) : null}
         {onDelete ? (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={onDelete}
-            disabled={disabled}
-          >
+          <button type="button" className="btn btn-ghost" onClick={onDelete}>
             Delete
           </button>
         ) : null}

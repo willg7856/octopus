@@ -72,98 +72,84 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     status: ProcessStepStatus,
     blockedReason?: string,
   ) {
-    if (saving) return
     const now = new Date().toISOString()
-    void store.commit(
-      {
-        ...lab,
-        processes: lab.processes.map((p) => {
-          if (p.id !== processId) return p
-          return {
-            ...p,
-            updatedAt: now,
-            steps: p.steps.map((s) => {
-              if (s.id !== stepId) return s
-              const done = status === 'done' || status === 'skipped'
-              return {
-                ...s,
-                status,
-                completedAt: done ? s.completedAt || now : undefined,
-                completedBy: done ? s.completedBy || user?.name : undefined,
-                blockedReason:
-                  status === 'blocked'
-                    ? (blockedReason ?? s.blockedReason)
-                    : undefined,
-              }
-            }),
-          }
-        }),
-      },
-      'Updated',
-    )
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) => {
+        if (p.id !== processId) return p
+        return {
+          ...p,
+          updatedAt: now,
+          steps: p.steps.map((s) => {
+            if (s.id !== stepId) return s
+            const done = status === 'done' || status === 'skipped'
+            return {
+              ...s,
+              status,
+              completedAt: done ? s.completedAt || now : undefined,
+              completedBy: done ? s.completedBy || user?.name : undefined,
+              blockedReason:
+                status === 'blocked'
+                  ? (blockedReason ?? s.blockedReason)
+                  : undefined,
+            }
+          }),
+        }
+      }),
+    }), 'Updated')
   }
 
   function setBlockedReason(processId: string, stepId: string, reason: string) {
-    if (saving) return
     const now = new Date().toISOString()
-    void store.commit(
-      {
-        ...lab,
-        processes: lab.processes.map((p) => {
-          if (p.id !== processId) return p
-          return {
-            ...p,
-            updatedAt: now,
-            steps: p.steps.map((s) =>
-              s.id === stepId
-                ? { ...s, blockedReason: reason.trim() || undefined }
-                : s,
-            ),
-          }
-        }),
-      },
-      'Saved',
-    )
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) => {
+        if (p.id !== processId) return p
+        return {
+          ...p,
+          updatedAt: now,
+          steps: p.steps.map((s) =>
+            s.id === stepId
+              ? { ...s, blockedReason: reason.trim() || undefined }
+              : s,
+          ),
+        }
+      }),
+    }), 'Saved')
   }
 
   function setVehicleUnit(processId: string, vehicleUnitId: string) {
-    if (saving || !vehicleUnitId) return
+    if (!vehicleUnitId) return
     const now = new Date().toISOString()
-    void store.commit(
-      {
-        ...lab,
-        processes: lab.processes.map((p) =>
-          p.id === processId
-            ? { ...p, vehicleUnitId, updatedAt: now }
-            : p,
-        ),
-      },
-      'Vehicle linked',
-    )
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) =>
+        p.id === processId
+          ? { ...p, vehicleUnitId, updatedAt: now }
+          : p,
+      ),
+    }), 'Vehicle linked')
   }
 
   function addStep(processId: string, title: string) {
-    if (!title.trim() || saving) return
+    if (!title.trim()) return
     const now = new Date().toISOString()
-    void store.commit(
-      {
-        ...lab,
-        processes: lab.processes.map((p) => {
-          if (p.id !== processId) return p
-          const order = p.steps.reduce((max, s) => Math.max(max, s.order), 0) + 1
-          const step: VehicleProcessStep = {
-            id: newId('ps'),
-            order,
-            title: title.trim(),
-            owner: user?.name,
-            status: 'pending',
-            linkedUnitIds: [p.vehicleUnitId],
-          }
-          return { ...p, updatedAt: now, steps: [...p.steps, step] }
-        }),
-      },
-      'Step added',
-    )
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) => {
+        if (p.id !== processId) return p
+        const order = p.steps.reduce((max, s) => Math.max(max, s.order), 0) + 1
+        const step: VehicleProcessStep = {
+          id: newId('ps'),
+          order,
+          title: title.trim(),
+          owner: user?.name,
+          status: 'pending',
+          linkedUnitIds: [p.vehicleUnitId],
+        }
+        return { ...p, updatedAt: now, steps: [...p.steps, step] }
+      }),
+    }), 'Step added')
   }
 
   function editStep(
@@ -171,31 +157,28 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     stepId: string,
     patch: { title: string; detail?: string; linkedUnitIds: string[] },
   ) {
-    if (!patch.title.trim() || saving) return
+    if (!patch.title.trim()) return
     const now = new Date().toISOString()
-    void store.commit(
-      {
-        ...lab,
-        processes: lab.processes.map((p) => {
-          if (p.id !== processId) return p
-          return {
-            ...p,
-            updatedAt: now,
-            steps: p.steps.map((s) =>
-              s.id === stepId
-                ? {
-                    ...s,
-                    title: patch.title.trim(),
-                    detail: patch.detail?.trim() || undefined,
-                    linkedUnitIds: patch.linkedUnitIds,
-                  }
-                : s,
-            ),
-          }
-        }),
-      },
-      'Step saved',
-    )
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) => {
+        if (p.id !== processId) return p
+        return {
+          ...p,
+          updatedAt: now,
+          steps: p.steps.map((s) =>
+            s.id === stepId
+              ? {
+                  ...s,
+                  title: patch.title.trim(),
+                  detail: patch.detail?.trim() || undefined,
+                  linkedUnitIds: patch.linkedUnitIds,
+                }
+              : s,
+          ),
+        }
+      }),
+    }), 'Step saved')
     setEditingStepId(null)
   }
 
@@ -206,97 +189,90 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     const ok = await confirm(`Delete step “${step.title}”?`)
     if (!ok) return
     const now = new Date().toISOString()
-    void store.commit(
-      {
-        ...lab,
-        processes: lab.processes.map((p) => {
-          if (p.id !== processId) return p
-          const remaining = sortProcessSteps(
-            p.steps.filter((s) => s.id !== stepId),
-          ).map((s, i) => ({ ...s, order: i + 1 }))
-          return { ...p, updatedAt: now, steps: remaining }
-        }),
-      },
-      'Step deleted',
-    )
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) => {
+        if (p.id !== processId) return p
+        const remaining = sortProcessSteps(
+          p.steps.filter((s) => s.id !== stepId),
+        ).map((s, i) => ({ ...s, order: i + 1 }))
+        return { ...p, updatedAt: now, steps: remaining }
+      }),
+    }), 'Step deleted')
     if (editingStepId === stepId) setEditingStepId(null)
   }
 
   function moveStep(processId: string, stepId: string, direction: -1 | 1) {
-    if (saving) return
-    const process = lab.processes.find((p) => p.id === processId)
-    if (!process) return
-    const ordered = sortProcessSteps(process.steps)
-    const index = ordered.findIndex((s) => s.id === stepId)
-    const target = index + direction
-    if (index < 0 || target < 0 || target >= ordered.length) return
-
-    const next = [...ordered]
-    const [item] = next.splice(index, 1)
-    next.splice(target, 0, item)
-    const renumbered = next.map((step, i) => ({ ...step, order: i + 1 }))
     const now = new Date().toISOString()
-
-    void store.commit(
-      {
-        ...lab,
-        processes: lab.processes.map((p) =>
+    void store.commit((prev) => {
+      const process = prev.processes.find((p) => p.id === processId)
+      if (!process) return prev
+      const ordered = sortProcessSteps(process.steps)
+      const index = ordered.findIndex((s) => s.id === stepId)
+      const target = index + direction
+      if (index < 0 || target < 0 || target >= ordered.length) return prev
+      const next = [...ordered]
+      const [item] = next.splice(index, 1)
+      next.splice(target, 0, item)
+      const renumbered = next.map((step, i) => ({ ...step, order: i + 1 }))
+      return {
+        ...prev,
+        processes: prev.processes.map((p) =>
           p.id === processId
             ? { ...p, updatedAt: now, steps: renumbered }
             : p,
         ),
-      },
-      'Steps reordered',
-    )
+      }
+    }, 'Steps reordered')
   }
 
   function createProduction(input: { name: string; vehicleName?: string }) {
-    if (saving) return
     const now = new Date().toISOString()
     const wanted = (input.vehicleName || input.name)
       .replace(/\s+production\s*$/i, '')
       .trim()
-    let nextUnits = lab.units
-    let vehicle = nextUnits.find(
-      (u) =>
-        u.kind === 'vehicle' && u.name.toLowerCase() === wanted.toLowerCase(),
-    )
+    const processId = newId('proc')
 
-    if (!vehicle) {
-      vehicle = {
-        id: newId('hw'),
-        name: wanted || input.name.trim(),
-        kind: 'vehicle',
-        serial: `VEH-${Date.now().toString(36).toUpperCase()}`,
-        hwRev: '—',
-        status: 'concept',
-        location: 'Goods Shed',
-        owner: user?.name,
-        notes: 'Created from Production',
-        updatedAt: now,
-        quantity: 1,
+    void store.commit((prev) => {
+      let nextUnits = prev.units
+      let vehicle = nextUnits.find(
+        (u) =>
+          u.kind === 'vehicle' && u.name.toLowerCase() === wanted.toLowerCase(),
+      )
+
+      if (!vehicle) {
+        vehicle = {
+          id: newId('hw'),
+          name: wanted || input.name.trim(),
+          kind: 'vehicle',
+          serial: `VEH-${Date.now().toString(36).toUpperCase()}`,
+          hwRev: '—',
+          status: 'concept',
+          location: 'Goods Shed',
+          owner: user?.name,
+          notes: 'Created from Production',
+          updatedAt: now,
+          quantity: 1,
+        }
+        nextUnits = [...prev.units, vehicle]
       }
-      nextUnits = [...lab.units, vehicle]
-    }
 
-    const process: VehicleProcess = {
-      id: newId('proc'),
-      vehicleUnitId: vehicle.id,
-      name: input.name.trim(),
-      updatedAt: now,
-      steps: defaultSteps(vehicle.id),
-    }
+      const process: VehicleProcess = {
+        id: processId,
+        vehicleUnitId: vehicle.id,
+        name: input.name.trim(),
+        updatedAt: now,
+        steps: defaultSteps(vehicle.id),
+      }
 
-    void store.commit(
-      {
-        ...lab,
+      return {
+        ...prev,
         units: nextUnits,
-        processes: [process, ...lab.processes],
-      },
-      'Production created',
-    )
+        processes: [process, ...prev.processes],
+      }
+    }, 'Production created')
     setCreating(false)
-    setSelectedId(process.id)
+    setSelectedId(processId)
   }
 
   async function removeProduction(processId: string) {
@@ -306,10 +282,10 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     if (!ok) return
     const remaining = lab.processes.filter((p) => p.id !== processId)
     void store.commit(
-      {
-        ...lab,
-        processes: remaining,
-      },
+      (prev) => ({
+        ...prev,
+        processes: prev.processes.filter((p) => p.id !== processId),
+      }),
       'Removed',
     )
     setSelectedId(remaining[0]?.id ?? null)
@@ -372,7 +348,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                   type="button"
                   className="prod-btn"
                   aria-pressed={selected?.id === process.id}
-                  disabled={saving}
                   onClick={() => {
                     setCreating(false)
                     setEditingStepId(null)
@@ -395,7 +370,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                   key={rec.name}
                   type="button"
                   className="prod-btn prod-btn-add"
-                  disabled={saving}
                   onClick={() =>
                     createProduction({
                       name: rec.name,
@@ -416,7 +390,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                       key={rec.name}
                       type="button"
                       className="prod-btn prod-btn-add"
-                      disabled={saving}
                       onClick={() =>
                         createProduction({
                           name: rec.name,
@@ -434,7 +407,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
             <button
               type="button"
               className="btn btn-accent"
-              disabled={saving}
               onClick={() => setCreating((v) => !v)}
             >
               {creating ? 'Cancel' : 'New production'}
@@ -464,7 +436,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                     type="button"
                     className="btn btn-ghost"
                     aria-pressed={editingSteps}
-                    disabled={saving}
                     onClick={() => {
                       setEditingSteps((v) => !v)
                       setEditingStepId(null)
@@ -476,7 +447,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                     <button
                       type="button"
                       className="btn btn-ghost"
-                      disabled={saving}
                       onClick={() => removeProduction(selected.id)}
                     >
                       Delete tracker
@@ -490,7 +460,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                   Linked Hardware vehicle
                   <select
                     value={selected.vehicleUnitId}
-                    disabled={saving}
                     onChange={(e) =>
                       setVehicleUnit(selected.id, e.target.value)
                     }
@@ -531,7 +500,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                         <EditStepForm
                           step={step}
                           units={systemUnits}
-                          disabled={saving}
                           onSave={(patch) =>
                             editStep(selected.id, step.id, patch)
                           }
@@ -574,7 +542,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                   type="button"
                                   className="btn btn-ghost"
                                   aria-label={`Move ${step.title} up`}
-                                  disabled={index === 0 || saving}
+                                  disabled={index === 0}
                                   onClick={() =>
                                     moveStep(selected.id, step.id, -1)
                                   }
@@ -585,7 +553,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                   type="button"
                                   className="btn btn-ghost"
                                   aria-label={`Move ${step.title} down`}
-                                  disabled={index === steps.length - 1 || saving}
+                                  disabled={index === steps.length - 1}
                                   onClick={() =>
                                     moveStep(selected.id, step.id, 1)
                                   }
@@ -595,7 +563,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 <button
                                   type="button"
                                   className="btn btn-ghost"
-                                  disabled={saving}
                                   onClick={() => setEditingStepId(step.id)}
                                 >
                                   Edit
@@ -603,7 +570,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 <button
                                   type="button"
                                   className="btn btn-ghost"
-                                  disabled={saving}
                                   onClick={() =>
                                     deleteStep(selected.id, step.id)
                                   }
@@ -633,7 +599,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 className="prod-status-btn"
                                 data-status={status}
                                 aria-pressed={step.status === status}
-                                disabled={saving}
                                 onClick={() =>
                                   updateStep(selected.id, step.id, status)
                                 }
@@ -648,7 +613,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 className="prod-status-btn prod-status-btn-quiet"
                                 data-status={status}
                                 aria-pressed={step.status === status}
-                                disabled={saving}
                                 onClick={() =>
                                   updateStep(selected.id, step.id, status)
                                 }
@@ -665,7 +629,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 key={`${step.id}-block`}
                                 defaultValue={step.blockedReason ?? ''}
                                 placeholder="Waiting on hardware, weather, review…"
-                                disabled={saving}
                                 onBlur={(e) => {
                                   const next = e.target.value.trim()
                                   if (next !== (step.blockedReason ?? '')) {
@@ -688,7 +651,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
 
               {editingSteps || steps.length === 0 ? (
                 <AddStepForm
-                  disabled={saving}
                   onAdd={(title) => addStep(selected.id, title)}
                 />
               ) : null}

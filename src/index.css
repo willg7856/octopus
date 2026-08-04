@@ -4338,6 +4338,112 @@ button.simple-list-row {
   background: var(--hover);
 }
 
+.inv-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+
+.inv-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 560;
+  cursor: pointer;
+}
+
+.inv-filter-chip:hover,
+.inv-filter-chip:focus-visible {
+  background: var(--hover);
+  color: var(--fg);
+  outline: none;
+}
+
+.inv-filter-chip[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--ignition) 40%, var(--line));
+  color: var(--ignition);
+  background: color-mix(in srgb, var(--ignition) 8%, transparent);
+}
+
+.inv-filter-count {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.inv-list-row {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+}
+
+.inv-list-row .simple-list-main {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.inv-qty-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.inv-qty-btn {
+  min-width: 2.4rem;
+  min-height: 2.4rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.inv-qty-btn:hover:not(:disabled),
+.inv-qty-btn:focus-visible:not(:disabled) {
+  background: var(--hover);
+  outline: none;
+}
+
+.inv-qty-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.inv-qty-value {
+  min-width: 1.5rem;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.inv-qty-receive {
+  min-width: auto;
+  padding-inline: 0.55rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--telem-cyan);
+  border-color: color-mix(in srgb, var(--telem-cyan) 40%, var(--line));
+}
+
 .inv-order-link {
   flex-shrink: 0;
   padding: 0.3rem 0.55rem;
@@ -5029,6 +5135,15 @@ button.simple-list-row {
     min-height: 2.85rem;
     padding: 0.65rem 0.95rem;
     font-size: 0.95rem;
+  }
+
+  .inv-qty-btn {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .inv-filter-chip {
+    min-height: 2.55rem;
   }
 
   .prod-btn {

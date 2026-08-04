@@ -92,37 +92,35 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
   function saveUnit(
     input: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string },
   ) {
-    if (saving) return
     const kind = isSystemKind(input.kind) ? input.kind : 'vehicle'
     const updatedAtNow = new Date().toISOString()
     if (input.id) {
-      const prev = lab.units.find((u) => u.id === input.id)
-      const statusChanged = prev && prev.status !== input.status
-      const note: HardwareProgressNote | null =
-        statusChanged && prev
-          ? {
-              id: newId('pg'),
-              unitId: input.id,
-              date: updatedAtNow.slice(0, 10),
-              status: input.status,
-              note: `Status → ${HARDWARE_STATUS_LABELS[input.status]}${
-                input.notes?.trim() ? ` · ${input.notes.trim()}` : ''
-              }`,
-              author: user?.name,
-            }
-          : null
-      void store.commit(
-        {
-          ...lab,
-          units: lab.units.map((u) =>
+      void store.commit((prev) => {
+        const existing = prev.units.find((u) => u.id === input.id)
+        const statusChanged = existing && existing.status !== input.status
+        const note: HardwareProgressNote | null =
+          statusChanged && existing
+            ? {
+                id: newId('pg'),
+                unitId: input.id!,
+                date: updatedAtNow.slice(0, 10),
+                status: input.status,
+                note: `Status → ${HARDWARE_STATUS_LABELS[input.status]}${
+                  input.notes?.trim() ? ` · ${input.notes.trim()}` : ''
+                }`,
+                author: user?.name,
+              }
+            : null
+        return {
+          ...prev,
+          units: prev.units.map((u) =>
             u.id === input.id
               ? { ...u, ...input, kind, updatedAt: updatedAtNow }
               : u,
           ),
-          progress: note ? [note, ...lab.progress] : lab.progress,
-        },
-        'Saved',
-      )
+          progress: note ? [note, ...prev.progress] : prev.progress,
+        }
+      }, 'Saved')
       return
     }
 
@@ -141,11 +139,11 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
       author: user?.name,
     }
     void store.commit(
-      {
-        ...lab,
-        units: [...lab.units, next],
-        progress: [note, ...lab.progress],
-      },
+      (prev) => ({
+        ...prev,
+        units: [...prev.units, next],
+        progress: [note, ...prev.progress],
+      }),
       'Added',
     )
     openDetail(next.id)
@@ -158,7 +156,8 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     summary: string
     site?: string
   }) {
-    if (!selected || saving) return
+    if (!selected) return
+    const unitId = selected.id
     const now = new Date().toISOString()
     const entry: TestLogEntry = {
       id: newId('test'),
@@ -166,17 +165,17 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
       title: input.title.trim(),
       kind: input.kind,
       result: input.result,
-      unitIds: [selected.id],
+      unitIds: [unitId],
       site: input.site?.trim() || undefined,
       operator: user?.name,
       summary: input.summary.trim(),
       createdAt: now,
     }
     void store.commit(
-      {
-        ...lab,
-        tests: [entry, ...lab.tests],
-      },
+      (prev) => ({
+        ...prev,
+        tests: [entry, ...prev.tests],
+      }),
       'Test logged',
     )
   }
@@ -187,15 +186,15 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     const ok = await confirm(`Remove “${unit.name}” from hardware?`)
     if (!ok) return
     void store.commit(
-      {
-        ...lab,
-        units: lab.units.filter((u) => u.id !== id),
-        progress: lab.progress.filter((p) => p.unitId !== id),
-        tests: lab.tests.map((t) => ({
+      (prev) => ({
+        ...prev,
+        units: prev.units.filter((u) => u.id !== id),
+        progress: prev.progress.filter((p) => p.unitId !== id),
+        tests: prev.tests.map((t) => ({
           ...t,
           unitIds: t.unitIds.filter((uid) => uid !== id),
         })),
-        processes: lab.processes
+        processes: prev.processes
           .filter((p) => p.vehicleUnitId !== id)
           .map((p) => ({
             ...p,
@@ -204,7 +203,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
               linkedUnitIds: (s.linkedUnitIds ?? []).filter((uid) => uid !== id),
             })),
           })),
-      },
+      }),
       'Removed',
     )
     setSelectedId(null)
@@ -233,7 +232,6 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
           <button
             type="button"
             className="btn btn-accent"
-            disabled={saving}
             onClick={() => openDetail(null, true)}
           >
             Add unit
@@ -316,7 +314,6 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
               <SystemForm
                 key="new"
                 submitLabel="Add"
-                disabled={saving}
                 onCancel={() => {
                   setAdding(false)
                   setMobileMode('list')
@@ -329,7 +326,6 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                   key={selected.id}
                   initial={selected}
                   submitLabel="Save"
-                  disabled={saving}
                   onSave={saveUnit}
                   onDelete={() => removeUnit(selected.id)}
                 />
@@ -375,7 +371,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                       ))}
                     </ul>
                   )}
-                  <AddTestForm disabled={saving} onAdd={addTest} />
+                  <AddTestForm onAdd={addTest} />
                 </section>
               </>
             ) : (
