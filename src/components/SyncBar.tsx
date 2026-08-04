@@ -26,33 +26,50 @@ export function SyncBar({
   const updated = formatUpdatedLabel(updatedAt, updatedBy)
 
   return (
-    <div className="simple-head-actions">
+    <div className="simple-sync-bar" aria-live="polite">
       {saving ? <span className="simple-sync">Saving…</span> : null}
       {sync === 'shared' && !saving ? (
         <span className="simple-sync simple-sync-ok">Live</span>
       ) : null}
+      {sync === 'local' && !saving ? (
+        <span className="simple-sync">Local</span>
+      ) : null}
       {updated ? <span className="simple-sync-meta">{updated}</span> : null}
       {conflict ? (
         <span className="simple-conflict" role="status">
-          Conflict — review and re-apply
+          Conflict
         </span>
       ) : null}
       <button
         type="button"
-        className="btn btn-ghost"
+        className="btn btn-ghost simple-sync-refresh"
         onClick={onRefresh}
         disabled={sync === 'loading' || saving}
+        aria-label="Refresh shared lab"
+        title="Refresh"
       >
         Refresh
       </button>
-      <button
-        type="button"
-        className="btn btn-ghost"
-        onClick={() => downloadHardwareLabExport(lab)}
-        disabled={sync === 'loading'}
-      >
-        {exportLabel}
-      </button>
+      <details className="simple-more">
+        <summary className="btn btn-ghost" aria-label="More actions">
+          More
+        </summary>
+        <div className="simple-more-menu" role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            className="simple-more-item"
+            onClick={(e) => {
+              downloadHardwareLabExport(lab)
+              const details = e.currentTarget.closest('details')
+              if (details) details.open = false
+            }}
+            disabled={sync === 'loading'}
+          >
+            {exportLabel}
+          </button>
+        </div>
+      </details>
     </div>
   )
 }

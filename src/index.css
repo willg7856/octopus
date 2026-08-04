@@ -4225,7 +4225,8 @@ button {
   justify-content: space-between;
   gap: 0.75rem;
   align-items: center;
-  padding: 0.7rem 0.15rem;
+  min-height: 3.1rem;
+  padding: 0.85rem 0.35rem;
   border-bottom: 1px solid var(--line);
   text-align: left;
 }
@@ -4263,8 +4264,69 @@ button.simple-list-row {
   gap: 0.15rem;
 }
 
-.simple-list-main > span:last-child {
+.simple-list-main > span:last-child:not(.status-badge) {
   align-items: flex-end;
+}
+
+.simple-list-main > .status-badge {
+  display: inline-flex;
+  align-items: center;
+}
+
+.status-badge {
+  flex-shrink: 0;
+  align-self: center;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 560;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.status-badge[data-kind='stock'][data-status='in-stock'],
+.status-badge[data-kind='hardware'][data-status='flight-ready'] {
+  border-color: color-mix(in srgb, var(--telem-green) 45%, var(--line));
+  color: var(--telem-green);
+  background: color-mix(in srgb, var(--telem-green) 10%, transparent);
+}
+
+.status-badge[data-kind='stock'][data-status='low'],
+.status-badge[data-kind='hardware'][data-status='checkout'],
+.status-badge[data-kind='hardware'][data-status='assembly'] {
+  border-color: color-mix(in srgb, var(--telem-amber) 50%, var(--line));
+  color: var(--telem-amber);
+  background: color-mix(in srgb, var(--telem-amber) 12%, transparent);
+}
+
+.status-badge[data-kind='stock'][data-status='on-order'],
+.status-badge[data-kind='stock'][data-status='receiving'],
+.status-badge[data-kind='stock'][data-status='incoming'],
+.status-badge[data-kind='hardware'][data-status='fab'] {
+  border-color: color-mix(in srgb, var(--telem-cyan) 45%, var(--line));
+  color: var(--telem-cyan);
+  background: color-mix(in srgb, var(--telem-cyan) 10%, transparent);
+}
+
+.status-badge[data-kind='stock'][data-status='quarantine'],
+.status-badge[data-kind='hardware'][data-status='failed'] {
+  border-color: color-mix(in srgb, var(--telem-red) 45%, var(--line));
+  color: var(--telem-red);
+  background: color-mix(in srgb, var(--telem-red) 10%, transparent);
+}
+
+.status-badge[data-kind='stock'][data-status='reserved'],
+.status-badge[data-kind='stock'][data-status='depleted'],
+.status-badge[data-kind='hardware'][data-status='retired'],
+.status-badge[data-kind='hardware'][data-status='concept'],
+.status-badge[data-kind='hardware'][data-status='design'] {
+  border-color: var(--line-strong);
+  color: var(--fg-muted);
+  background: color-mix(in srgb, var(--fg-muted) 6%, transparent);
 }
 
 .simple-list-row[data-selected='true'] {
@@ -4417,17 +4479,90 @@ button.simple-list-row {
   color: var(--telem-green);
 }
 
+.simple-sync-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  min-width: 0;
+}
+
 .simple-sync-meta {
-  font-size: 0.8rem;
-  color: var(--fg-muted);
-  max-width: 16rem;
+  font-size: 0.78rem;
+  color: var(--fg-faint);
+  max-width: 14rem;
   line-height: 1.3;
 }
 
 .simple-conflict {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--telem-amber, #c47a12);
+}
+
+.simple-sync-refresh {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+}
+
+.simple-more {
+  position: relative;
+}
+
+.simple-more > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+}
+
+.simple-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.simple-more[open] > summary {
+  color: var(--fg);
+  background: var(--hover);
+}
+
+.simple-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  z-index: 20;
+  min-width: 9.5rem;
+  padding: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--bg-panel-solid);
+  box-shadow: var(--shadow-panel);
+}
+
+.simple-more-item {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.simple-more-item:hover,
+.simple-more-item:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+
+.simple-more-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .simple-back {
@@ -4713,13 +4848,14 @@ button.simple-list-row {
 }
 
 .prod-status-btn {
-  padding: 0.38rem 0.7rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.85rem;
   border: 1px solid var(--line);
   border-radius: var(--r);
   background: transparent;
   color: var(--fg-muted);
   font: inherit;
-  font-size: 0.84rem;
+  font-size: 0.9rem;
   font-weight: 560;
   cursor: pointer;
   transition:
@@ -4861,6 +4997,8 @@ button.simple-list-row {
 
   .simple-back {
     display: inline-flex;
+    min-height: 2.75rem;
+    padding-inline: 0.85rem;
   }
 
   .simple-head {
@@ -4870,10 +5008,36 @@ button.simple-list-row {
 
   .simple-head-actions {
     flex-wrap: wrap;
+    width: 100%;
   }
 
   .simple-sync-meta {
     max-width: none;
+  }
+
+  .simple-list-row {
+    min-height: 3.5rem;
+    padding: 1rem 0.4rem;
+  }
+
+  .status-badge {
+    font-size: 0.72rem;
+    padding: 0.35rem 0.6rem;
+  }
+
+  .prod-status-btn {
+    min-height: 2.85rem;
+    padding: 0.65rem 0.95rem;
+    font-size: 0.95rem;
+  }
+
+  .prod-btn {
+    min-height: 3rem;
+  }
+
+  .simple-sync-refresh,
+  .simple-more > summary {
+    min-height: 2.5rem;
   }
 }
 

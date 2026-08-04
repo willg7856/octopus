@@ -164,27 +164,26 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
             Stock room — parts, consumables, tools. Different fields than Hardware.
           </p>
         </div>
-        <SyncBar
-          sync={sync}
-          saving={saving}
-          conflict={conflict}
-          updatedAt={updatedAt}
-          updatedBy={updatedBy}
-          lab={lab}
-          onRefresh={() => void store.refresh({ quiet: true })}
-        />
+        <div className="simple-head-actions">
+          <SyncBar
+            sync={sync}
+            saving={saving}
+            conflict={conflict}
+            updatedAt={updatedAt}
+            updatedBy={updatedBy}
+            lab={lab}
+            onRefresh={() => void store.refresh({ quiet: true })}
+          />
+          <button
+            type="button"
+            className="btn btn-accent"
+            disabled={saving}
+            onClick={() => openDetail(null, true)}
+          >
+            Add item
+          </button>
+        </div>
       </header>
-
-      <div className="simple-head-actions" style={{ marginBottom: '0.75rem' }}>
-        <button
-          type="button"
-          className="btn btn-accent"
-          disabled={saving}
-          onClick={() => openDetail(null, true)}
-        >
-          Add item
-        </button>
-      </div>
 
       {sync === 'error' && syncError ? (
         <p className="simple-error" role="alert">
@@ -232,7 +231,11 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                           {unit.location ? ` · ${unit.location}` : ''}
                         </span>
                       </span>
-                      <span className="simple-muted">
+                      <span
+                        className="status-badge"
+                        data-kind="stock"
+                        data-status={stockStatusOf(unit)}
+                      >
                         {stockStatusLabel(stockStatusOf(unit))}
                       </span>
                     </button>

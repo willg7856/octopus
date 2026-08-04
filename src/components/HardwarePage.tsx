@@ -220,27 +220,26 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
             Vehicles & subsystems — build status, revs, and firmware. Not stock.
           </p>
         </div>
-        <SyncBar
-          sync={sync}
-          saving={saving}
-          conflict={conflict}
-          updatedAt={updatedAt}
-          updatedBy={updatedBy}
-          lab={lab}
-          onRefresh={() => void store.refresh({ quiet: true })}
-        />
+        <div className="simple-head-actions">
+          <SyncBar
+            sync={sync}
+            saving={saving}
+            conflict={conflict}
+            updatedAt={updatedAt}
+            updatedBy={updatedBy}
+            lab={lab}
+            onRefresh={() => void store.refresh({ quiet: true })}
+          />
+          <button
+            type="button"
+            className="btn btn-accent"
+            disabled={saving}
+            onClick={() => openDetail(null, true)}
+          >
+            Add unit
+          </button>
+        </div>
       </header>
-
-      <div className="simple-head-actions" style={{ marginBottom: '0.75rem' }}>
-        <button
-          type="button"
-          className="btn btn-accent"
-          disabled={saving}
-          onClick={() => openDetail(null, true)}
-        >
-          Add unit
-        </button>
-      </div>
 
       {sync === 'error' && syncError ? (
         <p className="simple-error" role="alert">
@@ -282,7 +281,11 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                         {unit.serial} · {HARDWARE_KIND_LABELS[unit.kind]}
                       </span>
                     </span>
-                    <span className="simple-muted">
+                    <span
+                      className="status-badge"
+                      data-kind="hardware"
+                      data-status={unit.status}
+                    >
                       {HARDWARE_STATUS_LABELS[unit.status]}
                     </span>
                   </button>

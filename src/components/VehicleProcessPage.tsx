@@ -335,15 +335,17 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
             Vehicle build & checkout trackers for the Goods Shed.
           </p>
         </div>
-        <SyncBar
-          sync={sync}
-          saving={saving}
-          conflict={conflict}
-          updatedAt={updatedAt}
-          updatedBy={updatedBy}
-          lab={lab}
-          onRefresh={() => void store.refresh({ quiet: true })}
-        />
+        <div className="simple-head-actions">
+          <SyncBar
+            sync={sync}
+            saving={saving}
+            conflict={conflict}
+            updatedAt={updatedAt}
+            updatedBy={updatedBy}
+            lab={lab}
+            onRefresh={() => void store.refresh({ quiet: true })}
+          />
+        </div>
       </header>
 
       {sync === 'error' && syncError ? (
