@@ -917,7 +917,7 @@ function UnitForm({
             </button>
           </>
         ) : null}
-        {onDelete ? (
+        {onDelete && editing ? (
           <button type="button" className="btn btn-ghost" onClick={onDelete}>
             Delete
           </button>
