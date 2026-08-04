@@ -76,6 +76,43 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     })
   }, [units, query, unitNameById])
 
+  const listGroups = useMemo(() => {
+    const vehicleById = new Map(
+      units.filter((u) => u.kind === 'vehicle').map((u) => [u.id, u]),
+    )
+    const childrenByParent = new Map<string, HardwareUnit[]>()
+    const unassigned: HardwareUnit[] = []
+
+    for (const unit of filtered) {
+      if (unit.kind === 'vehicle') continue
+      const parentId = unit.parentVehicleId
+      if (parentId && vehicleById.has(parentId)) {
+        const list = childrenByParent.get(parentId) ?? []
+        list.push(unit)
+        childrenByParent.set(parentId, list)
+      } else {
+        unassigned.push(unit)
+      }
+    }
+
+    const vehicleIds = new Set<string>()
+    for (const u of filtered) {
+      if (u.kind === 'vehicle') vehicleIds.add(u.id)
+    }
+    for (const parentId of childrenByParent.keys()) vehicleIds.add(parentId)
+
+    const groups = sortUnits(
+      [...vehicleIds]
+        .map((id) => vehicleById.get(id))
+        .filter((u): u is HardwareUnit => Boolean(u)),
+    ).map((vehicle) => ({
+      vehicle,
+      children: sortUnits(childrenByParent.get(vehicle.id) ?? []),
+    }))
+
+    return { groups, unassigned: sortUnits(unassigned) }
+  }, [filtered, units])
+
   const selected =
     units.find((u) => u.id === selectedId) ??
     (mobileMode === 'detail' ? null : filtered[0] ?? null)
@@ -288,39 +325,114 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
               aria-label="Search hardware"
             />
             <ul className="simple-list">
-              {filtered.map((unit) => {
-                const parentName = unit.parentVehicleId
-                  ? unitNameById.get(unit.parentVehicleId)
-                  : undefined
-                return (
-                <li key={unit.id}>
+              {listGroups.groups.map(({ vehicle, children }) => (
+                <li key={vehicle.id} className="hw-vehicle-group">
                   <button
                     type="button"
                     className="simple-list-row"
                     data-selected={
-                      !adding && selected?.id === unit.id ? 'true' : 'false'
+                      !adding && selected?.id === vehicle.id ? 'true' : 'false'
                     }
-                    onClick={() => openDetail(unit.id)}
+                    onClick={() => openDetail(vehicle.id)}
                   >
                     <span>
-                      <strong>{unit.name}</strong>
+                      <strong>{vehicle.name}</strong>
                       <span className="simple-muted">
-                        {unit.serial} · {HARDWARE_KIND_LABELS[unit.kind]}
-                        {parentName ? ` · → ${parentName}` : ''}
+                        {vehicle.serial} · {HARDWARE_KIND_LABELS[vehicle.kind]}
+                        {children.length > 0
+                          ? ` · ${children.length} linked`
+                          : ''}
                       </span>
                     </span>
                     <span
                       className="status-badge"
                       data-kind="hardware"
-                      data-status={unit.status}
+                      data-status={vehicle.status}
                     >
-                      {HARDWARE_STATUS_LABELS[unit.status]}
+                      {HARDWARE_STATUS_LABELS[vehicle.status]}
                     </span>
                   </button>
+                  {children.length > 0 ? (
+                    <ul className="hw-child-list">
+                      {children.map((unit) => (
+                        <li key={unit.id}>
+                          <button
+                            type="button"
+                            className="simple-list-row"
+                            data-nested="true"
+                            data-selected={
+                              !adding && selected?.id === unit.id
+                                ? 'true'
+                                : 'false'
+                            }
+                            onClick={() => openDetail(unit.id)}
+                          >
+                            <span>
+                              <strong>{unit.name}</strong>
+                              <span className="simple-muted">
+                                {unit.serial} ·{' '}
+                                {HARDWARE_KIND_LABELS[unit.kind]}
+                              </span>
+                            </span>
+                            <span
+                              className="status-badge"
+                              data-kind="hardware"
+                              data-status={unit.status}
+                            >
+                              {HARDWARE_STATUS_LABELS[unit.status]}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </li>
-                )
-              })}
-              {filtered.length === 0 ? (
+              ))}
+              {listGroups.unassigned.length > 0 ? (
+                <li className="hw-vehicle-group">
+                  {listGroups.groups.length > 0 ? (
+                    <div className="hw-group-heading">
+                      <strong>Unassigned</strong>
+                      <span className="simple-muted">No parent vehicle</span>
+                    </div>
+                  ) : null}
+                  <ul
+                    className="hw-child-list"
+                    data-flat={listGroups.groups.length === 0 ? 'true' : undefined}
+                  >
+                    {listGroups.unassigned.map((unit) => (
+                      <li key={unit.id}>
+                        <button
+                          type="button"
+                          className="simple-list-row"
+                          data-selected={
+                            !adding && selected?.id === unit.id
+                              ? 'true'
+                              : 'false'
+                          }
+                          onClick={() => openDetail(unit.id)}
+                        >
+                          <span>
+                            <strong>{unit.name}</strong>
+                            <span className="simple-muted">
+                              {unit.serial} · {HARDWARE_KIND_LABELS[unit.kind]}
+                            </span>
+                          </span>
+                          <span
+                            className="status-badge"
+                            data-kind="hardware"
+                            data-status={unit.status}
+                          >
+                            {HARDWARE_STATUS_LABELS[unit.status]}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ) : null}
+              {listGroups.groups.length === 0 &&
+              listGroups.unassigned.length === 0 ? (
                 <li className="simple-muted">
                   {query.trim()
                     ? 'No units match that search.'

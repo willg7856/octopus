@@ -4749,6 +4749,57 @@ button.simple-list-row {
   border-top: 1px solid var(--line);
 }
 
+.hw-vehicle-group {
+  list-style: none;
+}
+
+.hw-vehicle-group > .simple-list-row {
+  border-bottom-color: color-mix(in srgb, var(--line) 55%, transparent);
+}
+
+.hw-group-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.35rem 0.35rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.hw-group-heading strong {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.hw-child-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.simple-list-row[data-nested='true'] {
+  padding-left: 1.5rem;
+  min-height: 2.75rem;
+  padding-top: 0.7rem;
+  padding-bottom: 0.7rem;
+  border-left: 2px solid color-mix(in srgb, var(--line) 85%, transparent);
+  margin-left: 0.55rem;
+  width: calc(100% - 0.55rem);
+}
+
+.simple-list-row[data-nested='true'] strong {
+  font-weight: 600;
+}
+
+.hw-child-list:not([data-flat='true']) .simple-list-row[data-nested='true'] {
+  background: color-mix(in srgb, var(--bg-elev) 35%, transparent);
+}
+
 .hw-history h4,
 .hw-tests h4 {
   margin: 0 0 0.5rem;
