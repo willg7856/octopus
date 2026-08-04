@@ -628,6 +628,12 @@ function SystemForm({
                 </option>
               ))}
             </select>
+            {parentOptions.length === 0 ? (
+              <span className="simple-muted">
+                No vehicles yet — add a Hardware unit with type Vehicle first,
+                then link it here.
+              </span>
+            ) : null}
           </label>
         ) : null}
         <div className="simple-form-row">
