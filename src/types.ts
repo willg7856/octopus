@@ -153,7 +153,7 @@ export interface Notice {
 /**
  * Unit kinds across both catalogs:
  * - System (vehicles & subsystems): vehicle, subsystem, motor, avionics, pad, ground
- * - General inventory (stock): part, consumable, tool, flight-hardware, other
+ * - General inventory (stock): part, consumable, tool, flight-hardware, test-hardware, other
  */
 export type HardwareKind =
   | 'vehicle'
@@ -166,6 +166,7 @@ export type HardwareKind =
   | 'consumable'
   | 'tool'
   | 'flight-hardware'
+  | 'test-hardware'
   | 'other'
 
 /** Build / checkout progress for a hardware unit. */

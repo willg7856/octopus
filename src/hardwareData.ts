@@ -30,6 +30,7 @@ export const HARDWARE_KIND_LABELS: Record<HardwareUnit['kind'], string> = {
   consumable: 'Consumable',
   tool: 'Tool',
   'flight-hardware': 'Flight hardware',
+  'test-hardware': 'Test hardware',
   other: 'Other',
 }
 
@@ -49,6 +50,7 @@ export const INVENTORY_KINDS: HardwareUnit['kind'][] = [
   'consumable',
   'tool',
   'flight-hardware',
+  'test-hardware',
   'other',
 ]
 

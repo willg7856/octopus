@@ -36,7 +36,7 @@ const STATUS_OPTIONS = STOCK_STATUS_ORDER.map(
 )
 
 type AttentionFilter = 'all' | 'attention' | 'low' | 'on-order' | 'quarantine'
-type InventoryKind = 'part' | 'consumable' | 'tool' | 'flight-hardware' | 'other'
+type InventoryKind = 'part' | 'consumable' | 'tool' | 'flight-hardware' | 'test-hardware' | 'other'
 type KindFilter = 'all' | InventoryKind
 
 const ATTENTION_STATUSES: StockStatus[] = [
@@ -98,12 +98,20 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       consumable: 0,
       tool: 0,
       'flight-hardware': 0,
+      'test-hardware': 0,
       other: 0,
     }
     for (const unit of units) {
       if (!matchesAttention(unit, filter)) continue
       counts.all += 1
-      if (unit.kind === 'part' || unit.kind === 'consumable' || unit.kind === 'tool' || unit.kind === 'flight-hardware' || unit.kind === 'other') {
+      if (
+        unit.kind === 'part' ||
+        unit.kind === 'consumable' ||
+        unit.kind === 'tool' ||
+        unit.kind === 'flight-hardware' ||
+        unit.kind === 'test-hardware' ||
+        unit.kind === 'other'
+      ) {
         counts[unit.kind] += 1
       }
     }
@@ -397,7 +405,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   const kindChips: { id: KindFilter; label: string; count?: number }[] = [
     { id: 'all', label: 'All types', count: kindCounts.all },
     ...(
-      ['part', 'consumable', 'tool', 'flight-hardware', 'other'] as const
+      ['part', 'consumable', 'tool', 'flight-hardware', 'test-hardware', 'other'] as const
     ).map((kind) => ({
       id: kind as KindFilter,
       label: HARDWARE_KIND_LABELS[kind],
