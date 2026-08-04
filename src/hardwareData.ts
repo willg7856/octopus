@@ -21,6 +21,7 @@ export { SEED_HARDWARE, SEED_PROCESSES, SEED_PROGRESS, SEED_TESTS }
 
 export const HARDWARE_KIND_LABELS: Record<HardwareUnit['kind'], string> = {
   vehicle: 'Vehicle',
+  subsystem: 'Subsystem',
   motor: 'Motor / propulsion',
   avionics: 'Avionics',
   pad: 'Pad / stand',
@@ -35,6 +36,7 @@ export const HARDWARE_KIND_LABELS: Record<HardwareUnit['kind'], string> = {
 /** Vehicles and flight/GSE subsystems — shown under Hardware. */
 export const SYSTEM_KINDS: HardwareUnit['kind'][] = [
   'vehicle',
+  'subsystem',
   'motor',
   'avionics',
   'pad',

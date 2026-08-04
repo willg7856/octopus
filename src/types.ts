@@ -152,11 +152,12 @@ export interface Notice {
 
 /**
  * Unit kinds across both catalogs:
- * - System (vehicles & subsystems): vehicle, motor, avionics, pad, ground
+ * - System (vehicles & subsystems): vehicle, subsystem, motor, avionics, pad, ground
  * - General inventory (stock): part, consumable, tool, flight-hardware, other
  */
 export type HardwareKind =
   | 'vehicle'
+  | 'subsystem'
   | 'motor'
   | 'avionics'
   | 'pad'
@@ -218,6 +219,11 @@ export interface HardwareUnit {
   minQty?: number
   /** Inventory optional unit price (AUD) for value estimates. */
   unitPrice?: number
+  /**
+   * Hardware: parent vehicle this unit mounts to (subsystems / motors / avionics).
+   * Usually a `kind: 'vehicle'` unit id.
+   */
+  parentVehicleId?: string
   location?: string
   owner?: string
   notes?: string

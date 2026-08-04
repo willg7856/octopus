@@ -52,17 +52,29 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     () => sortUnits(lab.units.filter((u) => isSystemKind(u.kind))),
     [lab.units],
   )
+  const vehicles = useMemo(
+    () => units.filter((u) => u.kind === 'vehicle'),
+    [units],
+  )
+  const unitNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const u of lab.units) map.set(u.id, u.name)
+    return map
+  }, [lab.units])
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return units
-    return units.filter((u) =>
-      [u.name, u.serial, u.location, u.owner, u.kind, u.status, u.hwRev]
+    return units.filter((u) => {
+      const parentName = u.parentVehicleId
+        ? unitNameById.get(u.parentVehicleId)
+        : undefined
+      return [u.name, u.serial, u.location, u.owner, u.kind, u.status, u.hwRev, parentName]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
-        .includes(q),
-    )
-  }, [units, query])
+        .includes(q)
+    })
+  }, [units, query, unitNameById])
 
   const selected =
     units.find((u) => u.id === selectedId) ??
@@ -93,6 +105,8 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     input: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string },
   ) {
     const kind = isSystemKind(input.kind) ? input.kind : 'vehicle'
+    const parentVehicleId =
+      kind === 'vehicle' ? undefined : input.parentVehicleId || undefined
     const updatedAtNow = new Date().toISOString()
     if (input.id) {
       void store.commit((prev) => {
@@ -115,7 +129,13 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
           ...prev,
           units: prev.units.map((u) =>
             u.id === input.id
-              ? { ...u, ...input, kind, updatedAt: updatedAtNow }
+              ? {
+                  ...u,
+                  ...input,
+                  kind,
+                  parentVehicleId,
+                  updatedAt: updatedAtNow,
+                }
               : u,
           ),
           progress: note ? [note, ...prev.progress] : prev.progress,
@@ -127,6 +147,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     const next: HardwareUnit = {
       ...input,
       kind,
+      parentVehicleId,
       id: newId('hw'),
       updatedAt: updatedAtNow,
     }
@@ -188,7 +209,11 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     void store.commit(
       (prev) => ({
         ...prev,
-        units: prev.units.filter((u) => u.id !== id),
+        units: prev.units
+          .filter((u) => u.id !== id)
+          .map((u) =>
+            u.parentVehicleId === id ? { ...u, parentVehicleId: undefined } : u,
+          ),
         progress: prev.progress.filter((p) => p.unitId !== id),
         tests: prev.tests.map((t) => ({
           ...t,
@@ -263,7 +288,11 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
               aria-label="Search hardware"
             />
             <ul className="simple-list">
-              {filtered.map((unit) => (
+              {filtered.map((unit) => {
+                const parentName = unit.parentVehicleId
+                  ? unitNameById.get(unit.parentVehicleId)
+                  : undefined
+                return (
                 <li key={unit.id}>
                   <button
                     type="button"
@@ -277,6 +306,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                       <strong>{unit.name}</strong>
                       <span className="simple-muted">
                         {unit.serial} · {HARDWARE_KIND_LABELS[unit.kind]}
+                        {parentName ? ` · → ${parentName}` : ''}
                       </span>
                     </span>
                     <span
@@ -288,7 +318,8 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                     </span>
                   </button>
                 </li>
-              ))}
+                )
+              })}
               {filtered.length === 0 ? (
                 <li className="simple-muted">
                   {query.trim()
@@ -314,6 +345,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
               <SystemForm
                 key="new"
                 submitLabel="Add"
+                vehicles={vehicles}
                 onCancel={() => {
                   setAdding(false)
                   setMobileMode('list')
@@ -326,6 +358,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                   key={selected.id}
                   initial={selected}
                   submitLabel="Save"
+                  vehicles={vehicles}
                   onSave={saveUnit}
                   onDelete={() => removeUnit(selected.id)}
                 />
@@ -394,6 +427,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
 function SystemForm({
   initial,
   submitLabel,
+  vehicles,
   onSave,
   onDelete,
   onCancel,
@@ -401,6 +435,7 @@ function SystemForm({
 }: {
   initial?: HardwareUnit
   submitLabel: string
+  vehicles: HardwareUnit[]
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
@@ -414,11 +449,22 @@ function SystemForm({
   const [status, setStatus] = useState<HardwareStatus>(
     initial?.status ?? 'concept',
   )
+  const [parentVehicleId, setParentVehicleId] = useState(
+    initial?.parentVehicleId ?? '',
+  )
   const [location, setLocation] = useState(initial?.location ?? '')
   const [hwRev, setHwRev] = useState(initial?.hwRev ?? '')
   const [fwVersion, setFwVersion] = useState(initial?.fwVersion ?? '')
   const [owner, setOwner] = useState(initial?.owner ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
+
+  const parentOptions = vehicles.filter((v) => v.id !== initial?.id)
+  const showParent = kind !== 'vehicle'
+
+  function handleKindChange(next: HardwareKind) {
+    setKind(next)
+    if (next === 'vehicle') setParentVehicleId('')
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -429,6 +475,8 @@ function SystemForm({
       serial: serial.trim(),
       kind,
       status,
+      parentVehicleId:
+        kind === 'vehicle' ? undefined : parentVehicleId || undefined,
       location: location.trim() || undefined,
       quantity: 1,
       hwRev: hwRev.trim() || '—',
@@ -471,7 +519,7 @@ function SystemForm({
           Hardware type
           <select
             value={kind}
-            onChange={(e) => setKind(e.target.value as HardwareKind)}
+            onChange={(e) => handleKindChange(e.target.value as HardwareKind)}
             disabled={disabled}
           >
             {KIND_OPTIONS.map(([value, label]) => (
@@ -496,6 +544,24 @@ function SystemForm({
           </select>
         </label>
       </div>
+      {showParent ? (
+        <label>
+          Parent vehicle
+          <select
+            value={parentVehicleId}
+            onChange={(e) => setParentVehicleId(e.target.value)}
+            disabled={disabled}
+          >
+            <option value="">None</option>
+            {parentOptions.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+                {v.serial ? ` (${v.serial})` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <div className="simple-form-row">
         <label>
           HW revision
