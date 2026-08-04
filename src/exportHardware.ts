@@ -7,6 +7,7 @@ import {
   TEST_RESULT_LABELS,
   isInventoryKind,
   stockStatusOf,
+  unitOnOrderQty,
   unitQuantity,
 } from './hardwareData'
 import type {
@@ -49,7 +50,7 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
     `# exported,${new Date().toISOString()}`,
     '',
     '## hardware_units',
-    'id,name,kind,serial,part_number,quantity,min_qty,hw_rev,fw_version,status,stock_status,order_url,ordered_at,expected_at,location,owner,notes,updated_at',
+    'id,name,kind,serial,part_number,qty_on_hand,qty_on_order,min_qty,hw_rev,fw_version,status,stock_status,order_url,ordered_at,expected_at,location,owner,notes,updated_at',
     ...units.map((u) =>
       [
         u.id,
@@ -58,6 +59,7 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
         csvEscape(u.serial),
         csvEscape(u.partNumber ?? ''),
         String(unitQuantity(u)),
+        String(unitOnOrderQty(u)),
         u.minQty != null ? String(u.minQty) : '',
         csvEscape(u.hwRev),
         csvEscape(u.fwVersion ?? ''),

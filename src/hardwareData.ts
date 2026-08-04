@@ -324,3 +324,12 @@ export function unitQuantity(unit: HardwareUnit) {
     ? unit.quantity
     : 1
 }
+
+/** Outstanding on-order quantity for inventory (0 if unset). */
+export function unitOnOrderQty(unit: Pick<HardwareUnit, 'onOrderQty'>) {
+  return typeof unit.onOrderQty === 'number' &&
+    Number.isFinite(unit.onOrderQty) &&
+    unit.onOrderQty > 0
+    ? unit.onOrderQty
+    : 0
+}

@@ -4434,6 +4434,12 @@ button.simple-list-row {
   font-weight: 600;
 }
 
+.inv-qty-on-order {
+  color: var(--telem-cyan);
+  font-weight: 500;
+  font-size: 0.78rem;
+}
+
 .inv-qty-receive {
   min-width: auto;
   padding-inline: 0.55rem;

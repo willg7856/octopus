@@ -15,6 +15,7 @@ import {
   stockStatusAfterReceive,
   stockStatusLabel,
   stockStatusOf,
+  unitOnOrderQty,
   unitQuantity,
 } from '../hardwareData'
 import type {
@@ -159,20 +160,43 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     patchUnit(
       id,
       (unit) => {
-        const qty = unitQuantity(unit) + 1
-        // Leave the order pipeline (on-order / receiving / incoming) explicitly.
-        const stockStatus = stockStatusAfterReceive(qty, unit.minQty)
+        const onHand = unitQuantity(unit) + 1
+        const status = stockStatusOf(unit)
+        const inPipeline =
+          status === 'on-order' ||
+          status === 'receiving' ||
+          status === 'incoming'
+        const outstanding = unitOnOrderQty(unit)
+        const fromOrder = outstanding > 0 ? outstanding : inPipeline ? 1 : 0
+        const nextOnOrder = Math.max(0, fromOrder - 1)
+        const updatedAt = new Date().toISOString()
+
+        if (nextOnOrder > 0) {
+          return {
+            ...unit,
+            quantity: onHand,
+            onOrderQty: nextOnOrder,
+            stockStatus: status === 'incoming' ? 'receiving' : 'on-order',
+            status: hardwareStatusForStock(
+              status === 'incoming' ? 'receiving' : 'on-order',
+            ),
+            updatedAt,
+          }
+        }
+
+        const stockStatus = stockStatusAfterReceive(onHand, unit.minQty)
         const { orderedAt: _o, expectedAt: _e, ...rest } = unit
         return {
           ...rest,
-          quantity: qty,
+          quantity: onHand,
+          onOrderQty: undefined,
           stockStatus,
           status: hardwareStatusForStock(stockStatus),
-          updatedAt: new Date().toISOString(),
+          updatedAt,
         }
       },
       'Received +1',
-      'Received +1 — moved to stock',
+      'Received +1 into on hand',
     )
   }
 
@@ -184,11 +208,35 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       typeof input.quantity === 'number' && Number.isFinite(input.quantity)
         ? input.quantity
         : 1
-    const stockStatus = applyInventoryStockRules(
+    const onOrder =
+      typeof input.onOrderQty === 'number' &&
+      Number.isFinite(input.onOrderQty) &&
+      input.onOrderQty > 0
+        ? Math.floor(input.onOrderQty)
+        : 0
+    let stockStatus = applyInventoryStockRules(
       input.stockStatus ?? 'in-stock',
       qty,
       input.minQty,
     )
+    // Having outstanding order qty should keep the item in the order pipeline.
+    if (
+      onOrder > 0 &&
+      (stockStatus === 'in-stock' ||
+        stockStatus === 'low' ||
+        stockStatus === 'depleted' ||
+        stockStatus === 'on-order' ||
+        stockStatus === 'receiving' ||
+        stockStatus === 'incoming')
+    ) {
+      if (
+        stockStatus !== 'on-order' &&
+        stockStatus !== 'receiving' &&
+        stockStatus !== 'incoming'
+      ) {
+        stockStatus = 'on-order'
+      }
+    }
     const updatedAtNow = new Date().toISOString()
     const resolved = {
       ...input,
@@ -196,6 +244,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       stockStatus,
       status: hardwareStatusForStock(stockStatus),
       quantity: qty,
+      onOrderQty: onOrder > 0 ? onOrder : undefined,
       updatedAt: updatedAtNow,
     }
 
@@ -354,7 +403,9 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
             <ul className="simple-list">
               {filtered.map((unit) => {
                 const status = stockStatusOf(unit)
+                const onOrder = unitOnOrderQty(unit)
                 const canReceive =
+                  onOrder > 0 ||
                   status === 'on-order' ||
                   status === 'receiving' ||
                   status === 'incoming'
@@ -374,8 +425,9 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                         <span>
                           <strong>{unit.name}</strong>
                           <span className="simple-muted">
-                            {HARDWARE_KIND_LABELS[unit.kind]} · qty{' '}
+                            {HARDWARE_KIND_LABELS[unit.kind]} · on hand{' '}
                             {unitQuantity(unit)}
+                            {onOrder > 0 ? ` · on order ${onOrder}` : ''}
                             {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
                             {unit.location ? ` · ${unit.location}` : ''}
                             {unit.expectedAt
@@ -397,7 +449,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                         <button
                           type="button"
                           className="inv-qty-btn"
-                          aria-label={`Decrease ${unit.name} quantity`}
+                          aria-label={`Decrease ${unit.name} on hand`}
                           disabled={unitQuantity(unit) <= 0}
                           onClick={(e) => {
                             e.stopPropagation()
@@ -406,13 +458,23 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                         >
                           −
                         </button>
-                        <span className="inv-qty-value" aria-hidden="true">
+                        <span
+                          className="inv-qty-value"
+                          title={
+                            onOrder > 0
+                              ? `On hand ${unitQuantity(unit)} · on order ${onOrder}`
+                              : `On hand ${unitQuantity(unit)}`
+                          }
+                        >
                           {unitQuantity(unit)}
+                          {onOrder > 0 ? (
+                            <span className="inv-qty-on-order">/{onOrder}</span>
+                          ) : null}
                         </span>
                         <button
                           type="button"
                           className="inv-qty-btn"
-                          aria-label={`Increase ${unit.name} quantity`}
+                          aria-label={`Increase ${unit.name} on hand`}
                           onClick={(e) => {
                             e.stopPropagation()
                             adjustQty(unit.id, 1)
@@ -424,7 +486,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                           <button
                             type="button"
                             className="inv-qty-btn inv-qty-receive"
-                            aria-label={`Receive one ${unit.name}`}
+                            aria-label={`Receive one ${unit.name} from on order`}
                             onClick={(e) => {
                               e.stopPropagation()
                               receiveOne(unit.id)
@@ -482,7 +544,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
               />
             ) : selected ? (
               <UnitForm
-                key={`${selected.id}:${selected.updatedAt}:${stockStatusOf(selected)}:${unitQuantity(selected)}`}
+                key={`${selected.id}:${selected.updatedAt}:${stockStatusOf(selected)}:${unitQuantity(selected)}:${unitOnOrderQty(selected)}`}
                 initial={selected}
                 submitLabel="Save"
                 onSave={saveUnit}
@@ -530,6 +592,9 @@ function UnitForm({
   const [quantity, setQuantity] = useState(
     String(initial ? unitQuantity(initial) : 1),
   )
+  const [onOrderQty, setOnOrderQty] = useState(
+    String(initial ? unitOnOrderQty(initial) : 0),
+  )
   const [minQty, setMinQty] = useState(
     initial?.minQty != null ? String(initial.minQty) : '',
   )
@@ -540,19 +605,18 @@ function UnitForm({
   const [expectedAt, setExpectedAt] = useState(initial?.expectedAt ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
 
-  const showOrderDates =
+  const showOrderFields =
     stockStatus === 'on-order' ||
     stockStatus === 'receiving' ||
     stockStatus === 'incoming' ||
+    Number(onOrderQty) > 0 ||
     Boolean(orderedAt || expectedAt)
 
   function handleStockStatusChange(next: StockStatus) {
     setStockStatus(next)
-    if (
-      (next === 'on-order' || next === 'receiving' || next === 'incoming') &&
-      !orderedAt
-    ) {
-      setOrderedAt(todayDateInput())
+    if (next === 'on-order' || next === 'receiving' || next === 'incoming') {
+      if (!orderedAt) setOrderedAt(todayDateInput())
+      if (!onOrderQty || onOrderQty === '0') setOnOrderQty('1')
     }
   }
 
@@ -560,11 +624,13 @@ function UnitForm({
     e.preventDefault()
     if (!name.trim() || !serial.trim()) return
     const qty = Number(quantity)
+    const ordered = Number(onOrderQty)
     const min = minQty.trim() === '' ? undefined : Number(minQty)
     const inOrderPipeline =
       stockStatus === 'on-order' ||
       stockStatus === 'receiving' ||
-      stockStatus === 'incoming'
+      stockStatus === 'incoming' ||
+      (Number.isFinite(ordered) && ordered > 0)
     onSave({
       id: initial?.id,
       name: name.trim(),
@@ -574,6 +640,8 @@ function UnitForm({
       stockStatus,
       location: location.trim() || undefined,
       quantity: Number.isFinite(qty) && qty >= 0 ? qty : 1,
+      onOrderQty:
+        Number.isFinite(ordered) && ordered > 0 ? Math.floor(ordered) : 0,
       minQty:
         min != null && Number.isFinite(min) && min >= 0 ? min : undefined,
       hwRev: '—',
@@ -597,8 +665,8 @@ function UnitForm({
     <form className="simple-form" onSubmit={handleSubmit}>
       <h3>{initial ? initial.name : 'New stock item'}</h3>
       <p className="simple-muted">
-        Track bin stock — quantity, SKU, min qty, and stock status. Not vehicle
-        hardware.
+        Track on-hand vs on-order qty, SKU, min qty, and stock status. Not
+        vehicle hardware.
       </p>
       {orderHref ? (
         <div className="inv-order-panel">
@@ -683,17 +751,28 @@ function UnitForm({
           />
         </label>
         <label>
-          Min qty (auto low)
+          Qty on order
           <input
             type="number"
             min={0}
             step={1}
-            value={minQty}
-            onChange={(e) => setMinQty(e.target.value)}
-            placeholder="e.g. 10"
+            value={onOrderQty}
+            onChange={(e) => setOnOrderQty(e.target.value)}
+            placeholder="0"
           />
         </label>
       </div>
+      <label>
+        Min qty (auto low)
+        <input
+          type="number"
+          min={0}
+          step={1}
+          value={minQty}
+          onChange={(e) => setMinQty(e.target.value)}
+          placeholder="e.g. 10"
+        />
+      </label>
       <label>
         Bin / location
         <input
@@ -713,19 +792,10 @@ function UnitForm({
       <div className="inv-link-section">
         <h4>Order</h4>
         <p className="simple-muted">
-          Vendor link plus when it was ordered and when it should arrive.
+          Outstanding qty on order, vendor link, and delivery dates. Recv moves
+          one from on order → on hand.
         </p>
-        <label>
-          URL
-          <input
-            type="url"
-            value={orderUrl}
-            onChange={(e) => setOrderUrl(e.target.value)}
-            placeholder="https://www.mcmaster.com/…"
-            inputMode="url"
-          />
-        </label>
-        {showOrderDates ? (
+        {showOrderFields ? (
           <div className="simple-form-row">
             <label>
               Order date
@@ -745,6 +815,16 @@ function UnitForm({
             </label>
           </div>
         ) : null}
+        <label>
+          URL
+          <input
+            type="url"
+            value={orderUrl}
+            onChange={(e) => setOrderUrl(e.target.value)}
+            placeholder="https://www.mcmaster.com/…"
+            inputMode="url"
+          />
+        </label>
       </div>
       <label>
         Notes

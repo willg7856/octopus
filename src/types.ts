@@ -198,6 +198,8 @@ export interface HardwareUnit {
   partNumber?: string
   /** Count on hand (default 1 for unique assets) */
   quantity?: number
+  /** Inventory: quantity still outstanding on order (not yet received). */
+  onOrderQty?: number
   /** Hardware revision / drawing rev, e.g. B1M · rev A */
   hwRev: string
   /** Firmware / software load when applicable */
