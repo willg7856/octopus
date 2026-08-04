@@ -333,3 +333,24 @@ export function unitOnOrderQty(unit: Pick<HardwareUnit, 'onOrderQty'>) {
     ? unit.onOrderQty
     : 0
 }
+
+/** Optional unit price for inventory value estimates. */
+export function unitPriceOf(unit: Pick<HardwareUnit, 'unitPrice'>) {
+  return typeof unit.unitPrice === 'number' &&
+    Number.isFinite(unit.unitPrice) &&
+    unit.unitPrice >= 0
+    ? unit.unitPrice
+    : undefined
+}
+
+export function formatMoney(amount: number) {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: amount >= 100 ? 0 : 2,
+    }).format(amount)
+  } catch {
+    return `$${amount.toFixed(2)}`
+  }
+}

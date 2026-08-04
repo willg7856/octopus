@@ -8,6 +8,7 @@ import {
   STOCK_STATUS_LABELS,
   STOCK_STATUS_ORDER,
   applyInventoryStockRules,
+  formatMoney,
   hardwareStatusForStock,
   isInventoryKind,
   newId,
@@ -16,6 +17,7 @@ import {
   stockStatusLabel,
   stockStatusOf,
   unitOnOrderQty,
+  unitPriceOf,
   unitQuantity,
 } from '../hardwareData'
 import type {
@@ -83,14 +85,28 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   const inventoryTotals = useMemo(() => {
     let onHand = 0
     let onOrder = 0
+    let onHandValue = 0
+    let onOrderValue = 0
+    let priced = 0
     for (const unit of units) {
-      onHand += unitQuantity(unit)
-      onOrder += unitOnOrderQty(unit)
+      const hand = unitQuantity(unit)
+      const ordered = unitOnOrderQty(unit)
+      const price = unitPriceOf(unit)
+      onHand += hand
+      onOrder += ordered
+      if (price != null) {
+        priced += 1
+        onHandValue += hand * price
+        onOrderValue += ordered * price
+      }
     }
     return {
       items: units.length,
       onHand,
       onOrder,
+      onHandValue,
+      onOrderValue,
+      priced,
     }
   }, [units])
 
@@ -251,6 +267,12 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
         stockStatus = 'on-order'
       }
     }
+    const price =
+      typeof input.unitPrice === 'number' &&
+      Number.isFinite(input.unitPrice) &&
+      input.unitPrice >= 0
+        ? input.unitPrice
+        : undefined
     const updatedAtNow = new Date().toISOString()
     const resolved = {
       ...input,
@@ -259,6 +281,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       status: hardwareStatusForStock(stockStatus),
       quantity: qty,
       onOrderQty: onOrder > 0 ? onOrder : undefined,
+      unitPrice: price,
       updatedAt: updatedAtNow,
     }
 
@@ -361,6 +384,19 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                     ? ` · ${inventoryTotals.onOrder} on order`
                     : ''}
                 </span>
+                {inventoryTotals.priced > 0 ? (
+                  <>
+                    <span className="inv-total-sep" aria-hidden="true">
+                      ·
+                    </span>
+                    <span title="Sum of on-hand qty × unit price for priced items">
+                      {formatMoney(inventoryTotals.onHandValue)} on hand
+                      {inventoryTotals.onOrderValue > 0
+                        ? ` · ${formatMoney(inventoryTotals.onOrderValue)} on order`
+                        : ''}
+                    </span>
+                  </>
+                ) : null}
               </p>
             ) : null}
           </div>
@@ -435,6 +471,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
               {filtered.map((unit) => {
                 const status = stockStatusOf(unit)
                 const onOrder = unitOnOrderQty(unit)
+                const price = unitPriceOf(unit)
                 const canReceive =
                   onOrder > 0 ||
                   status === 'on-order' ||
@@ -459,6 +496,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                             {HARDWARE_KIND_LABELS[unit.kind]} · on hand{' '}
                             {unitQuantity(unit)}
                             {onOrder > 0 ? ` · on order ${onOrder}` : ''}
+                            {price != null ? ` · ${formatMoney(price)}/ea` : ''}
                             {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
                             {unit.location ? ` · ${unit.location}` : ''}
                             {unit.expectedAt
@@ -608,6 +646,8 @@ function fieldsFromUnit(unit?: HardwareUnit) {
     quantity: String(unit ? unitQuantity(unit) : 1),
     onOrderQty: String(unit ? unitOnOrderQty(unit) : 0),
     minQty: unit?.minQty != null ? String(unit.minQty) : '',
+    unitPrice:
+      unit && unitPriceOf(unit) != null ? String(unitPriceOf(unit)) : '',
     partNumber: unit?.partNumber ?? '',
     supplier: unit?.owner ?? '',
     orderUrl: unit?.orderUrl ?? '',
@@ -642,6 +682,7 @@ function UnitForm({
     quantity,
     onOrderQty,
     minQty,
+    unitPrice,
     partNumber,
     supplier,
     orderUrl,
@@ -661,6 +702,7 @@ function UnitForm({
     initial?.quantity,
     initial?.onOrderQty,
     initial?.stockStatus,
+    initial?.unitPrice,
     initial?.orderedAt,
     initial?.expectedAt,
     initial?.name,
@@ -708,6 +750,7 @@ function UnitForm({
     const qty = Number(quantity)
     const ordered = Number(onOrderQty)
     const min = minQty.trim() === '' ? undefined : Number(minQty)
+    const price = unitPrice.trim() === '' ? undefined : Number(unitPrice)
     const inOrderPipeline =
       stockStatus === 'on-order' ||
       stockStatus === 'receiving' ||
@@ -726,6 +769,10 @@ function UnitForm({
         Number.isFinite(ordered) && ordered > 0 ? Math.floor(ordered) : 0,
       minQty:
         min != null && Number.isFinite(min) && min >= 0 ? min : undefined,
+      unitPrice:
+        price != null && Number.isFinite(price) && price >= 0
+          ? price
+          : undefined,
       hwRev: '—',
       fwVersion: undefined,
       partNumber: partNumber.trim() || undefined,
@@ -864,17 +911,39 @@ function UnitForm({
             />
           </label>
         </div>
-        <label>
-          Min qty (auto low)
-          <input
-            type="number"
-            min={0}
-            step={1}
-            value={minQty}
-            onChange={(e) => setField('minQty', e.target.value)}
-            placeholder="e.g. 10"
-          />
-        </label>
+        <div className="simple-form-row">
+          <label>
+            Unit price (USD)
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={unitPrice}
+              onChange={(e) => setField('unitPrice', e.target.value)}
+              placeholder="e.g. 12.50"
+            />
+          </label>
+          <label>
+            Min qty (auto low)
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={minQty}
+              onChange={(e) => setField('minQty', e.target.value)}
+              placeholder="e.g. 10"
+            />
+          </label>
+        </div>
+        {!editing && unitPrice.trim() && Number(unitPrice) >= 0 ? (
+          <p className="simple-muted inv-value-line">
+            Est. on hand{' '}
+            {formatMoney(Number(quantity || 0) * Number(unitPrice))}
+            {Number(onOrderQty) > 0
+              ? ` · on order ${formatMoney(Number(onOrderQty) * Number(unitPrice))}`
+              : ''}
+          </p>
+        ) : null}
         <label>
           Bin / location
           <input

@@ -215,6 +215,8 @@ export interface HardwareUnit {
   expectedAt?: string
   /** Inventory minimum quantity — at or below this, status becomes low. */
   minQty?: number
+  /** Inventory optional unit price (USD) for value estimates. */
+  unitPrice?: number
   location?: string
   owner?: string
   notes?: string
