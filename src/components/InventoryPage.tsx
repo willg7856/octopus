@@ -913,7 +913,7 @@ function UnitForm({
         </div>
         <div className="simple-form-row">
           <label>
-            Unit price (USD)
+            Unit price (AUD)
             <input
               type="number"
               min={0}

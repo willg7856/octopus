@@ -347,7 +347,7 @@ export function formatMoney(amount: number) {
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
-      currency: 'USD',
+      currency: 'AUD',
       maximumFractionDigits: amount >= 100 ? 0 : 2,
     }).format(amount)
   } catch {
