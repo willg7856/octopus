@@ -341,7 +341,7 @@ export async function effectiveAllowlist(): Promise<string[]> {
   return normalizeEmails([...env, ...shared.users])
 }
 
-/** Fallback admins when OPS_ADMINS env is unset. */
+/** Always-allowed Team admins (merged with OPS_ADMINS when set). */
 const BOOTSTRAP_ADMINS = [
   'willg7856@gmail.com',
   'will.grant@beyondstagezero.com',
@@ -354,13 +354,12 @@ export function envAdmins(): string[] {
       .map((s) => s.trim())
       .filter(Boolean),
   )
-  if (fromEnv.length > 0) return fromEnv
-  return normalizeEmails(BOOTSTRAP_ADMINS)
+  return normalizeEmails([...fromEnv, ...BOOTSTRAP_ADMINS])
 }
 
 /**
  * Who can view and manage Team accounts.
- * Uses OPS_ADMINS when set; otherwise the built-in bootstrap admin emails.
+ * OPS_ADMINS env emails plus built-in bootstrap admins.
  */
 export function canManageAccounts(email: string | undefined): boolean {
   if (!email) return false
