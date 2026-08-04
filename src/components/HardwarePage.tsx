@@ -52,10 +52,6 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     () => sortUnits(lab.units.filter((u) => isSystemKind(u.kind))),
     [lab.units],
   )
-  const vehicles = useMemo(
-    () => units.filter((u) => u.kind === 'vehicle'),
-    [units],
-  )
   const unitNameById = useMemo(() => {
     const map = new Map<string, string>()
     for (const u of lab.units) map.set(u.id, u.name)
@@ -76,42 +72,10 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     })
   }, [units, query, unitNameById])
 
-  const listGroups = useMemo(() => {
-    const vehicleById = new Map(
-      units.filter((u) => u.kind === 'vehicle').map((u) => [u.id, u]),
-    )
-    const childrenByParent = new Map<string, HardwareUnit[]>()
-    const unassigned: HardwareUnit[] = []
-
-    for (const unit of filtered) {
-      if (unit.kind === 'vehicle') continue
-      const parentId = unit.parentVehicleId
-      if (parentId && vehicleById.has(parentId)) {
-        const list = childrenByParent.get(parentId) ?? []
-        list.push(unit)
-        childrenByParent.set(parentId, list)
-      } else {
-        unassigned.push(unit)
-      }
-    }
-
-    const vehicleIds = new Set<string>()
-    for (const u of filtered) {
-      if (u.kind === 'vehicle') vehicleIds.add(u.id)
-    }
-    for (const parentId of childrenByParent.keys()) vehicleIds.add(parentId)
-
-    const groups = sortUnits(
-      [...vehicleIds]
-        .map((id) => vehicleById.get(id))
-        .filter((u): u is HardwareUnit => Boolean(u)),
-    ).map((vehicle) => ({
-      vehicle,
-      children: sortUnits(childrenByParent.get(vehicle.id) ?? []),
-    }))
-
-    return { groups, unassigned: sortUnits(unassigned) }
-  }, [filtered, units])
+  const listTree = useMemo(
+    () => buildHardwareTree(filtered, units),
+    [filtered, units],
+  )
 
   const selected =
     units.find((u) => u.id === selectedId) ??
@@ -142,8 +106,11 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     input: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string },
   ) {
     const kind = isSystemKind(input.kind) ? input.kind : 'vehicle'
-    const parentVehicleId =
-      kind === 'vehicle' ? undefined : input.parentVehicleId || undefined
+    const parentVehicleId = resolveParentId(
+      input.id,
+      input.parentVehicleId,
+      lab.units.filter((u) => isSystemKind(u.kind)),
+    )
     const updatedAtNow = new Date().toISOString()
     if (input.id) {
       void store.commit((prev) => {
@@ -325,114 +292,16 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
               aria-label="Search hardware"
             />
             <ul className="simple-list">
-              {listGroups.groups.map(({ vehicle, children }) => (
-                <li key={vehicle.id} className="hw-vehicle-group">
-                  <button
-                    type="button"
-                    className="simple-list-row"
-                    data-selected={
-                      !adding && selected?.id === vehicle.id ? 'true' : 'false'
-                    }
-                    onClick={() => openDetail(vehicle.id)}
-                  >
-                    <span>
-                      <strong>{vehicle.name}</strong>
-                      <span className="simple-muted">
-                        {vehicle.serial} · {HARDWARE_KIND_LABELS[vehicle.kind]}
-                        {children.length > 0
-                          ? ` · ${children.length} linked`
-                          : ''}
-                      </span>
-                    </span>
-                    <span
-                      className="status-badge"
-                      data-kind="hardware"
-                      data-status={vehicle.status}
-                    >
-                      {HARDWARE_STATUS_LABELS[vehicle.status]}
-                    </span>
-                  </button>
-                  {children.length > 0 ? (
-                    <ul className="hw-child-list">
-                      {children.map((unit) => (
-                        <li key={unit.id}>
-                          <button
-                            type="button"
-                            className="simple-list-row"
-                            data-nested="true"
-                            data-selected={
-                              !adding && selected?.id === unit.id
-                                ? 'true'
-                                : 'false'
-                            }
-                            onClick={() => openDetail(unit.id)}
-                          >
-                            <span>
-                              <strong>{unit.name}</strong>
-                              <span className="simple-muted">
-                                {unit.serial} ·{' '}
-                                {HARDWARE_KIND_LABELS[unit.kind]}
-                              </span>
-                            </span>
-                            <span
-                              className="status-badge"
-                              data-kind="hardware"
-                              data-status={unit.status}
-                            >
-                              {HARDWARE_STATUS_LABELS[unit.status]}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </li>
+              {listTree.map((node) => (
+                <HardwareTreeNodes
+                  key={node.unit.id}
+                  node={node}
+                  depth={0}
+                  selectedId={!adding ? selected?.id ?? null : null}
+                  onOpen={openDetail}
+                />
               ))}
-              {listGroups.unassigned.length > 0 ? (
-                <li className="hw-vehicle-group">
-                  {listGroups.groups.length > 0 ? (
-                    <div className="hw-group-heading">
-                      <strong>Unassigned</strong>
-                      <span className="simple-muted">No parent vehicle</span>
-                    </div>
-                  ) : null}
-                  <ul
-                    className="hw-child-list"
-                    data-flat={listGroups.groups.length === 0 ? 'true' : undefined}
-                  >
-                    {listGroups.unassigned.map((unit) => (
-                      <li key={unit.id}>
-                        <button
-                          type="button"
-                          className="simple-list-row"
-                          data-selected={
-                            !adding && selected?.id === unit.id
-                              ? 'true'
-                              : 'false'
-                          }
-                          onClick={() => openDetail(unit.id)}
-                        >
-                          <span>
-                            <strong>{unit.name}</strong>
-                            <span className="simple-muted">
-                              {unit.serial} · {HARDWARE_KIND_LABELS[unit.kind]}
-                            </span>
-                          </span>
-                          <span
-                            className="status-badge"
-                            data-kind="hardware"
-                            data-status={unit.status}
-                          >
-                            {HARDWARE_STATUS_LABELS[unit.status]}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ) : null}
-              {listGroups.groups.length === 0 &&
-              listGroups.unassigned.length === 0 ? (
+              {listTree.length === 0 ? (
                 <li className="simple-muted">
                   {query.trim()
                     ? 'No units match that search.'
@@ -457,7 +326,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
               <SystemForm
                 key="new"
                 submitLabel="Add"
-                vehicles={vehicles}
+                parentCandidates={units}
                 onCancel={() => {
                   setAdding(false)
                   setMobileMode('list')
@@ -470,7 +339,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                   key={selected.id}
                   initial={selected}
                   submitLabel="Save"
-                  vehicles={vehicles}
+                  parentCandidates={units}
                   onSave={saveUnit}
                   onDelete={() => removeUnit(selected.id)}
                 />
@@ -554,14 +423,14 @@ function fieldsFromUnit(unit?: HardwareUnit) {
 function SystemForm({
   initial,
   submitLabel,
-  vehicles,
+  parentCandidates,
   onSave,
   onDelete,
   onCancel,
 }: {
   initial?: HardwareUnit
   submitLabel: string
-  vehicles: HardwareUnit[]
+  parentCandidates: HardwareUnit[]
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
@@ -622,16 +491,11 @@ function SystemForm({
     setEditing(false)
   }
 
-  const parentOptions = vehicles.filter((v) => v.id !== initial?.id)
-  const showParent = kind !== 'vehicle'
-
-  function handleKindChange(next: HardwareKind) {
-    setFields((prev) => ({
-      ...prev,
-      kind: next,
-      parentVehicleId: next === 'vehicle' ? '' : prev.parentVehicleId,
-    }))
-  }
+  const parentOptions = parentCandidates.filter((u) => {
+    if (u.id === initial?.id) return false
+    if (!initial?.id) return true
+    return !wouldCreateParentCycle(initial.id, u.id, parentCandidates)
+  })
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -642,8 +506,7 @@ function SystemForm({
       serial: serial.trim(),
       kind,
       status,
-      parentVehicleId:
-        kind === 'vehicle' ? undefined : parentVehicleId || undefined,
+      parentVehicleId: parentVehicleId || undefined,
       location: location.trim() || undefined,
       quantity: 1,
       hwRev: hwRev.trim() || '—',
@@ -700,7 +563,7 @@ function SystemForm({
             Hardware type
             <select
               value={kind}
-              onChange={(e) => handleKindChange(e.target.value as HardwareKind)}
+              onChange={(e) => setField('kind', e.target.value as HardwareKind)}
             >
               {KIND_OPTIONS.map(([value, label]) => (
                 <option key={value} value={value}>
@@ -725,29 +588,32 @@ function SystemForm({
             </select>
           </label>
         </div>
-        {showParent ? (
-          <label>
-            Parent vehicle
-            <select
-              value={parentVehicleId}
-              onChange={(e) => setField('parentVehicleId', e.target.value)}
-            >
-              <option value="">None</option>
-              {parentOptions.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                  {v.serial ? ` (${v.serial})` : ''}
-                </option>
-              ))}
-            </select>
-            {parentOptions.length === 0 ? (
-              <span className="simple-muted">
-                No vehicles yet — add a Hardware unit with type Vehicle first,
-                then link it here.
-              </span>
-            ) : null}
-          </label>
-        ) : null}
+        <label>
+          Parent unit
+          <select
+            value={parentVehicleId}
+            onChange={(e) => setField('parentVehicleId', e.target.value)}
+          >
+            <option value="">None</option>
+            {parentOptions.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+                {u.serial ? ` (${u.serial})` : ''} ·{' '}
+                {HARDWARE_KIND_LABELS[u.kind]}
+              </option>
+            ))}
+          </select>
+          {parentOptions.length === 0 ? (
+            <span className="simple-muted">
+              No other hardware units yet — add a vehicle or engine first, then
+              link this under it.
+            </span>
+          ) : (
+            <span className="simple-muted">
+              Attach under any hardware unit (vehicle, engine, subsystem…).
+            </span>
+          )}
+        </label>
         <div className="simple-form-row">
           <label>
             HW revision
@@ -811,6 +677,137 @@ function SystemForm({
         ) : null}
       </div>
     </form>
+  )
+}
+
+type HardwareTreeNode = {
+  unit: HardwareUnit
+  children: HardwareTreeNode[]
+}
+
+function buildHardwareTree(
+  filtered: HardwareUnit[],
+  allSystem: HardwareUnit[],
+): HardwareTreeNode[] {
+  const byId = new Map(allSystem.map((u) => [u.id, u]))
+  const visible = new Set(filtered.map((u) => u.id))
+
+  for (const u of filtered) {
+    let parentId = u.parentVehicleId
+    while (parentId && byId.has(parentId) && !visible.has(parentId)) {
+      visible.add(parentId)
+      parentId = byId.get(parentId)?.parentVehicleId
+    }
+  }
+
+  const childrenByParent = new Map<string, HardwareUnit[]>()
+  const roots: HardwareUnit[] = []
+
+  for (const id of visible) {
+    const unit = byId.get(id)
+    if (!unit) continue
+    const parentId = unit.parentVehicleId
+    if (parentId && visible.has(parentId) && byId.has(parentId)) {
+      const list = childrenByParent.get(parentId) ?? []
+      list.push(unit)
+      childrenByParent.set(parentId, list)
+    } else {
+      roots.push(unit)
+    }
+  }
+
+  function toNode(unit: HardwareUnit): HardwareTreeNode {
+    return {
+      unit,
+      children: sortUnits(childrenByParent.get(unit.id) ?? []).map(toNode),
+    }
+  }
+
+  return sortUnits(roots).map(toNode)
+}
+
+function wouldCreateParentCycle(
+  unitId: string,
+  newParentId: string,
+  units: HardwareUnit[],
+) {
+  const byId = new Map(units.map((u) => [u.id, u]))
+  let cur: string | undefined = newParentId
+  const seen = new Set<string>()
+  while (cur) {
+    if (cur === unitId) return true
+    if (seen.has(cur)) return true
+    seen.add(cur)
+    cur = byId.get(cur)?.parentVehicleId
+  }
+  return false
+}
+
+function resolveParentId(
+  unitId: string | undefined,
+  requested: string | undefined,
+  units: HardwareUnit[],
+) {
+  const parentId = requested?.trim() || undefined
+  if (!parentId) return undefined
+  if (unitId && parentId === unitId) return undefined
+  if (!units.some((u) => u.id === parentId)) return undefined
+  if (unitId && wouldCreateParentCycle(unitId, parentId, units)) return undefined
+  return parentId
+}
+
+function HardwareTreeNodes({
+  node,
+  depth,
+  selectedId,
+  onOpen,
+}: {
+  node: HardwareTreeNode
+  depth: number
+  selectedId: string | null
+  onOpen: (id: string) => void
+}) {
+  const { unit, children } = node
+  const nested = depth > 0
+  return (
+    <li className={nested ? undefined : 'hw-vehicle-group'}>
+      <button
+        type="button"
+        className="simple-list-row"
+        data-nested={nested ? 'true' : undefined}
+        data-depth={nested ? String(Math.min(depth, 4)) : undefined}
+        data-selected={selectedId === unit.id ? 'true' : 'false'}
+        onClick={() => onOpen(unit.id)}
+      >
+        <span>
+          <strong>{unit.name}</strong>
+          <span className="simple-muted">
+            {unit.serial} · {HARDWARE_KIND_LABELS[unit.kind]}
+            {children.length > 0 ? ` · ${children.length} linked` : ''}
+          </span>
+        </span>
+        <span
+          className="status-badge"
+          data-kind="hardware"
+          data-status={unit.status}
+        >
+          {HARDWARE_STATUS_LABELS[unit.status]}
+        </span>
+      </button>
+      {children.length > 0 ? (
+        <ul className="hw-child-list">
+          {children.map((child) => (
+            <HardwareTreeNodes
+              key={child.unit.id}
+              node={child}
+              depth={depth + 1}
+              selectedId={selectedId}
+              onOpen={onOpen}
+            />
+          ))}
+        </ul>
+      ) : null}
+    </li>
   )
 }
 

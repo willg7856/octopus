@@ -220,8 +220,8 @@ export interface HardwareUnit {
   /** Inventory optional unit price (AUD) for value estimates. */
   unitPrice?: number
   /**
-   * Hardware: parent vehicle this unit mounts to (subsystems / motors / avionics).
-   * Usually a `kind: 'vehicle'` unit id.
+   * Hardware: parent unit this mounts under (vehicle, engine, subsystem, etc.).
+   * Field name kept for stored lab compatibility.
    */
   parentVehicleId?: string
   location?: string
