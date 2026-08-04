@@ -27,11 +27,11 @@ Set these Vercel env vars on the `octopus` project:
 - `OPS_PASSWORD` — shared team password (fallback when a user has no personal password)
 - `AUTH_SECRET` — random string used to sign session cookies
 - `OPS_USERS` — comma-separated allowed emails (bootstrap / break-glass). If empty **and** no shared Team list yet, any email + correct password works
-- `OPS_ADMINS` — comma-separated admin emails. **Required** to see and edit **Team** (accounts + passwords). Non-admins do not see the Team nav.
+- `OPS_ADMINS` — optional comma-separated admin emails for **Team**. If unset, bootstrap admins are `willg7856@gmail.com` and `will.grant@beyondstagezero.com`. Non-admins do not see the Team nav.
 
 ### Team accounts (in-app)
 
-**Team** is admin-only (`OPS_ADMINS`). Admins see it in the nav and can:
+**Team** is admin-only (`OPS_ADMINS`, or the built-in bootstrap admins). Admins see it in the nav and can:
 
 - Copy an invite (ops URL + sign-in instructions)
 - Add / remove teammate emails on the shared allowlist

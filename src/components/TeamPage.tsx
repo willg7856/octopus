@@ -268,8 +268,8 @@ export function TeamPage({ user: _user }: { user: AuthUser | null }) {
               </form>
             ) : (
               <p className="simple-muted">
-                Team is admin-only. Add your email to `OPS_ADMINS` in Vercel to
-                manage accounts.
+                Team is admin-only. Sign in with an admin email, or set
+                `OPS_ADMINS` in Vercel.
               </p>
             )}
 

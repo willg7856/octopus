@@ -341,25 +341,30 @@ export async function effectiveAllowlist(): Promise<string[]> {
   return normalizeEmails([...env, ...shared.users])
 }
 
+/** Fallback admins when OPS_ADMINS env is unset. */
+const BOOTSTRAP_ADMINS = [
+  'willg7856@gmail.com',
+  'will.grant@beyondstagezero.com',
+]
+
 export function envAdmins(): string[] {
-  return normalizeEmails(
+  const fromEnv = normalizeEmails(
     (readEnv('OPS_ADMINS') || '')
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
   )
+  if (fromEnv.length > 0) return fromEnv
+  return normalizeEmails(BOOTSTRAP_ADMINS)
 }
 
 /**
  * Who can view and manage Team accounts.
- * Only emails listed in OPS_ADMINS. If OPS_ADMINS is empty, nobody is admin
- * (set at least one admin email in Vercel env).
+ * Uses OPS_ADMINS when set; otherwise the built-in bootstrap admin emails.
  */
 export function canManageAccounts(email: string | undefined): boolean {
   if (!email) return false
-  const admins = envAdmins()
-  if (admins.length === 0) return false
-  return admins.includes(normalizeEmail(email))
+  return envAdmins().includes(normalizeEmail(email))
 }
 
 export function isEnvLockedEmail(email: string) {
