@@ -4352,10 +4352,30 @@ button.simple-list-row {
 .status-badge[data-kind='stock'][data-status='depleted'],
 .status-badge[data-kind='hardware'][data-status='retired'],
 .status-badge[data-kind='hardware'][data-status='concept'],
-.status-badge[data-kind='hardware'][data-status='design'] {
+.status-badge[data-kind='hardware'][data-status='design'],
+.status-badge[data-kind='process'][data-status='pending'],
+.status-badge[data-kind='process'][data-status='skipped'] {
   border-color: var(--line-strong);
   color: var(--fg-muted);
   background: color-mix(in srgb, var(--fg-muted) 6%, transparent);
+}
+
+.status-badge[data-kind='process'][data-status='active'] {
+  border-color: color-mix(in srgb, var(--telem-cyan) 45%, var(--line));
+  color: var(--telem-cyan);
+  background: color-mix(in srgb, var(--telem-cyan) 10%, transparent);
+}
+
+.status-badge[data-kind='process'][data-status='done'] {
+  border-color: color-mix(in srgb, var(--telem-green) 45%, var(--line));
+  color: var(--telem-green);
+  background: color-mix(in srgb, var(--telem-green) 10%, transparent);
+}
+
+.status-badge[data-kind='process'][data-status='blocked'] {
+  border-color: color-mix(in srgb, var(--telem-red) 45%, var(--line));
+  color: var(--telem-red);
+  background: color-mix(in srgb, var(--telem-red) 10%, transparent);
 }
 
 .simple-list-row[data-selected='true'] {
@@ -4868,12 +4888,31 @@ button.simple-list-row {
   margin: 0;
 }
 
-.prod-buttons {
+.prod-suggested {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.prod-suggested > .simple-muted {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.prod-suggested-list {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0.15rem 0 1rem;
+  gap: 0.35rem;
+}
+
+.prod-suggested-list .btn {
+  font-size: 0.88rem;
+}
+
+.prod-buttons {
+  display: none;
 }
 
 .prod-btn {
@@ -4958,7 +4997,10 @@ button.simple-list-row {
 }
 
 .prod-panel {
-  animation: rise 0.32s var(--ease) both;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .team-panel {
@@ -5262,10 +5304,10 @@ button.simple-list-row {
 
 .prod-create,
 .prod-edit-step {
-  max-width: 28rem;
+  max-width: none;
   margin-bottom: 1rem;
-  padding: 0.85rem 0 0.25rem;
-  border-top: 1px solid var(--line);
+  padding: 0;
+  border-top: 0;
 }
 
 .prod-edit-step {

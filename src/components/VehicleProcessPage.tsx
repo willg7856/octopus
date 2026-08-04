@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
@@ -39,6 +39,8 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const [creating, setCreating] = useState(false)
   const [editingSteps, setEditingSteps] = useState(false)
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [mobileMode, setMobileMode] = useState<'list' | 'detail'>('list')
 
   const units = useMemo(() => sortUnits(lab.units), [lab.units])
   const systemUnits = useMemo(
@@ -46,8 +48,26 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     [units],
   )
   const processes = useMemo(() => sortProcesses(lab.processes), [lab.processes])
+  const unitNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const u of units) map.set(u.id, u.name)
+    return map
+  }, [units])
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return processes
+    return processes.filter((p) => {
+      const vehicleName = unitNameById.get(p.vehicleUnitId)
+      return [p.name, vehicleName, ...p.steps.map((s) => s.title)]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
+    })
+  }, [processes, query, unitNameById])
   const selected =
-    processes.find((p) => p.id === selectedId) ?? processes[0] ?? null
+    processes.find((p) => p.id === selectedId) ??
+    (mobileMode === 'detail' || creating ? null : filtered[0] ?? null)
   const selectedVehicle = selected
     ? units.find((u) => u.id === selected.vehicleUnitId)
     : null
@@ -62,9 +82,20 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     [processes],
   )
 
-  useEffect(() => {
-    if (!selectedId && processes[0]) setSelectedId(processes[0].id)
-  }, [processes, selectedId])
+  function openDetail(id: string | null, isCreating = false) {
+    setCreating(isCreating)
+    setSelectedId(id)
+    setEditingStepId(null)
+    if (!isCreating) setEditingSteps(false)
+    setMobileMode('detail')
+  }
+
+  function backToList() {
+    setCreating(false)
+    setEditingSteps(false)
+    setEditingStepId(null)
+    setMobileMode('list')
+  }
 
   function updateStep(
     processId: string,
@@ -272,7 +303,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       }
     }, 'Production created')
     setCreating(false)
-    setSelectedId(processId)
+    openDetail(processId)
   }
 
   async function removeProduction(processId: string) {
@@ -280,7 +311,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     if (!process) return
     const ok = await confirm(`Remove “${process.name}” tracker?`)
     if (!ok) return
-    const remaining = lab.processes.filter((p) => p.id !== processId)
     void store.commit(
       (prev) => ({
         ...prev,
@@ -288,9 +318,10 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       }),
       'Removed',
     )
-    setSelectedId(remaining[0]?.id ?? null)
+    setSelectedId(null)
     setEditingSteps(false)
     setEditingStepId(null)
+    setMobileMode('list')
   }
 
   const completion = selected ? processCompletion(selected) : null
@@ -308,7 +339,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
         <div>
           <h2>Production</h2>
           <p className="simple-muted">
-            Vehicle build & checkout trackers for the Goods Shed.
+            Vehicle build & checkout trackers — steps, blockers, linked hardware.
           </p>
         </div>
         <div className="simple-head-actions">
@@ -321,6 +352,13 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
             lab={lab}
             onRefresh={() => void store.refresh({ quiet: true })}
           />
+          <button
+            type="button"
+            className="btn btn-accent"
+            onClick={() => openDetail(null, true)}
+          >
+            New production
+          </button>
         </div>
       </header>
 
@@ -336,60 +374,70 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       ) : null}
 
       {sync === 'loading' ? (
-        <p className="simple-muted">Loading team lab…</p>
+        <p className="simple-muted">Loading…</p>
       ) : (
-        <>
-          <div className="prod-buttons" role="toolbar" aria-label="Productions">
-            {processes.map((process) => {
-              const { done, total } = processCompletion(process)
-              return (
-                <button
-                  key={process.id}
-                  type="button"
-                  className="prod-btn"
-                  aria-pressed={selected?.id === process.id}
-                  onClick={() => {
-                    setCreating(false)
-                    setEditingStepId(null)
-                    setSelectedId(process.id)
-                  }}
-                >
-                  <span className="prod-btn-label">{shortName(process.name)}</span>
-                  {total > 0 ? (
-                    <span className="prod-btn-meta">
-                      {done}/{total}
-                    </span>
-                  ) : null}
-                </button>
-              )
-            })}
-
-            {processes.length === 0 &&
-              missingRecommended.map((rec) => (
-                <button
-                  key={rec.name}
-                  type="button"
-                  className="prod-btn prod-btn-add"
-                  onClick={() =>
-                    createProduction({
-                      name: rec.name,
-                      vehicleName: rec.vehicleName,
-                    })
-                  }
-                >
-                  <span className="prod-btn-label">+ {shortName(rec.name)}</span>
-                </button>
-              ))}
-
-            {processes.length > 0 && missingRecommended.length > 0 ? (
-              <details className="prod-more">
-                <summary>Add suggested</summary>
-                <div className="prod-more-list">
+        <div className="simple-split" data-mode={mobileMode}>
+          <section className="simple-list-panel">
+            <input
+              className="simple-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search…"
+              aria-label="Search productions"
+            />
+            <ul className="simple-list">
+              {filtered.map((process) => {
+                const { done, total } = processCompletion(process)
+                const glance = processGlanceStatus(process)
+                const vehicleName =
+                  unitNameById.get(process.vehicleUnitId) ?? 'Vehicle'
+                return (
+                  <li key={process.id}>
+                    <button
+                      type="button"
+                      className="simple-list-row"
+                      data-selected={
+                        !creating && selected?.id === process.id
+                          ? 'true'
+                          : 'false'
+                      }
+                      onClick={() => openDetail(process.id)}
+                    >
+                      <span>
+                        <strong>{shortName(process.name)}</strong>
+                        <span className="simple-muted">
+                          {vehicleName}
+                          {total > 0 ? ` · ${done}/${total} done` : ''}
+                        </span>
+                      </span>
+                      <span
+                        className="status-badge"
+                        data-kind="process"
+                        data-status={glance}
+                      >
+                        {PROCESS_STEP_STATUS_LABELS[glance]}
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+              {filtered.length === 0 ? (
+                <li className="simple-muted">
+                  {query.trim()
+                    ? 'No productions match that search.'
+                    : 'No production trackers yet — add one to start.'}
+                </li>
+              ) : null}
+            </ul>
+            {!query.trim() && missingRecommended.length > 0 ? (
+              <div className="prod-suggested">
+                <p className="simple-muted">Suggested</p>
+                <div className="prod-suggested-list">
                   {missingRecommended.map((rec) => (
                     <button
                       key={rec.name}
                       type="button"
-                      className="prod-btn prod-btn-add"
+                      className="btn btn-ghost"
                       onClick={() =>
                         createProduction({
                           name: rec.name,
@@ -397,275 +445,273 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                         })
                       }
                     >
-                      <span className="prod-btn-label">+ {shortName(rec.name)}</span>
+                      + {shortName(rec.name)}
                     </button>
                   ))}
                 </div>
-              </details>
+              </div>
             ) : null}
+          </section>
 
+          <section className="simple-detail">
             <button
               type="button"
-              className="btn btn-accent"
-              onClick={() => setCreating((v) => !v)}
+              className="btn btn-ghost simple-back"
+              onClick={backToList}
             >
-              {creating ? 'Cancel' : 'New production'}
+              ← Back to list
             </button>
-          </div>
-
-          {creating ? (
-            <NewProductionForm
-              onCreate={createProduction}
-              onCancel={() => setCreating(false)}
-            />
-          ) : null}
-
-          {selected ? (
-            <section className="prod-panel" aria-label={selected.name}>
-              <div className="prod-detail-head">
-                <div>
-                  <h3>{selected.name}</h3>
-                  <p className="simple-muted">
-                    {selectedVehicle?.name ?? 'Vehicle'}
-                    {activeStep ? ` · Active: ${activeStep.title}` : ''}
-                    {blockedCount > 0 ? ` · ${blockedCount} blocked` : ''}
-                  </p>
-                </div>
-                <div className="prod-detail-actions">
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    aria-pressed={editingSteps}
-                    onClick={() => {
-                      setEditingSteps((v) => !v)
-                      setEditingStepId(null)
-                    }}
-                  >
-                    {editingSteps ? 'Done editing' : 'Edit steps'}
-                  </button>
-                  {editingSteps ? (
+            {creating ? (
+              <NewProductionForm
+                onCreate={createProduction}
+                onCancel={backToList}
+              />
+            ) : selected ? (
+              <section className="prod-panel" aria-label={selected.name}>
+                <div className="prod-detail-head">
+                  <div>
+                    <h3>{selected.name}</h3>
+                    <p className="simple-muted">
+                      {selectedVehicle?.name ?? 'Vehicle'}
+                      {activeStep ? ` · Active: ${activeStep.title}` : ''}
+                      {blockedCount > 0 ? ` · ${blockedCount} blocked` : ''}
+                    </p>
+                  </div>
+                  <div className="prod-detail-actions">
                     <button
                       type="button"
                       className="btn btn-ghost"
-                      onClick={() => removeProduction(selected.id)}
+                      aria-pressed={editingSteps}
+                      onClick={() => {
+                        setEditingSteps((v) => !v)
+                        setEditingStepId(null)
+                      }}
                     >
-                      Delete tracker
+                      {editingSteps ? 'Done editing' : 'Edit steps'}
                     </button>
-                  ) : null}
-                </div>
-              </div>
-
-              {editingSteps ? (
-                <label className="simple-form" style={{ maxWidth: '28rem' }}>
-                  Linked Hardware vehicle
-                  <select
-                    value={selected.vehicleUnitId}
-                    onChange={(e) =>
-                      setVehicleUnit(selected.id, e.target.value)
-                    }
-                  >
-                    {systemUnits.map((unit) => (
-                      <option key={unit.id} value={unit.id}>
-                        {unit.name} ({HARDWARE_KIND_LABELS[unit.kind]})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-
-              {completion && completion.total > 0 ? (
-                <div className="prod-progress" aria-hidden="true">
-                  <div className="prod-progress-bar">
-                    <span style={{ width: `${progressPct}%` }} />
+                    {editingSteps ? (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => removeProduction(selected.id)}
+                      >
+                        Delete tracker
+                      </button>
+                    ) : null}
                   </div>
-                  <span className="prod-progress-label">
-                    {completion.done}/{completion.total} done · {progressPct}%
-                  </span>
                 </div>
-              ) : null}
 
-              <ol className="simple-step-list">
-                {steps.map((step, index) => {
-                  const isEditing = editingStepId === step.id
-                  const linked = (step.linkedUnitIds ?? [])
-                    .map((id) => units.find((u) => u.id === id))
-                    .filter(Boolean) as HardwareUnit[]
-                  return (
-                    <li
-                      key={step.id}
-                      className="simple-step"
-                      data-status={step.status}
+                {editingSteps ? (
+                  <label className="simple-form" style={{ maxWidth: '28rem' }}>
+                    Linked Hardware vehicle
+                    <select
+                      value={selected.vehicleUnitId}
+                      onChange={(e) =>
+                        setVehicleUnit(selected.id, e.target.value)
+                      }
                     >
-                      {isEditing ? (
-                        <EditStepForm
-                          step={step}
-                          units={systemUnits}
-                          onSave={(patch) =>
-                            editStep(selected.id, step.id, patch)
-                          }
-                          onCancel={() => setEditingStepId(null)}
-                        />
-                      ) : (
-                        <>
-                          <div className="simple-step-top">
-                            <span className="simple-step-title">
-                              <strong>
-                                <span className="prod-step-num">{step.order}</span>
-                                {step.title}
-                              </strong>
-                              {step.detail ? (
-                                <span className="simple-muted">{step.detail}</span>
-                              ) : null}
-                              {linked.length > 0 ? (
-                                <span className="simple-muted">
-                                  Hardware:{' '}
-                                  {linked.map((u) => u.name).join(', ')}
-                                </span>
-                              ) : null}
-                              {step.status === 'done' && step.completedBy ? (
-                                <span className="prod-step-meta">
-                                  Done · {step.completedBy}
-                                  {step.completedAt
-                                    ? ` · ${formatWhen(step.completedAt)}`
-                                    : ''}
-                                </span>
-                              ) : null}
-                              {step.status === 'blocked' && step.blockedReason ? (
-                                <span className="prod-step-meta prod-step-blocked">
-                                  Blocked · {step.blockedReason}
-                                </span>
-                              ) : null}
-                            </span>
-                            {editingSteps ? (
-                              <div className="prod-step-actions">
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost"
-                                  aria-label={`Move ${step.title} up`}
-                                  disabled={index === 0}
-                                  onClick={() =>
-                                    moveStep(selected.id, step.id, -1)
-                                  }
-                                >
-                                  Up
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost"
-                                  aria-label={`Move ${step.title} down`}
-                                  disabled={index === steps.length - 1}
-                                  onClick={() =>
-                                    moveStep(selected.id, step.id, 1)
-                                  }
-                                >
-                                  Down
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost"
-                                  onClick={() => setEditingStepId(step.id)}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost"
-                                  onClick={() =>
-                                    deleteStep(selected.id, step.id)
-                                  }
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            ) : (
-                              <span
-                                className="prod-step-badge"
-                                data-status={step.status}
-                              >
-                                {PROCESS_STEP_STATUS_LABELS[step.status]}
+                      {systemUnits.map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          {unit.name} ({HARDWARE_KIND_LABELS[unit.kind]})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+
+                {completion && completion.total > 0 ? (
+                  <div className="prod-progress" aria-hidden="true">
+                    <div className="prod-progress-bar">
+                      <span style={{ width: `${progressPct}%` }} />
+                    </div>
+                    <span className="prod-progress-label">
+                      {completion.done}/{completion.total} done · {progressPct}%
+                    </span>
+                  </div>
+                ) : null}
+
+                <ol className="simple-step-list">
+                  {steps.map((step, index) => {
+                    const isEditing = editingStepId === step.id
+                    const linked = (step.linkedUnitIds ?? [])
+                      .map((id) => units.find((u) => u.id === id))
+                      .filter(Boolean) as HardwareUnit[]
+                    return (
+                      <li
+                        key={step.id}
+                        className="simple-step"
+                        data-status={step.status}
+                      >
+                        {isEditing ? (
+                          <EditStepForm
+                            step={step}
+                            units={systemUnits}
+                            onSave={(patch) =>
+                              editStep(selected.id, step.id, patch)
+                            }
+                            onCancel={() => setEditingStepId(null)}
+                          />
+                        ) : (
+                          <>
+                            <div className="simple-step-top">
+                              <span className="simple-step-title">
+                                <strong>
+                                  <span className="prod-step-num">
+                                    {step.order}
+                                  </span>
+                                  {step.title}
+                                </strong>
+                                {step.detail ? (
+                                  <span className="simple-muted">
+                                    {step.detail}
+                                  </span>
+                                ) : null}
+                                {linked.length > 0 ? (
+                                  <span className="simple-muted">
+                                    Hardware:{' '}
+                                    {linked.map((u) => u.name).join(', ')}
+                                  </span>
+                                ) : null}
+                                {step.status === 'done' && step.completedBy ? (
+                                  <span className="prod-step-meta">
+                                    Done · {step.completedBy}
+                                    {step.completedAt
+                                      ? ` · ${formatWhen(step.completedAt)}`
+                                      : ''}
+                                  </span>
+                                ) : null}
+                                {step.status === 'blocked' &&
+                                step.blockedReason ? (
+                                  <span className="prod-step-meta prod-step-blocked">
+                                    Blocked · {step.blockedReason}
+                                  </span>
+                                ) : null}
                               </span>
-                            )}
-                          </div>
+                              {editingSteps ? (
+                                <div className="prod-step-actions">
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost"
+                                    aria-label={`Move ${step.title} up`}
+                                    disabled={index === 0}
+                                    onClick={() =>
+                                      moveStep(selected.id, step.id, -1)
+                                    }
+                                  >
+                                    Up
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost"
+                                    aria-label={`Move ${step.title} down`}
+                                    disabled={index === steps.length - 1}
+                                    onClick={() =>
+                                      moveStep(selected.id, step.id, 1)
+                                    }
+                                  >
+                                    Down
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost"
+                                    onClick={() => setEditingStepId(step.id)}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost"
+                                    onClick={() =>
+                                      deleteStep(selected.id, step.id)
+                                    }
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              ) : (
+                                <span
+                                  className="status-badge"
+                                  data-kind="process"
+                                  data-status={step.status}
+                                >
+                                  {PROCESS_STEP_STATUS_LABELS[step.status]}
+                                </span>
+                              )}
+                            </div>
 
-                          <div
-                            className="prod-status-row"
-                            role="group"
-                            aria-label={`${step.title} status`}
-                          >
-                            {QUICK_STATUSES.map((status) => (
-                              <button
-                                key={status}
-                                type="button"
-                                className="prod-status-btn"
-                                data-status={status}
-                                aria-pressed={step.status === status}
-                                onClick={() =>
-                                  updateStep(selected.id, step.id, status)
-                                }
-                              >
-                                {PROCESS_STEP_STATUS_LABELS[status]}
-                              </button>
-                            ))}
-                            {MORE_STATUSES.map((status) => (
-                              <button
-                                key={status}
-                                type="button"
-                                className="prod-status-btn prod-status-btn-quiet"
-                                data-status={status}
-                                aria-pressed={step.status === status}
-                                onClick={() =>
-                                  updateStep(selected.id, step.id, status)
-                                }
-                              >
-                                {PROCESS_STEP_STATUS_LABELS[status]}
-                              </button>
-                            ))}
-                          </div>
-
-                          {step.status === 'blocked' ? (
-                            <label className="prod-block-reason">
-                              Why blocked?
-                              <input
-                                key={`${step.id}-block`}
-                                defaultValue={step.blockedReason ?? ''}
-                                placeholder="Waiting on hardware, weather, review…"
-                                onBlur={(e) => {
-                                  const next = e.target.value.trim()
-                                  if (next !== (step.blockedReason ?? '')) {
-                                    setBlockedReason(
-                                      selected.id,
-                                      step.id,
-                                      next,
-                                    )
+                            <div
+                              className="prod-status-row"
+                              role="group"
+                              aria-label={`${step.title} status`}
+                            >
+                              {QUICK_STATUSES.map((status) => (
+                                <button
+                                  key={status}
+                                  type="button"
+                                  className="prod-status-btn"
+                                  data-status={status}
+                                  aria-pressed={step.status === status}
+                                  onClick={() =>
+                                    updateStep(selected.id, step.id, status)
                                   }
-                                }}
-                              />
-                            </label>
-                          ) : null}
-                        </>
-                      )}
-                    </li>
-                  )
-                })}
-              </ol>
+                                >
+                                  {PROCESS_STEP_STATUS_LABELS[status]}
+                                </button>
+                              ))}
+                              {MORE_STATUSES.map((status) => (
+                                <button
+                                  key={status}
+                                  type="button"
+                                  className="prod-status-btn prod-status-btn-quiet"
+                                  data-status={status}
+                                  aria-pressed={step.status === status}
+                                  onClick={() =>
+                                    updateStep(selected.id, step.id, status)
+                                  }
+                                >
+                                  {PROCESS_STEP_STATUS_LABELS[status]}
+                                </button>
+                              ))}
+                            </div>
 
-              {editingSteps || steps.length === 0 ? (
-                <AddStepForm
-                  onAdd={(title) => addStep(selected.id, title)}
-                />
-              ) : null}
-            </section>
-          ) : (
-            <div className="prod-empty">
-              <p>
-                No production trackers yet. Create{' '}
-                <strong>B1M</strong>, <strong>TVC</strong>,{' '}
-                <strong>STRAVOX</strong>, or <strong>100M hopper</strong> above,
-                or start a new one.
+                            {step.status === 'blocked' ? (
+                              <label className="prod-block-reason">
+                                Why blocked?
+                                <input
+                                  key={`${step.id}-block`}
+                                  defaultValue={step.blockedReason ?? ''}
+                                  placeholder="Waiting on hardware, weather, review…"
+                                  onBlur={(e) => {
+                                    const next = e.target.value.trim()
+                                    if (next !== (step.blockedReason ?? '')) {
+                                      setBlockedReason(
+                                        selected.id,
+                                        step.id,
+                                        next,
+                                      )
+                                    }
+                                  }}
+                                />
+                              </label>
+                            ) : null}
+                          </>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ol>
+
+                {editingSteps || steps.length === 0 ? (
+                  <AddStepForm onAdd={(title) => addStep(selected.id, title)} />
+                ) : null}
+              </section>
+            ) : (
+              <p className="simple-muted">
+                Select a production or create a new one.
               </p>
-            </div>
-          )}
-        </>
+            )}
+          </section>
+        </div>
       )}
 
       {toast ? (
@@ -680,6 +726,16 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
 
 function shortName(name: string) {
   return name.replace(/\s+production\s*$/i, '').trim() || name
+}
+
+function processGlanceStatus(process: VehicleProcess): ProcessStepStatus {
+  const steps = process.steps
+  if (steps.some((s) => s.status === 'blocked')) return 'blocked'
+  if (steps.some((s) => s.status === 'active')) return 'active'
+  if (steps.length > 0 && steps.every((s) => s.status === 'done' || s.status === 'skipped')) {
+    return 'done'
+  }
+  return 'pending'
 }
 
 function formatWhen(iso: string) {
