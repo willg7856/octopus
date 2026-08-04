@@ -21,7 +21,7 @@ const emptyAccess: AccessSnapshot = {
   openAccess: true,
 }
 
-export function TeamPage({ user }: { user: AuthUser | null }) {
+export function TeamPage({ user: _user }: { user: AuthUser | null }) {
   const { confirm, dialog: confirmDialog } = useConfirm()
   const [access, setAccess] = useState<AccessSnapshot>(emptyAccess)
   const [loading, setLoading] = useState(true)
@@ -181,7 +181,7 @@ export function TeamPage({ user }: { user: AuthUser | null }) {
         <div>
           <h2>Team</h2>
           <p className="simple-muted">
-            Share Octopus with teammates and manage who can sign in.
+            Admin-only — manage who can sign in and set personal passwords.
           </p>
         </div>
       </header>
@@ -268,8 +268,8 @@ export function TeamPage({ user }: { user: AuthUser | null }) {
               </form>
             ) : (
               <p className="simple-muted">
-                You’re signed in as {user?.email ?? 'a teammate'}. Account edits
-                need admin access (`OPS_ADMINS`).
+                Team is admin-only. Add your email to `OPS_ADMINS` in Vercel to
+                manage accounts.
               </p>
             )}
 

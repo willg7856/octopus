@@ -72,7 +72,11 @@ export async function login(
       .split('@')[0]
       .replace(/[._-]+/g, ' ')
       .replace(/\b\w/g, (c) => c.toUpperCase())
-    const user = { email: email.trim().toLowerCase(), name }
+    const user = {
+      email: email.trim().toLowerCase(),
+      name,
+      canManageAccounts: true,
+    }
     sessionStorage.setItem(LOCAL_KEY, JSON.stringify(user))
     return { user }
   }

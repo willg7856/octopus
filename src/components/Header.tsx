@@ -28,6 +28,9 @@ export function Header({
   onViewChange,
 }: HeaderProps) {
   const nextLabel = theme === 'light' ? 'Dark' : 'Light'
+  const nav = NAV.filter(
+    (item) => item.id !== 'team' || Boolean(user?.canManageAccounts),
+  )
 
   return (
     <header className="header header-simple">
@@ -43,7 +46,7 @@ export function Header({
           </span>
         </button>
         <nav className="view-nav" aria-label="Sections">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <button
               key={item.id}
               type="button"

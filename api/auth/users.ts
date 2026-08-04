@@ -40,8 +40,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (req.method === 'GET') {
+      if (!canManageAccounts(session.email)) {
+        res.status(403).json({ error: 'Admin access required' })
+        return
+      }
       res.status(200).json({
-        canManage: canManageAccounts(session.email),
+        canManage: true,
         ...(await snapshot()),
       })
       return

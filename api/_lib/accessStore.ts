@@ -351,14 +351,14 @@ export function envAdmins(): string[] {
 }
 
 /**
- * Who can manage the shared account list.
- * - If OPS_ADMINS is set, only those emails.
- * - If empty, any signed-in teammate can manage (small-team shared-password model).
+ * Who can view and manage Team accounts.
+ * Only emails listed in OPS_ADMINS. If OPS_ADMINS is empty, nobody is admin
+ * (set at least one admin email in Vercel env).
  */
 export function canManageAccounts(email: string | undefined): boolean {
   if (!email) return false
   const admins = envAdmins()
-  if (admins.length === 0) return true
+  if (admins.length === 0) return false
   return admins.includes(normalizeEmail(email))
 }
 

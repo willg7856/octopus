@@ -54,6 +54,12 @@ export default function App() {
     navigateHash(view)
   }, [view])
 
+  useEffect(() => {
+    if (view === 'team' && user && !user.canManageAccounts) {
+      setView('inventory')
+    }
+  }, [view, user])
+
   function handleToggleTheme() {
     setTheme((t) => (t === 'light' ? 'dark' : 'light'))
   }
@@ -112,7 +118,9 @@ export default function App() {
           {view === 'inventory' ? <InventoryPage user={user} /> : null}
           {view === 'hardware' ? <HardwarePage user={user} /> : null}
           {view === 'vehicles' ? <VehicleProcessPage user={user} /> : null}
-          {view === 'team' ? <TeamPage user={user} /> : null}
+          {view === 'team' && user?.canManageAccounts ? (
+            <TeamPage user={user} />
+          ) : null}
         </div>
       </div>
     </div>
