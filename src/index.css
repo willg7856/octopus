@@ -4867,6 +4867,32 @@ button.simple-list-row {
   border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
 }
 
+.hw-test-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.hw-test-top > span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.hw-test-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.hw-test-actions .btn {
+  min-height: 2.1rem;
+  padding: 0.35rem 0.65rem;
+}
+
 .hw-link-units {
   display: flex;
   flex-direction: column;

@@ -46,6 +46,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
+  const [editingTestId, setEditingTestId] = useState<string | null>(null)
   const [mobileMode, setMobileMode] = useState<'list' | 'detail'>('list')
 
   const units = useMemo(
@@ -99,6 +100,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
   function openDetail(id: string | null, isAdding = false) {
     setAdding(isAdding)
     setSelectedId(id)
+    setEditingTestId(null)
     setMobileMode('detail')
   }
 
@@ -203,6 +205,55 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
       }),
       'Test logged',
     )
+  }
+
+  function editTest(
+    testId: string,
+    input: {
+      title: string
+      kind: TestKind
+      result: TestResult
+      summary: string
+      site?: string
+      date?: string
+    },
+  ) {
+    if (!input.title.trim() || !input.summary.trim()) return
+    void store.commit(
+      (prev) => ({
+        ...prev,
+        tests: prev.tests.map((t) =>
+          t.id === testId
+            ? {
+                ...t,
+                title: input.title.trim(),
+                kind: input.kind,
+                result: input.result,
+                summary: input.summary.trim(),
+                site: input.site?.trim() || undefined,
+                date: input.date?.trim() || t.date,
+              }
+            : t,
+        ),
+      }),
+      'Test updated',
+    )
+    setEditingTestId(null)
+  }
+
+  async function deleteTest(testId: string) {
+    const test = lab.tests.find((t) => t.id === testId)
+    if (!test) return
+    const ok = await confirm(`Delete test “${test.title}”?`)
+    if (!ok) return
+    void store.commit(
+      (prev) => ({
+        ...prev,
+        tests: prev.tests.filter((t) => t.id !== testId),
+      }),
+      'Test deleted',
+    )
+    if (editingTestId === testId) setEditingTestId(null)
   }
 
   async function removeUnit(id: string) {
@@ -371,21 +422,62 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                     <p className="simple-muted">No tests logged for this unit.</p>
                   ) : (
                     <ul className="hw-tests-list">
-                      {unitTests.slice(0, 12).map((test) => (
-                        <li key={test.id}>
-                          <strong>
-                            {test.date} · {test.title}
-                          </strong>
-                          <span className="simple-muted">
-                            {TEST_KIND_LABELS[test.kind]} ·{' '}
-                            {TEST_RESULT_LABELS[test.result]}
-                            {test.summary ? ` — ${test.summary}` : ''}
-                          </span>
-                        </li>
-                      ))}
+                      {unitTests.slice(0, 12).map((test) => {
+                        const isEditing = editingTestId === test.id
+                        return (
+                          <li key={test.id}>
+                            {isEditing ? (
+                              <TestForm
+                                key={`edit-${test.id}`}
+                                initial={test}
+                                submitLabel="Save test"
+                                onSave={(input) => editTest(test.id, input)}
+                                onCancel={() => setEditingTestId(null)}
+                              />
+                            ) : (
+                              <>
+                                <div className="hw-test-top">
+                                  <span>
+                                    <strong>
+                                      {test.date} · {test.title}
+                                    </strong>
+                                    <span className="simple-muted">
+                                      {TEST_KIND_LABELS[test.kind]} ·{' '}
+                                      {TEST_RESULT_LABELS[test.result]}
+                                      {test.summary ? ` — ${test.summary}` : ''}
+                                      {test.site ? ` · ${test.site}` : ''}
+                                      {test.operator
+                                        ? ` · ${test.operator}`
+                                        : ''}
+                                    </span>
+                                  </span>
+                                  <div className="hw-test-actions">
+                                    <button
+                                      type="button"
+                                      className="btn btn-ghost"
+                                      onClick={() => setEditingTestId(test.id)}
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn btn-ghost"
+                                      onClick={() => void deleteTest(test.id)}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </li>
+                        )
+                      })}
                     </ul>
                   )}
-                  <AddTestForm onAdd={addTest} />
+                  {editingTestId ? null : (
+                    <TestForm submitLabel="Add test" onSave={addTest} />
+                  )}
                 </section>
               </>
             ) : (
@@ -811,39 +903,60 @@ function HardwareTreeNodes({
   )
 }
 
-function AddTestForm({
-  onAdd,
+function TestForm({
+  initial,
+  submitLabel,
+  onSave,
+  onCancel,
   disabled,
 }: {
-  onAdd: (input: {
+  initial?: TestLogEntry
+  submitLabel: string
+  onSave: (input: {
     title: string
     kind: TestKind
     result: TestResult
     summary: string
     site?: string
+    date?: string
   }) => void
+  onCancel?: () => void
   disabled?: boolean
 }) {
-  const [title, setTitle] = useState('')
-  const [kind, setKind] = useState<TestKind>('ground')
-  const [result, setResult] = useState<TestResult>('pass')
-  const [summary, setSummary] = useState('')
-  const [site, setSite] = useState('')
+  const isEdit = Boolean(initial)
+  const [title, setTitle] = useState(initial?.title ?? '')
+  const [kind, setKind] = useState<TestKind>(initial?.kind ?? 'ground')
+  const [result, setResult] = useState<TestResult>(initial?.result ?? 'pass')
+  const [summary, setSummary] = useState(initial?.summary ?? '')
+  const [site, setSite] = useState(initial?.site ?? '')
+  const [date, setDate] = useState(initial?.date ?? '')
 
   return (
     <form
       className="simple-form"
-      style={{ marginTop: '0.85rem' }}
+      style={{ marginTop: isEdit ? 0 : '0.85rem' }}
       onSubmit={(e) => {
         e.preventDefault()
         if (!title.trim() || !summary.trim() || disabled) return
-        onAdd({ title, kind, result, summary, site })
-        setTitle('')
-        setSummary('')
-        setSite('')
+        onSave({
+          title,
+          kind,
+          result,
+          summary,
+          site,
+          date: date || undefined,
+        })
+        if (!isEdit) {
+          setTitle('')
+          setSummary('')
+          setSite('')
+          setDate('')
+        }
       }}
     >
-      <p className="simple-muted">Log a test against this unit.</p>
+      <p className="simple-muted">
+        {isEdit ? 'Edit this test log.' : 'Log a test against this unit.'}
+      </p>
       <label>
         Title
         <input
@@ -854,6 +967,17 @@ function AddTestForm({
           disabled={disabled}
         />
       </label>
+      {isEdit ? (
+        <label>
+          Date
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            disabled={disabled}
+          />
+        </label>
+      ) : null}
       <div className="simple-form-row">
         <label>
           Kind
@@ -904,9 +1028,14 @@ function AddTestForm({
         />
       </label>
       <div className="simple-form-actions">
-        <button type="submit" className="btn btn-ghost" disabled={disabled}>
-          Add test
+        <button type="submit" className="btn btn-accent" disabled={disabled}>
+          {submitLabel}
         </button>
+        {onCancel ? (
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            Cancel
+          </button>
+        ) : null}
       </div>
     </form>
   )
