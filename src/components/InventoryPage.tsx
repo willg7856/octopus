@@ -36,7 +36,7 @@ const STATUS_OPTIONS = STOCK_STATUS_ORDER.map(
 )
 
 type AttentionFilter = 'all' | 'attention' | 'low' | 'on-order' | 'quarantine'
-type InventoryKind = 'part' | 'consumable' | 'tool' | 'other'
+type InventoryKind = 'part' | 'consumable' | 'tool' | 'electronics' | 'other'
 type KindFilter = 'all' | InventoryKind
 
 const ATTENTION_STATUSES: StockStatus[] = [
@@ -98,6 +98,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       part: 0,
       consumable: 0,
       tool: 0,
+      electronics: 0,
       other: 0,
     }
     for (const unit of units) {
@@ -107,6 +108,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
         unit.kind === 'part' ||
         unit.kind === 'consumable' ||
         unit.kind === 'tool' ||
+        unit.kind === 'electronics' ||
         unit.kind === 'other'
       ) {
         counts[unit.kind] += 1
@@ -434,7 +436,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   const kindChips: { id: KindFilter; label: string; count?: number }[] = [
     { id: 'all', label: 'All types', count: kindCounts.all },
     ...(
-      ['part', 'consumable', 'tool', 'other'] as const
+      ['part', 'consumable', 'tool', 'electronics', 'other'] as const
     ).map((kind) => ({
       id: kind as KindFilter,
       label: HARDWARE_KIND_LABELS[kind],
@@ -484,7 +486,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
             ) : null}
           </div>
           <p className="simple-muted">
-            Stock room — parts, consumables, tools. Different fields than Hardware.
+            Stock room — parts, consumables, tools, electronics. Different fields than Hardware.
           </p>
         </div>
         <div className="simple-head-actions">
@@ -710,7 +712,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                   kindFilter !== 'all' ||
                   programFilter !== 'all'
                     ? 'No stock matches that filter.'
-                    : 'No stock yet — add parts, consumables, or tools.'}
+                    : 'No stock yet — add parts, consumables, tools, or electronics.'}
                 </li>
               ) : null}
             </ul>
@@ -770,6 +772,7 @@ function fieldsFromUnit(unit?: HardwareUnit) {
     kindRaw === 'part' ||
     kindRaw === 'consumable' ||
     kindRaw === 'tool' ||
+    kindRaw === 'electronics' ||
     kindRaw === 'other'
       ? kindRaw
       : 'part'
