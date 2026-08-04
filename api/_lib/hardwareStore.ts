@@ -53,14 +53,25 @@ function seedLab(updatedBy = 'system'): SharedHardwareLab {
   }
 }
 
+const LEGACY_INVENTORY_KINDS = new Set(['flight-hardware', 'test-hardware'])
+
+function normalizeUnit(unit: HardwareUnit): HardwareUnit {
+  const kind = unit.kind as string
+  if (LEGACY_INVENTORY_KINDS.has(kind)) {
+    return { ...unit, kind: 'part' }
+  }
+  return unit
+}
+
 function normalize(raw: StoredLab | null | undefined, updatedBy = 'system'): SharedHardwareLab {
   const seed = seedLab(updatedBy)
   if (!raw || typeof raw !== 'object') return seed
+  const units = Array.isArray(raw.units) ? raw.units.map(normalizeUnit) : seed.units
   return {
     revision: Number.isFinite(raw.revision) ? Number(raw.revision) : seed.revision,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : seed.updatedAt,
     updatedBy: typeof raw.updatedBy === 'string' ? raw.updatedBy : seed.updatedBy,
-    units: Array.isArray(raw.units) ? raw.units : seed.units,
+    units,
     progress: Array.isArray(raw.progress) ? raw.progress : seed.progress,
     tests: Array.isArray(raw.tests) ? raw.tests : seed.tests,
     processes: Array.isArray(raw.processes) ? raw.processes : seed.processes,

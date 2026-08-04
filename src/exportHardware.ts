@@ -51,7 +51,7 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
     `# exported,${new Date().toISOString()}`,
     '',
     '## hardware_units',
-    'id,name,kind,serial,part_number,qty_on_hand,qty_on_order,unit_price_aud,min_qty,hw_rev,fw_version,status,stock_status,order_url,ordered_at,expected_at,parent_unit_id,parent_unit_name,location,owner,notes,updated_at',
+    'id,name,kind,serial,part_number,qty_on_hand,qty_on_order,unit_price_aud,min_qty,hw_rev,fw_version,status,stock_status,order_url,ordered_at,expected_at,program,parent_unit_id,parent_unit_name,location,owner,notes,updated_at',
     ...units.map((u) =>
       [
         u.id,
@@ -70,6 +70,7 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
         csvEscape(u.orderUrl ?? ''),
         u.orderedAt ?? '',
         u.expectedAt ?? '',
+        csvEscape(u.program ?? ''),
         u.parentVehicleId ?? '',
         csvEscape(u.parentVehicleId ? unitName(u.parentVehicleId) : ''),
         csvEscape(u.location ?? ''),

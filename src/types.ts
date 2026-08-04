@@ -153,7 +153,7 @@ export interface Notice {
 /**
  * Unit kinds across both catalogs:
  * - System (vehicles & subsystems): vehicle, subsystem, motor, avionics, pad, ground
- * - General inventory (stock): part, consumable, tool, flight-hardware, test-hardware, other
+ * - General inventory (stock): part, consumable, tool, other
  */
 export type HardwareKind =
   | 'vehicle'
@@ -165,8 +165,6 @@ export type HardwareKind =
   | 'part'
   | 'consumable'
   | 'tool'
-  | 'flight-hardware'
-  | 'test-hardware'
   | 'other'
 
 /** Build / checkout progress for a hardware unit. */
@@ -220,6 +218,11 @@ export interface HardwareUnit {
   minQty?: number
   /** Inventory optional unit price (AUD) for value estimates. */
   unitPrice?: number
+  /**
+   * Inventory optional program / vehicle association (e.g. B1M, STRAVOX).
+   * Free-text tag for filtering stock by campaign — not a hard hardware parent link.
+   */
+  program?: string
   /**
    * Hardware: parent unit this mounts under (vehicle, engine, subsystem, etc.).
    * Field name kept for stored lab compatibility.

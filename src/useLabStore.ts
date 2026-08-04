@@ -7,6 +7,7 @@ import {
 } from './hardwareApi'
 import {
   loadHardwareLab,
+  normalizeHardwareLabState,
   resetHardwareLab,
   saveHardwareLab,
   type HardwareLabState,
@@ -19,12 +20,12 @@ export type LabUpdater =
   | ((prev: HardwareLabState) => HardwareLabState)
 
 function toLabState(shared: SharedHardwareLab): HardwareLabState {
-  return {
+  return normalizeHardwareLabState({
     units: shared.units,
     progress: shared.progress,
     tests: shared.tests,
     processes: shared.processes,
-  }
+  })
 }
 
 export function formatUpdatedLabel(updatedAt: string | null, updatedBy: string | null) {

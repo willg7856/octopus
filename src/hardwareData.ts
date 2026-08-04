@@ -29,8 +29,6 @@ export const HARDWARE_KIND_LABELS: Record<HardwareUnit['kind'], string> = {
   part: 'Part',
   consumable: 'Consumable',
   tool: 'Tool',
-  'flight-hardware': 'Flight hardware',
-  'test-hardware': 'Test hardware',
   other: 'Other',
 }
 
@@ -49,8 +47,6 @@ export const INVENTORY_KINDS: HardwareUnit['kind'][] = [
   'part',
   'consumable',
   'tool',
-  'flight-hardware',
-  'test-hardware',
   'other',
 ]
 
@@ -242,6 +238,25 @@ function seedState(): HardwareLabState {
   }
 }
 
+
+const LEGACY_INVENTORY_KINDS = new Set(['flight-hardware', 'test-hardware'])
+
+/** Map removed inventory kinds onto part; preserve other fields. */
+export function normalizeHardwareUnit(unit: HardwareUnit): HardwareUnit {
+  const kind = unit.kind as string
+  if (LEGACY_INVENTORY_KINDS.has(kind)) {
+    return { ...unit, kind: 'part' }
+  }
+  return unit
+}
+
+export function normalizeHardwareLabState(state: HardwareLabState): HardwareLabState {
+  return {
+    ...state,
+    units: state.units.map(normalizeHardwareUnit),
+  }
+}
+
 export function loadHardwareLab(): HardwareLabState {
   const seed = seedState()
   try {
@@ -250,16 +265,16 @@ export function loadHardwareLab(): HardwareLabState {
       localStorage.getItem('octopus.hardware-lab.v1')
     if (!raw) return seed
     const stored = JSON.parse(raw) as StoredLab
-    return {
+    return normalizeHardwareLabState({
       units: Array.isArray(stored.units) ? stored.units : seed.units,
       progress: Array.isArray(stored.progress) ? stored.progress : seed.progress,
       tests: Array.isArray(stored.tests) ? stored.tests : seed.tests,
       processes: Array.isArray(stored.processes)
         ? stored.processes
         : seed.processes,
-    }
+    })
   } catch {
-    return seed
+    return normalizeHardwareLabState(seed)
   }
 }
 
@@ -270,7 +285,7 @@ export function saveHardwareLab(state: HardwareLabState) {
 export function resetHardwareLab(): HardwareLabState {
   localStorage.removeItem(STORAGE_KEY)
   localStorage.removeItem('octopus.hardware-lab.v1')
-  return seedState()
+  return normalizeHardwareLabState(seedState())
 }
 
 export function newId(prefix: string) {

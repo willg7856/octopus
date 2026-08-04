@@ -36,7 +36,7 @@ const STATUS_OPTIONS = STOCK_STATUS_ORDER.map(
 )
 
 type AttentionFilter = 'all' | 'attention' | 'low' | 'on-order' | 'quarantine'
-type InventoryKind = 'part' | 'consumable' | 'tool' | 'flight-hardware' | 'test-hardware' | 'other'
+type InventoryKind = 'part' | 'consumable' | 'tool' | 'other'
 type KindFilter = 'all' | InventoryKind
 
 const ATTENTION_STATUSES: StockStatus[] = [
@@ -67,6 +67,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<AttentionFilter>('all')
   const [kindFilter, setKindFilter] = useState<KindFilter>('all')
+  const [programFilter, setProgramFilter] = useState<string>('all')
   const [adding, setAdding] = useState(false)
   const [mobileMode, setMobileMode] = useState<'list' | 'detail'>('list')
 
@@ -97,8 +98,6 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       part: 0,
       consumable: 0,
       tool: 0,
-      'flight-hardware': 0,
-      'test-hardware': 0,
       other: 0,
     }
     for (const unit of units) {
@@ -108,8 +107,6 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
         unit.kind === 'part' ||
         unit.kind === 'consumable' ||
         unit.kind === 'tool' ||
-        unit.kind === 'flight-hardware' ||
-        unit.kind === 'test-hardware' ||
         unit.kind === 'other'
       ) {
         counts[unit.kind] += 1
@@ -117,6 +114,20 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     }
     return counts
   }, [units, filter])
+
+  const programOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const unit of units) {
+      const program = unit.program?.trim()
+      if (program) set.add(program)
+    }
+    // Also offer vehicle names from hardware as convenient program tags
+    for (const unit of lab.units) {
+      if (unit.kind === 'vehicle' && unit.name.trim()) set.add(unit.name.trim())
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [units, lab.units])
+
 
   const inventoryTotals = useMemo(() => {
     let onHand = 0
@@ -151,14 +162,32 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     return units.filter((u) => {
       if (!matchesAttention(u, filter)) return false
       if (!matchesKind(u, kindFilter)) return false
+      if (programFilter === 'none' && u.program?.trim()) return false
+      if (
+        programFilter !== 'all' &&
+        programFilter !== 'none' &&
+        (u.program?.trim() || '') !== programFilter
+      ) {
+        return false
+      }
       if (!q) return true
-      return [u.name, u.serial, u.location, u.owner, u.partNumber, u.kind, u.status, u.orderUrl]
+      return [
+        u.name,
+        u.serial,
+        u.location,
+        u.owner,
+        u.partNumber,
+        u.kind,
+        u.status,
+        u.orderUrl,
+        u.program,
+      ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
         .includes(q)
     })
-  }, [units, query, filter, kindFilter])
+  }, [units, query, filter, kindFilter, programFilter])
 
   const selected =
     units.find((u) => u.id === selectedId) ??
@@ -405,12 +434,18 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   const kindChips: { id: KindFilter; label: string; count?: number }[] = [
     { id: 'all', label: 'All types', count: kindCounts.all },
     ...(
-      ['part', 'consumable', 'tool', 'flight-hardware', 'test-hardware', 'other'] as const
+      ['part', 'consumable', 'tool', 'other'] as const
     ).map((kind) => ({
       id: kind as KindFilter,
       label: HARDWARE_KIND_LABELS[kind],
       count: kindCounts[kind],
     })),
+  ]
+
+  const programChips: { id: string; label: string }[] = [
+    { id: 'all', label: 'All programs' },
+    { id: 'none', label: 'No program' },
+    ...programOptions.map((program) => ({ id: program, label: program })),
   ]
 
   return (
@@ -511,6 +546,23 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
             <div
               className="inv-filter-row"
               role="toolbar"
+              aria-label="Program filters"
+            >
+              {programChips.map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  className="inv-filter-chip"
+                  aria-pressed={programFilter === chip.id}
+                  onClick={() => setProgramFilter(chip.id)}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+            <div
+              className="inv-filter-row"
+              role="toolbar"
               aria-label="Stock status filters"
             >
               {filterChips.map((chip) => (
@@ -561,8 +613,11 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                         <span>
                           <strong>{unit.name}</strong>
                           <span className="simple-muted">
-                            {HARDWARE_KIND_LABELS[unit.kind]} · on hand{' '}
-                            {unitQuantity(unit)}
+                            {HARDWARE_KIND_LABELS[unit.kind]}
+                            {unit.program?.trim()
+                              ? ` · ${unit.program.trim()}`
+                              : ''}{' '}
+                            · on hand {unitQuantity(unit)}
                             {onOrder > 0 ? ` · on order ${onOrder}` : ''}
                             {price != null ? ` · ${formatMoney(price)}/ea` : ''}
                             {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
@@ -650,7 +705,10 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
               })}
               {filtered.length === 0 ? (
                 <li className="simple-muted">
-                  {query.trim() || filter !== 'all' || kindFilter !== 'all'
+                  {query.trim() ||
+                  filter !== 'all' ||
+                  kindFilter !== 'all' ||
+                  programFilter !== 'all'
                     ? 'No stock matches that filter.'
                     : 'No stock yet — add parts, consumables, or tools.'}
                 </li>
@@ -673,6 +731,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
               <UnitForm
                 key="new"
                 submitLabel="Add"
+                programOptions={programOptions}
                 onCancel={() => {
                   setAdding(false)
                   setMobileMode('list')
@@ -684,6 +743,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                 key={selected.id}
                 initial={selected}
                 submitLabel="Save"
+                programOptions={programOptions}
                 onSave={saveUnit}
                 onDelete={() => removeUnit(selected.id)}
               />
@@ -705,10 +765,19 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
 }
 
 function fieldsFromUnit(unit?: HardwareUnit) {
+  const kindRaw = unit && isInventoryKind(unit.kind) ? unit.kind : 'part'
+  const kind = (
+    kindRaw === 'part' ||
+    kindRaw === 'consumable' ||
+    kindRaw === 'tool' ||
+    kindRaw === 'other'
+      ? kindRaw
+      : 'part'
+  ) as HardwareKind
   return {
     name: unit?.name ?? '',
     serial: unit?.serial ?? '',
-    kind: (unit && isInventoryKind(unit.kind) ? unit.kind : 'part') as HardwareKind,
+    kind,
     stockStatus: (unit ? stockStatusOf(unit) : 'in-stock') as StockStatus,
     location: unit?.location ?? '',
     quantity: String(unit ? unitQuantity(unit) : 1),
@@ -721,6 +790,7 @@ function fieldsFromUnit(unit?: HardwareUnit) {
     orderUrl: unit?.orderUrl ?? '',
     orderedAt: unit?.orderedAt ?? '',
     expectedAt: unit?.expectedAt ?? '',
+    program: unit?.program ?? '',
     notes: unit?.notes ?? '',
   }
 }
@@ -728,12 +798,14 @@ function fieldsFromUnit(unit?: HardwareUnit) {
 function UnitForm({
   initial,
   submitLabel,
+  programOptions,
   onSave,
   onDelete,
   onCancel,
 }: {
   initial?: HardwareUnit
   submitLabel: string
+  programOptions: string[]
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
@@ -756,6 +828,7 @@ function UnitForm({
     orderUrl,
     orderedAt,
     expectedAt,
+    program,
     notes,
   } = fields
 
@@ -774,6 +847,7 @@ function UnitForm({
     initial?.orderedAt,
     initial?.expectedAt,
     initial?.name,
+    initial?.program,
   ])
 
   function setField<K extends keyof typeof fields>(key: K, value: (typeof fields)[K]) {
@@ -852,6 +926,7 @@ function UnitForm({
             (inOrderPipeline ? todayDateInput() : undefined)
           : undefined,
       expectedAt: normalizeDateInput(expectedAt),
+      program: program.trim() || undefined,
       notes: notes.trim() || undefined,
     })
     if (!isNew) setEditing(false)
@@ -1027,6 +1102,23 @@ function UnitForm({
             onChange={(e) => setField('supplier', e.target.value)}
             placeholder="McMaster, DigiKey, in-house…"
           />
+        </label>
+        <label>
+          Program / vehicle
+          <input
+            list="inv-program-options"
+            value={program}
+            onChange={(e) => setField('program', e.target.value)}
+            placeholder="B1M, STRAVOX, TVC…"
+          />
+          <datalist id="inv-program-options">
+            {programOptions.map((option) => (
+              <option key={option} value={option} />
+            ))}
+          </datalist>
+          <span className="simple-muted">
+            Optional tag for filtering stock by campaign or vehicle.
+          </span>
         </label>
         <div className="inv-link-section">
           <h4>Order</h4>
