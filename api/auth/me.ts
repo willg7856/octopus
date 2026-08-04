@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { canManageAccounts } from '../_lib/accessStore.js'
 import { readCookie, verifySession } from '../_lib/session.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -14,6 +15,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   res.status(200).json({
-    user: { email: session.email, name: session.name },
+    user: {
+      email: session.email,
+      name: session.name,
+      canManageAccounts: canManageAccounts(session.email),
+    },
   })
 }

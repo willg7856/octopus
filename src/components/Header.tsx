@@ -1,12 +1,13 @@
 import type { Theme } from '../theme'
 import type { AuthUser } from '../auth'
 
-export type AppView = 'inventory' | 'hardware' | 'vehicles'
+export type AppView = 'inventory' | 'hardware' | 'vehicles' | 'team'
 
 const NAV: { id: AppView; label: string }[] = [
   { id: 'inventory', label: 'Inventory' },
   { id: 'hardware', label: 'Hardware' },
   { id: 'vehicles', label: 'Production' },
+  { id: 'team', label: 'Team' },
 ]
 
 type HeaderProps = {

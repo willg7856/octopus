@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { effectiveAllowlist } from './accessStore.js'
 import { readEnv } from './env.js'
 
 const COOKIE = 'octopus_session'
@@ -81,16 +82,13 @@ export function clearSessionCookie() {
   return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? '; Secure' : ''}`
 }
 
-export function checkCredentials(email: string, password: string) {
+export async function checkCredentials(email: string, password: string) {
   const expected = readEnv('OPS_PASSWORD') || 'goods-shed'
-  const allowed = readEnv('OPS_USERS')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean)
+  if (!passwordsMatch(password, expected)) return false
 
-  const emailOk =
-    allowed.length === 0 || allowed.includes(email.trim().toLowerCase())
-  return emailOk && passwordsMatch(password, expected)
+  const allowed = await effectiveAllowlist()
+  if (allowed.length === 0) return true
+  return allowed.includes(email.trim().toLowerCase())
 }
 
 export function displayName(email: string) {

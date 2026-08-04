@@ -26,7 +26,17 @@ Set these Vercel env vars on the `octopus` project:
 
 - `OPS_PASSWORD` — shared team password
 - `AUTH_SECRET` — random string used to sign session cookies
-- `OPS_USERS` — comma-separated allowed emails for the whole team. If empty, any email + correct password works
+- `OPS_USERS` — comma-separated allowed emails (bootstrap / break-glass). If empty **and** no shared Team list yet, any email + correct password works
+- `OPS_ADMINS` — optional comma-separated emails who can add/remove accounts in **Team**. If empty, any signed-in teammate can manage the shared list
+
+### Team accounts (in-app)
+
+Open **Team** in the nav to:
+
+- Copy an invite (ops URL + sign-in instructions)
+- Add / remove teammate emails on the shared allowlist
+
+The allowlist is stored with the same Redis/Blob backend as inventory. `OPS_USERS` emails stay locked (edit those in Vercel env). Sign-in still uses the one shared `OPS_PASSWORD`.
 
 ### Shared storage (Redis preferred)
 

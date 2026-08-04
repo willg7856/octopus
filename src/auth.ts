@@ -1,6 +1,7 @@
 export type AuthUser = {
   email: string
   name: string
+  canManageAccounts?: boolean
 }
 
 const LOCAL_KEY = 'octopus-local-session'

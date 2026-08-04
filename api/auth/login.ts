@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { canManageAccounts } from '../_lib/accessStore.js'
 import {
   checkCredentials,
   displayName,
@@ -21,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  if (!checkCredentials(email, password)) {
+  if (!(await checkCredentials(email, password))) {
     res.status(401).json({ error: 'Invalid email or password' })
     return
   }
@@ -33,5 +34,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   res.setHeader('Set-Cookie', sessionCookie(signSession(session)))
-  res.status(200).json({ user: { email: session.email, name: session.name } })
+  res.status(200).json({
+    user: {
+      email: session.email,
+      name: session.name,
+      canManageAccounts: canManageAccounts(email),
+    },
+  })
 }

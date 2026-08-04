@@ -11,6 +11,7 @@ import { Header, type AppView } from './components/Header'
 import { InventoryPage } from './components/InventoryPage'
 import { HardwarePage } from './components/HardwarePage'
 import { VehicleProcessPage } from './components/VehicleProcessPage'
+import { TeamPage } from './components/TeamPage'
 import { SignIn } from './components/SignIn'
 
 export default function App() {
@@ -111,6 +112,7 @@ export default function App() {
           {view === 'inventory' ? <InventoryPage user={user} /> : null}
           {view === 'hardware' ? <HardwarePage user={user} /> : null}
           {view === 'vehicles' ? <VehicleProcessPage user={user} /> : null}
+          {view === 'team' ? <TeamPage user={user} /> : null}
         </div>
       </div>
     </div>

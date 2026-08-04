@@ -1,6 +1,6 @@
 import type { AppView } from './components/Header'
 
-const VIEWS: AppView[] = ['inventory', 'hardware', 'vehicles']
+const VIEWS: AppView[] = ['inventory', 'hardware', 'vehicles', 'team']
 
 export function viewFromHash(hash = window.location.hash): AppView {
   const raw = hash.replace(/^#\/?/, '').split('/')[0]?.toLowerCase()
@@ -11,7 +11,6 @@ export function viewFromHash(hash = window.location.hash): AppView {
     raw === 'control' ||
     raw === 'cameras' ||
     raw === 'resources' ||
-    raw === 'team' ||
     raw === 'timeline'
   ) {
     return 'inventory'
