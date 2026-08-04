@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
@@ -544,7 +544,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
               />
             ) : selected ? (
               <UnitForm
-                key={`${selected.id}:${selected.updatedAt}:${stockStatusOf(selected)}:${unitQuantity(selected)}:${unitOnOrderQty(selected)}`}
+                key={selected.id}
                 initial={selected}
                 submitLabel="Save"
                 onSave={saveUnit}
@@ -567,6 +567,25 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   )
 }
 
+function fieldsFromUnit(unit?: HardwareUnit) {
+  return {
+    name: unit?.name ?? '',
+    serial: unit?.serial ?? '',
+    kind: (unit && isInventoryKind(unit.kind) ? unit.kind : 'part') as HardwareKind,
+    stockStatus: (unit ? stockStatusOf(unit) : 'in-stock') as StockStatus,
+    location: unit?.location ?? '',
+    quantity: String(unit ? unitQuantity(unit) : 1),
+    onOrderQty: String(unit ? unitOnOrderQty(unit) : 0),
+    minQty: unit?.minQty != null ? String(unit.minQty) : '',
+    partNumber: unit?.partNumber ?? '',
+    supplier: unit?.owner ?? '',
+    orderUrl: unit?.orderUrl ?? '',
+    orderedAt: unit?.orderedAt ?? '',
+    expectedAt: unit?.expectedAt ?? '',
+    notes: unit?.notes ?? '',
+  }
+}
+
 function UnitForm({
   initial,
   submitLabel,
@@ -580,30 +599,59 @@ function UnitForm({
   onDelete?: () => void
   onCancel?: () => void
 }) {
-  const [name, setName] = useState(initial?.name ?? '')
-  const [serial, setSerial] = useState(initial?.serial ?? '')
-  const [kind, setKind] = useState<HardwareKind>(
-    initial && isInventoryKind(initial.kind) ? initial.kind : 'part',
-  )
-  const [stockStatus, setStockStatus] = useState<StockStatus>(
-    initial ? stockStatusOf(initial) : 'in-stock',
-  )
-  const [location, setLocation] = useState(initial?.location ?? '')
-  const [quantity, setQuantity] = useState(
-    String(initial ? unitQuantity(initial) : 1),
-  )
-  const [onOrderQty, setOnOrderQty] = useState(
-    String(initial ? unitOnOrderQty(initial) : 0),
-  )
-  const [minQty, setMinQty] = useState(
-    initial?.minQty != null ? String(initial.minQty) : '',
-  )
-  const [partNumber, setPartNumber] = useState(initial?.partNumber ?? '')
-  const [supplier, setSupplier] = useState(initial?.owner ?? '')
-  const [orderUrl, setOrderUrl] = useState(initial?.orderUrl ?? '')
-  const [orderedAt, setOrderedAt] = useState(initial?.orderedAt ?? '')
-  const [expectedAt, setExpectedAt] = useState(initial?.expectedAt ?? '')
-  const [notes, setNotes] = useState(initial?.notes ?? '')
+  const isNew = !initial
+  const [editing, setEditing] = useState(isNew)
+  const [fields, setFields] = useState(() => fieldsFromUnit(initial))
+  const {
+    name,
+    serial,
+    kind,
+    stockStatus,
+    location,
+    quantity,
+    onOrderQty,
+    minQty,
+    partNumber,
+    supplier,
+    orderUrl,
+    orderedAt,
+    expectedAt,
+    notes,
+  } = fields
+
+  // Keep the locked view in sync with list actions (Recv, +/−) while not editing.
+  useEffect(() => {
+    if (!initial || editing) return
+    setFields(fieldsFromUnit(initial))
+  }, [
+    editing,
+    initial?.id,
+    initial?.updatedAt,
+    initial?.quantity,
+    initial?.onOrderQty,
+    initial?.stockStatus,
+    initial?.orderedAt,
+    initial?.expectedAt,
+    initial?.name,
+  ])
+
+  function setField<K extends keyof typeof fields>(key: K, value: (typeof fields)[K]) {
+    setFields((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function startEdit() {
+    setFields(fieldsFromUnit(initial))
+    setEditing(true)
+  }
+
+  function cancelEdit() {
+    if (isNew) {
+      onCancel?.()
+      return
+    }
+    setFields(fieldsFromUnit(initial))
+    setEditing(false)
+  }
 
   const showOrderFields =
     stockStatus === 'on-order' ||
@@ -613,16 +661,19 @@ function UnitForm({
     Boolean(orderedAt || expectedAt)
 
   function handleStockStatusChange(next: StockStatus) {
-    setStockStatus(next)
-    if (next === 'on-order' || next === 'receiving' || next === 'incoming') {
-      if (!orderedAt) setOrderedAt(todayDateInput())
-      if (!onOrderQty || onOrderQty === '0') setOnOrderQty('1')
-    }
+    setFields((prev) => {
+      const patch = { ...prev, stockStatus: next }
+      if (next === 'on-order' || next === 'receiving' || next === 'incoming') {
+        if (!prev.orderedAt) patch.orderedAt = todayDateInput()
+        if (!prev.onOrderQty || prev.onOrderQty === '0') patch.onOrderQty = '1'
+      }
+      return patch
+    })
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!name.trim() || !serial.trim()) return
+    if (!editing || !name.trim() || !serial.trim()) return
     const qty = Number(quantity)
     const ordered = Number(onOrderQty)
     const min = minQty.trim() === '' ? undefined : Number(minQty)
@@ -657,17 +708,36 @@ function UnitForm({
       expectedAt: normalizeDateInput(expectedAt),
       notes: notes.trim() || undefined,
     })
+    if (!isNew) setEditing(false)
   }
 
   const orderHref = orderUrl.trim() ? normalizeOrderUrl(orderUrl.trim()) : null
 
   return (
-    <form className="simple-form" onSubmit={handleSubmit}>
-      <h3>{initial ? initial.name : 'New stock item'}</h3>
-      <p className="simple-muted">
-        Track on-hand vs on-order qty, SKU, min qty, and stock status. Not
-        vehicle hardware.
-      </p>
+    <form
+      className="simple-form"
+      data-editing={editing ? 'true' : 'false'}
+      onSubmit={handleSubmit}
+    >
+      <div className="simple-form-title-row">
+        <div>
+          <h3>{initial ? initial.name : 'New stock item'}</h3>
+          <p className="simple-muted">
+            {editing
+              ? 'Edit stock details, then Save to lock the form.'
+              : 'Viewing saved details. Click Edit to make changes.'}
+          </p>
+        </div>
+        {!isNew && !editing ? (
+          <button
+            type="button"
+            className="btn btn-accent"
+            onClick={startEdit}
+          >
+            Edit
+          </button>
+        ) : null}
+      </div>
       {orderHref ? (
         <div className="inv-order-panel">
           <a
@@ -681,167 +751,171 @@ function UnitForm({
           <span className="simple-muted">Opens the saved vendor link.</span>
         </div>
       ) : null}
-      <label>
-        Item name
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="AN-4 bolts"
-          required
-        />
-      </label>
-      <div className="simple-form-row">
+      <fieldset className="simple-form-fields" disabled={!editing}>
         <label>
-          SKU / barcode
+          Item name
           <input
-            value={serial}
-            onChange={(e) => setSerial(e.target.value)}
-            placeholder="INV-AN4-BOLT"
-            required
+            value={name}
+            onChange={(e) => setField('name', e.target.value)}
+            placeholder="AN-4 bolts"
+            required={editing}
           />
         </label>
+        <div className="simple-form-row">
+          <label>
+            SKU / barcode
+            <input
+              value={serial}
+              onChange={(e) => setField('serial', e.target.value)}
+              placeholder="INV-AN4-BOLT"
+              required={editing}
+            />
+          </label>
+          <label>
+            Catalog / PN
+            <input
+              value={partNumber}
+              onChange={(e) => setField('partNumber', e.target.value)}
+              placeholder="AN4-14A"
+            />
+          </label>
+        </div>
+        <div className="simple-form-row">
+          <label>
+            Type
+            <select
+              value={kind}
+              onChange={(e) => setField('kind', e.target.value as HardwareKind)}
+            >
+              {KIND_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Stock status
+            <select
+              value={stockStatus}
+              onChange={(e) =>
+                handleStockStatusChange(e.target.value as StockStatus)
+              }
+            >
+              {STATUS_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="simple-form-row">
+          <label>
+            Qty on hand
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={quantity}
+              onChange={(e) => setField('quantity', e.target.value)}
+            />
+          </label>
+          <label>
+            Qty on order
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={onOrderQty}
+              onChange={(e) => setField('onOrderQty', e.target.value)}
+              placeholder="0"
+            />
+          </label>
+        </div>
         <label>
-          Catalog / PN
-          <input
-            value={partNumber}
-            onChange={(e) => setPartNumber(e.target.value)}
-            placeholder="AN4-14A"
-          />
-        </label>
-      </div>
-      <div className="simple-form-row">
-        <label>
-          Type
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as HardwareKind)}
-          >
-            {KIND_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Stock status
-          <select
-            value={stockStatus}
-            onChange={(e) =>
-              handleStockStatusChange(e.target.value as StockStatus)
-            }
-          >
-            {STATUS_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="simple-form-row">
-        <label>
-          Qty on hand
+          Min qty (auto low)
           <input
             type="number"
             min={0}
             step={1}
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
+            value={minQty}
+            onChange={(e) => setField('minQty', e.target.value)}
+            placeholder="e.g. 10"
           />
         </label>
         <label>
-          Qty on order
+          Bin / location
           <input
-            type="number"
-            min={0}
-            step={1}
-            value={onOrderQty}
-            onChange={(e) => setOnOrderQty(e.target.value)}
-            placeholder="0"
+            value={location}
+            onChange={(e) => setField('location', e.target.value)}
+            placeholder="Goods Shed · fastener bin"
           />
         </label>
-      </div>
-      <label>
-        Min qty (auto low)
-        <input
-          type="number"
-          min={0}
-          step={1}
-          value={minQty}
-          onChange={(e) => setMinQty(e.target.value)}
-          placeholder="e.g. 10"
-        />
-      </label>
-      <label>
-        Bin / location
-        <input
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          placeholder="Goods Shed · fastener bin"
-        />
-      </label>
-      <label>
-        Supplier / source
-        <input
-          value={supplier}
-          onChange={(e) => setSupplier(e.target.value)}
-          placeholder="McMaster, DigiKey, in-house…"
-        />
-      </label>
-      <div className="inv-link-section">
-        <h4>Order</h4>
-        <p className="simple-muted">
-          Outstanding qty on order, vendor link, and delivery dates. Recv moves
-          one from on order → on hand.
-        </p>
-        {showOrderFields ? (
-          <div className="simple-form-row">
-            <label>
-              Order date
-              <input
-                type="date"
-                value={orderedAt}
-                onChange={(e) => setOrderedAt(e.target.value)}
-              />
-            </label>
-            <label>
-              Expected delivery
-              <input
-                type="date"
-                value={expectedAt}
-                onChange={(e) => setExpectedAt(e.target.value)}
-              />
-            </label>
-          </div>
-        ) : null}
         <label>
-          URL
+          Supplier / source
           <input
-            type="url"
-            value={orderUrl}
-            onChange={(e) => setOrderUrl(e.target.value)}
-            placeholder="https://www.mcmaster.com/…"
-            inputMode="url"
+            value={supplier}
+            onChange={(e) => setField('supplier', e.target.value)}
+            placeholder="McMaster, DigiKey, in-house…"
           />
         </label>
-      </div>
-      <label>
-        Notes
-        <input
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Expiry, cal due…"
-        />
-      </label>
+        <div className="inv-link-section">
+          <h4>Order</h4>
+          <p className="simple-muted">
+            Outstanding qty on order, vendor link, and delivery dates. Recv moves
+            one from on order → on hand.
+          </p>
+          {showOrderFields ? (
+            <div className="simple-form-row">
+              <label>
+                Order date
+                <input
+                  type="date"
+                  value={orderedAt}
+                  onChange={(e) => setField('orderedAt', e.target.value)}
+                />
+              </label>
+              <label>
+                Expected delivery
+                <input
+                  type="date"
+                  value={expectedAt}
+                  onChange={(e) => setField('expectedAt', e.target.value)}
+                />
+              </label>
+            </div>
+          ) : null}
+          <label>
+            URL
+            <input
+              type="url"
+              value={orderUrl}
+              onChange={(e) => setField('orderUrl', e.target.value)}
+              placeholder="https://www.mcmaster.com/…"
+              inputMode="url"
+            />
+          </label>
+        </div>
+        <label>
+          Notes
+          <input
+            value={notes}
+            onChange={(e) => setField('notes', e.target.value)}
+            placeholder="Expiry, cal due…"
+          />
+        </label>
+      </fieldset>
       <div className="simple-form-actions">
-        <button type="submit" className="btn btn-accent">
-          {submitLabel}
-        </button>
-        {onCancel ? (
-          <button type="button" className="btn btn-ghost" onClick={onCancel}>
-            Cancel
-          </button>
+        {editing ? (
+          <>
+            <button type="submit" className="btn btn-accent">
+              {submitLabel}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={cancelEdit}>
+              Cancel
+            </button>
+          </>
         ) : null}
         {onDelete ? (
           <button type="button" className="btn btn-ghost" onClick={onDelete}>

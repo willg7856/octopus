@@ -4523,6 +4523,38 @@ button.simple-list-row {
   gap: 0.75rem;
 }
 
+.simple-form-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.simple-form-title-row h3 {
+  margin: 0;
+}
+
+.simple-form-title-row .simple-muted {
+  margin: 0.25rem 0 0;
+}
+
+.simple-form-fields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: contents;
+}
+
+.simple-form[data-editing='false'] .simple-form-fields input,
+.simple-form[data-editing='false'] .simple-form-fields select {
+  opacity: 0.92;
+  color: var(--fg);
+  cursor: default;
+  background: color-mix(in srgb, var(--bg-elev) 65%, var(--bg));
+}
+
 .simple-form-actions {
   display: flex;
   flex-wrap: wrap;
