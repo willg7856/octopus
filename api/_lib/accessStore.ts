@@ -7,12 +7,20 @@ import { hasEnv, readEnv } from './env.js'
 export const ACCESS_REDIS_KEY = 'octopus:ops-access'
 export const ACCESS_BLOB_PATHNAME = 'auth/ops-access.json'
 
+export type OpsUserCredential = {
+  /** scrypt$N$r$p$salt$hash — never send to the client. */
+  passwordHash: string
+  updatedAt: string
+}
+
 export type OpsAccessState = {
   revision: number
   updatedAt: string
   updatedBy: string
   /** Extra emails allowed to sign in (beyond OPS_USERS env). */
   users: string[]
+  /** Per-email personal passwords (hashed). */
+  passwords: Record<string, OpsUserCredential>
 }
 
 type StorageMode = 'redis' | 'blob' | 'file'
@@ -27,6 +35,7 @@ function emptyAccess(updatedBy = 'system'): OpsAccessState {
     updatedAt: new Date().toISOString(),
     updatedBy,
     users: [],
+    passwords: {},
   }
 }
 
@@ -48,6 +57,26 @@ function normalizeEmails(list: unknown): string[] {
   return out.sort((a, b) => a.localeCompare(b))
 }
 
+function normalizePasswords(raw: unknown): Record<string, OpsUserCredential> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Record<string, OpsUserCredential> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const email = normalizeEmail(key)
+    if (!email || !email.includes('@')) continue
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue
+    const entry = value as Partial<OpsUserCredential>
+    if (typeof entry.passwordHash !== 'string' || !entry.passwordHash) continue
+    out[email] = {
+      passwordHash: entry.passwordHash,
+      updatedAt:
+        typeof entry.updatedAt === 'string'
+          ? entry.updatedAt
+          : new Date().toISOString(),
+    }
+  }
+  return out
+}
+
 function normalize(raw: Partial<OpsAccessState> | null | undefined): OpsAccessState {
   const seed = emptyAccess()
   if (!raw || typeof raw !== 'object') return seed
@@ -56,6 +85,7 @@ function normalize(raw: Partial<OpsAccessState> | null | undefined): OpsAccessSt
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : seed.updatedAt,
     updatedBy: typeof raw.updatedBy === 'string' ? raw.updatedBy : seed.updatedBy,
     users: normalizeEmails(raw.users),
+    passwords: normalizePasswords(raw.passwords),
   }
 }
 
@@ -208,22 +238,90 @@ export async function loadAccessList(): Promise<OpsAccessState> {
   return seeded
 }
 
+async function writeAccess(next: OpsAccessState) {
+  const mode = storageMode()
+  if (mode === 'redis') await writeRedis(next)
+  else if (mode === 'blob') await writeBlob(next)
+  else await writeLocal(next)
+}
+
 export async function saveAccessList(
   users: string[],
   updatedBy: string,
 ): Promise<OpsAccessState> {
   const current = await loadAccessList()
+  const nextUsers = normalizeEmails(users)
+  const env = envAllowlist()
+  const passwords: Record<string, OpsUserCredential> = {}
+  for (const [email, cred] of Object.entries(current.passwords || {})) {
+    if (nextUsers.includes(email) || env.includes(email)) {
+      passwords[email] = cred
+    }
+  }
   const next: OpsAccessState = {
     revision: current.revision + 1,
     updatedAt: new Date().toISOString(),
     updatedBy,
-    users: normalizeEmails(users),
+    users: nextUsers,
+    passwords,
   }
-  const mode = storageMode()
-  if (mode === 'redis') await writeRedis(next)
-  else if (mode === 'blob') await writeBlob(next)
-  else await writeLocal(next)
+  await writeAccess(next)
   return next
+}
+
+export async function setUserPassword(
+  email: string,
+  passwordHash: string,
+  updatedBy: string,
+): Promise<OpsAccessState> {
+  const normalized = normalizeEmail(email)
+  const current = await loadAccessList()
+  const next: OpsAccessState = {
+    ...current,
+    revision: current.revision + 1,
+    updatedAt: new Date().toISOString(),
+    updatedBy,
+    passwords: {
+      ...current.passwords,
+      [normalized]: {
+        passwordHash,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+  }
+  await writeAccess(next)
+  return next
+}
+
+export async function clearUserPassword(
+  email: string,
+  updatedBy: string,
+): Promise<OpsAccessState> {
+  const normalized = normalizeEmail(email)
+  const current = await loadAccessList()
+  const passwords = { ...current.passwords }
+  delete passwords[normalized]
+  const next: OpsAccessState = {
+    ...current,
+    revision: current.revision + 1,
+    updatedAt: new Date().toISOString(),
+    updatedBy,
+    passwords,
+  }
+  await writeAccess(next)
+  return next
+}
+
+export function emailsWithPersonalPassword(access: OpsAccessState): string[] {
+  return Object.keys(access.passwords || {}).sort((a, b) => a.localeCompare(b))
+}
+
+export async function getPasswordHashForEmail(
+  email: string,
+): Promise<string | null> {
+  const access = await loadAccessList()
+  const entry = access.passwords?.[normalizeEmail(email)]
+  return entry?.passwordHash || null
 }
 
 /** Emails from OPS_USERS env (bootstrap / break-glass). */

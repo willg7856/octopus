@@ -24,7 +24,7 @@ The app is gated behind team sign-in.
 
 Set these Vercel env vars on the `octopus` project:
 
-- `OPS_PASSWORD` — shared team password
+- `OPS_PASSWORD` — shared team password (fallback when a user has no personal password)
 - `AUTH_SECRET` — random string used to sign session cookies
 - `OPS_USERS` — comma-separated allowed emails (bootstrap / break-glass). If empty **and** no shared Team list yet, any email + correct password works
 - `OPS_ADMINS` — optional comma-separated emails who can add/remove accounts in **Team**. If empty, any signed-in teammate can manage the shared list
@@ -35,8 +35,9 @@ Open **Team** in the nav to:
 
 - Copy an invite (ops URL + sign-in instructions)
 - Add / remove teammate emails on the shared allowlist
+- Set or reset personal passwords per teammate (or leave them on the shared `OPS_PASSWORD`)
 
-The allowlist is stored with the same Redis/Blob backend as inventory. `OPS_USERS` emails stay locked (edit those in Vercel env). Sign-in still uses the one shared `OPS_PASSWORD`.
+The allowlist is stored with the same Redis/Blob backend as inventory. `OPS_USERS` emails stay locked (edit those in Vercel env). Sign-in uses a personal password if one is set in **Team**, otherwise the shared `OPS_PASSWORD`. Passwords are stored hashed — admins can set/reset them but cannot view existing ones.
 
 ### Shared storage (Redis preferred)
 

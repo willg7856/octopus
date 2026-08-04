@@ -1,5 +1,8 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
-import { effectiveAllowlist } from './accessStore.js'
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import {
+  effectiveAllowlist,
+  getPasswordHashForEmail,
+} from './accessStore.js'
 import { readEnv } from './env.js'
 
 const COOKIE = 'octopus_session'
@@ -37,6 +40,35 @@ function passwordsMatch(a: string, b: string) {
     return false
   }
   return timingSafeEqual(left, right)
+}
+
+export function hashPassword(password: string) {
+  const salt = randomBytes(16)
+  const N = 16384
+  const r = 8
+  const p = 1
+  const hash = scryptSync(password, salt, 32, { N, r, p })
+  return `scrypt$${N}$${r}$${p}$${salt.toString('base64url')}$${hash.toString('base64url')}`
+}
+
+export function verifyPassword(password: string, encoded: string) {
+  const parts = encoded.split('$')
+  if (parts.length !== 6 || parts[0] !== 'scrypt') return false
+  const N = Number(parts[1])
+  const r = Number(parts[2])
+  const p = Number(parts[3])
+  if (!Number.isFinite(N) || !Number.isFinite(r) || !Number.isFinite(p)) return false
+  let salt: Buffer
+  let expected: Buffer
+  try {
+    salt = Buffer.from(parts[4], 'base64url')
+    expected = Buffer.from(parts[5], 'base64url')
+  } catch {
+    return false
+  }
+  const hash = scryptSync(password, salt, expected.length, { N, r, p })
+  if (hash.length !== expected.length) return false
+  return timingSafeEqual(hash, expected)
 }
 
 export function signSession(payload: SessionPayload) {
@@ -83,12 +115,18 @@ export function clearSessionCookie() {
 }
 
 export async function checkCredentials(email: string, password: string) {
-  const expected = readEnv('OPS_PASSWORD') || 'goods-shed'
-  if (!passwordsMatch(password, expected)) return false
+  const normalized = email.trim().toLowerCase()
+  const personalHash = await getPasswordHashForEmail(normalized)
+  if (personalHash) {
+    if (!verifyPassword(password, personalHash)) return false
+  } else {
+    const expected = readEnv('OPS_PASSWORD') || 'goods-shed'
+    if (!passwordsMatch(password, expected)) return false
+  }
 
   const allowed = await effectiveAllowlist()
   if (allowed.length === 0) return true
-  return allowed.includes(email.trim().toLowerCase())
+  return allowed.includes(normalized)
 }
 
 export function displayName(email: string) {

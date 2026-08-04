@@ -3,6 +3,8 @@ export type AccessSnapshot = {
   envUsers: string[]
   sharedUsers: string[]
   users: string[]
+  /** Emails that have a personal password set (hashes never leave the server). */
+  passwordSet: string[]
   updatedAt: string | null
   updatedBy: string | null
   openAccess: boolean
@@ -22,6 +24,7 @@ function asSnapshot(data: Partial<AccessSnapshot> | null | undefined): AccessSna
     envUsers: Array.isArray(data?.envUsers) ? data.envUsers : [],
     sharedUsers: Array.isArray(data?.sharedUsers) ? data.sharedUsers : [],
     users: Array.isArray(data?.users) ? data.users : [],
+    passwordSet: Array.isArray(data?.passwordSet) ? data.passwordSet : [],
     updatedAt: typeof data?.updatedAt === 'string' ? data.updatedAt : null,
     updatedBy: typeof data?.updatedBy === 'string' ? data.updatedBy : null,
     openAccess: Boolean(data?.openAccess),
@@ -48,7 +51,10 @@ export async function fetchAccessList(): Promise<
   }
 }
 
-export async function addAccessUser(email: string): Promise<
+export async function addAccessUser(
+  email: string,
+  password?: string,
+): Promise<
   | { ok: true; access: AccessSnapshot; message?: string }
   | { ok: false; error: string }
 > {
@@ -57,7 +63,10 @@ export async function addAccessUser(email: string): Promise<
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({
+        email,
+        ...(password ? { password } : {}),
+      }),
     })
     const data = await parseJson(res)
     if (!res.ok) {
@@ -89,6 +98,59 @@ export async function removeAccessUser(email: string): Promise<
       return { ok: false, error: data?.error || 'Could not remove account' }
     }
     return { ok: true, access: asSnapshot(data) }
+  } catch {
+    return { ok: false, error: 'Could not reach accounts API' }
+  }
+}
+
+export async function setAccessUserPassword(
+  email: string,
+  password: string,
+): Promise<
+  | { ok: true; access: AccessSnapshot; message?: string }
+  | { ok: false; error: string }
+> {
+  try {
+    const res = await fetch('/api/auth/users', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    const data = await parseJson(res)
+    if (!res.ok) {
+      return { ok: false, error: data?.error || 'Could not set password' }
+    }
+    return {
+      ok: true,
+      access: asSnapshot(data),
+      message: data?.message,
+    }
+  } catch {
+    return { ok: false, error: 'Could not reach accounts API' }
+  }
+}
+
+export async function clearAccessUserPassword(email: string): Promise<
+  | { ok: true; access: AccessSnapshot; message?: string }
+  | { ok: false; error: string }
+> {
+  try {
+    const res = await fetch('/api/auth/users', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, clearPassword: true }),
+    })
+    const data = await parseJson(res)
+    if (!res.ok) {
+      return { ok: false, error: data?.error || 'Could not clear password' }
+    }
+    return {
+      ok: true,
+      access: asSnapshot(data),
+      message: data?.message,
+    }
   } catch {
     return { ok: false, error: 'Could not reach accounts API' }
   }
