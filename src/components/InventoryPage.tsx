@@ -36,6 +36,8 @@ const STATUS_OPTIONS = STOCK_STATUS_ORDER.map(
 )
 
 type AttentionFilter = 'all' | 'attention' | 'low' | 'on-order' | 'quarantine'
+type InventoryKind = 'part' | 'consumable' | 'tool' | 'flight-hardware' | 'other'
+type KindFilter = 'all' | InventoryKind
 
 const ATTENTION_STATUSES: StockStatus[] = [
   'low',
@@ -51,6 +53,11 @@ function matchesAttention(unit: HardwareUnit, filter: AttentionFilter) {
   return status === filter
 }
 
+function matchesKind(unit: HardwareUnit, filter: KindFilter) {
+  if (filter === 'all') return true
+  return unit.kind === filter
+}
+
 export function InventoryPage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
   const { lab, sync, syncError, saving, conflict, toast, updatedAt, updatedBy } =
@@ -59,6 +66,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<AttentionFilter>('all')
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all')
   const [adding, setAdding] = useState(false)
   const [mobileMode, setMobileMode] = useState<'list' | 'detail'>('list')
 
@@ -73,6 +81,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     let onOrder = 0
     let quarantine = 0
     for (const unit of units) {
+      if (!matchesKind(unit, kindFilter)) continue
       const status = stockStatusOf(unit)
       if (ATTENTION_STATUSES.includes(status)) attention += 1
       if (status === 'low') low += 1
@@ -80,7 +89,26 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       if (status === 'quarantine') quarantine += 1
     }
     return { attention, low, onOrder, quarantine }
-  }, [units])
+  }, [units, kindFilter])
+
+  const kindCounts = useMemo(() => {
+    const counts: Record<KindFilter, number> = {
+      all: 0,
+      part: 0,
+      consumable: 0,
+      tool: 0,
+      'flight-hardware': 0,
+      other: 0,
+    }
+    for (const unit of units) {
+      if (!matchesAttention(unit, filter)) continue
+      counts.all += 1
+      if (unit.kind === 'part' || unit.kind === 'consumable' || unit.kind === 'tool' || unit.kind === 'flight-hardware' || unit.kind === 'other') {
+        counts[unit.kind] += 1
+      }
+    }
+    return counts
+  }, [units, filter])
 
   const inventoryTotals = useMemo(() => {
     let onHand = 0
@@ -114,6 +142,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     const q = query.trim().toLowerCase()
     return units.filter((u) => {
       if (!matchesAttention(u, filter)) return false
+      if (!matchesKind(u, kindFilter)) return false
       if (!q) return true
       return [u.name, u.serial, u.location, u.owner, u.partNumber, u.kind, u.status, u.orderUrl]
         .filter(Boolean)
@@ -121,7 +150,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
         .toLowerCase()
         .includes(q)
     })
-  }, [units, query, filter])
+  }, [units, query, filter, kindFilter])
 
   const selected =
     units.find((u) => u.id === selectedId) ??
@@ -350,7 +379,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   }
 
   const filterChips: { id: AttentionFilter; label: string; count?: number }[] = [
-    { id: 'all', label: 'All' },
+    { id: 'all', label: 'All status' },
     {
       id: 'attention',
       label: 'Needs attention',
@@ -363,6 +392,17 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       label: 'Quarantine',
       count: attentionCounts.quarantine,
     },
+  ]
+
+  const kindChips: { id: KindFilter; label: string; count?: number }[] = [
+    { id: 'all', label: 'All types', count: kindCounts.all },
+    ...(
+      ['part', 'consumable', 'tool', 'flight-hardware', 'other'] as const
+    ).map((kind) => ({
+      id: kind as KindFilter,
+      label: HARDWARE_KIND_LABELS[kind],
+      count: kindCounts[kind],
+    })),
   ]
 
   return (
@@ -443,7 +483,27 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
             <div
               className="inv-filter-row"
               role="toolbar"
-              aria-label="Stock filters"
+              aria-label="Type filters"
+            >
+              {kindChips.map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  className="inv-filter-chip"
+                  aria-pressed={kindFilter === chip.id}
+                  onClick={() => setKindFilter(chip.id)}
+                >
+                  {chip.label}
+                  {chip.count != null && chip.count > 0 ? (
+                    <span className="inv-filter-count">{chip.count}</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+            <div
+              className="inv-filter-row"
+              role="toolbar"
+              aria-label="Stock status filters"
             >
               {filterChips.map((chip) => (
                 <button
@@ -582,7 +642,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
               })}
               {filtered.length === 0 ? (
                 <li className="simple-muted">
-                  {query.trim() || filter !== 'all'
+                  {query.trim() || filter !== 'all' || kindFilter !== 'all'
                     ? 'No stock matches that filter.'
                     : 'No stock yet — add parts, consumables, or tools.'}
                 </li>

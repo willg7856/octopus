@@ -4391,6 +4391,10 @@ button.simple-list-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+  margin-bottom: 0.45rem;
+}
+
+.inv-filter-row + .inv-filter-row {
   margin-bottom: 0.65rem;
 }
 
