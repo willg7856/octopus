@@ -22,13 +22,6 @@ import type {
 } from '../types'
 import { useLabStore } from '../useLabStore'
 
-const RECOMMENDED_PRODUCTIONS = [
-  { name: 'B1M production', vehicleName: 'B1M' },
-  { name: 'TVC production', vehicleName: 'TVC' },
-  { name: 'STRAVOX B1M production', vehicleName: 'STRAVOX airframe' },
-  { name: '100M hopper production', vehicleName: '100M hopper' },
-] as const
-
 const QUICK_STATUSES: ProcessStepStatus[] = ['active', 'done', 'blocked']
 const MORE_STATUSES: ProcessStepStatus[] = ['pending', 'skipped']
 
@@ -81,16 +74,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const selectedVehicle = selected
     ? units.find((u) => u.id === selected.vehicleUnitId)
     : null
-  const missingRecommended = useMemo(
-    () =>
-      RECOMMENDED_PRODUCTIONS.filter(
-        (rec) =>
-          !processes.some(
-            (p) => p.name.toLowerCase() === rec.name.toLowerCase(),
-          ),
-      ),
-    [processes],
-  )
 
   function openDetail(id: string | null, isCreating = false) {
     setCreating(isCreating)
@@ -303,7 +286,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
         vehicleUnitId: vehicle.id,
         name: input.name.trim(),
         updatedAt: now,
-        steps: defaultSteps(vehicle.id),
+        steps: [],
       }
 
       return {
@@ -435,28 +418,6 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                 </li>
               ) : null}
             </ul>
-            {!query.trim() && missingRecommended.length > 0 ? (
-              <div className="prod-suggested">
-                <p className="simple-muted">Suggested</p>
-                <div className="prod-suggested-list">
-                  {missingRecommended.map((rec) => (
-                    <button
-                      key={rec.name}
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={() =>
-                        createProduction({
-                          name: rec.name,
-                          vehicleName: rec.vehicleName,
-                        })
-                      }
-                    >
-                      + {shortName(rec.name)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </section>
 
           <section className="simple-detail">
@@ -760,26 +721,6 @@ function formatWhen(iso: string) {
   }
 }
 
-function defaultSteps(vehicleUnitId: string): VehicleProcessStep[] {
-  const titles = [
-    'Airframe / structure',
-    'Propulsion install',
-    'Avionics integrate & flash',
-    'GSE / ground systems',
-    'Checkout & functional tests',
-    'Pad / range readiness',
-    'Flight readiness review',
-  ]
-
-  return titles.map((title, i) => ({
-    id: newId('ps'),
-    order: i + 1,
-    title,
-    status: 'pending' as const,
-    linkedUnitIds: [vehicleUnitId],
-  }))
-}
-
 function NewProductionForm({
   onCreate,
   onCancel,
@@ -805,7 +746,8 @@ function NewProductionForm({
     <form className="simple-form prod-create" onSubmit={handleSubmit}>
       <h3>New vehicle production</h3>
       <p className="simple-muted">
-        Creates a checklist and a Hardware vehicle if one doesn’t exist yet.
+        Starts blank — add your own steps after creating. Creates a Hardware
+        vehicle if one doesn’t exist yet.
       </p>
       <label>
         Name
