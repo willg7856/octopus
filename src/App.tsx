@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { applyTheme, getPreferredTheme, type Theme } from './theme'
 import {
   fetchSession,
@@ -13,6 +13,7 @@ import { HardwarePage } from './components/HardwarePage'
 import { VehicleProcessPage } from './components/VehicleProcessPage'
 import { TeamPage } from './components/TeamPage'
 import { SignIn } from './components/SignIn'
+import { LabProvider } from './useLabStore'
 
 export default function App() {
   const [theme, setTheme] = useState<Theme>(() => getPreferredTheme())
@@ -75,6 +76,11 @@ export default function App() {
     setAuthState('signed-out')
   }
 
+  const handleAuthRequired = useCallback(() => {
+    setUser(null)
+    setAuthState('signed-out')
+  }, [])
+
   if (authState === 'loading') {
     return (
       <div className="app">
@@ -103,26 +109,28 @@ export default function App() {
   }
 
   return (
-    <div className="app" data-view={view}>
-      <div className="shell">
-        <div className="shell-main">
-          <Header
-            theme={theme}
-            view={view}
-            user={user}
-            onToggleTheme={handleToggleTheme}
-            onSignOut={handleSignOut}
-            onViewChange={setView}
-          />
+    <LabProvider onAuthRequired={handleAuthRequired}>
+      <div className="app" data-view={view}>
+        <div className="shell">
+          <div className="shell-main">
+            <Header
+              theme={theme}
+              view={view}
+              user={user}
+              onToggleTheme={handleToggleTheme}
+              onSignOut={handleSignOut}
+              onViewChange={setView}
+            />
 
-          {view === 'inventory' ? <InventoryPage user={user} /> : null}
-          {view === 'hardware' ? <HardwarePage user={user} /> : null}
-          {view === 'vehicles' ? <VehicleProcessPage user={user} /> : null}
-          {view === 'team' && user?.canManageAccounts ? (
-            <TeamPage user={user} />
-          ) : null}
+            {view === 'inventory' ? <InventoryPage user={user} /> : null}
+            {view === 'hardware' ? <HardwarePage user={user} /> : null}
+            {view === 'vehicles' ? <VehicleProcessPage user={user} /> : null}
+            {view === 'team' && user?.canManageAccounts ? (
+              <TeamPage user={user} />
+            ) : null}
+          </div>
         </div>
       </div>
-    </div>
+    </LabProvider>
   )
 }

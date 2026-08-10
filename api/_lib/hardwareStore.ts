@@ -338,21 +338,44 @@ export async function saveSharedLab(
     })
   }
 
+  // Blob / file: check-then-write is racy. Re-read before write, then verify
+  // our write token survived so concurrent saves surface as conflicts.
   const current = await loadSharedLab()
   if (current.revision !== expectedRevision) {
     return { ok: false, conflict: true, lab: current }
   }
 
-  // Keep revision from CAS path consistent when falling through
   lab.revision = current.revision + 1
 
   if (mode === 'blob') {
-    await withStorageErrors('Vercel Blob', async () => writeBlob(lab))
-  } else {
-    await writeLocal(lab)
+    return withStorageErrors('Vercel Blob', async () => {
+      await writeBlob(lab)
+      const verified = await readBlob()
+      if (
+        !verified ||
+        verified.revision !== lab.revision ||
+        verified.updatedAt !== lab.updatedAt
+      ) {
+        const latest = verified ?? (await loadSharedLab())
+        return { ok: false as const, conflict: true as const, lab: latest }
+      }
+      return { ok: true as const, lab }
+    })
   }
 
-  return { ok: true, lab }
+  return withStorageErrors('local file', async () => {
+    await writeLocal(lab)
+    const verified = await readLocal()
+    if (
+      !verified ||
+      verified.revision !== lab.revision ||
+      verified.updatedAt !== lab.updatedAt
+    ) {
+      const latest = verified ?? (await loadSharedLab())
+      return { ok: false as const, conflict: true as const, lab: latest }
+    }
+    return { ok: true as const, lab }
+  })
 }
 
 export async function resetSharedLab(updatedBy: string): Promise<SharedHardwareLab> {

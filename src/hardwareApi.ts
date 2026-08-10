@@ -6,6 +6,13 @@ export type SharedHardwareLab = HardwareLabState & {
   updatedBy: string
 }
 
+export type LabApiError = {
+  ok: false
+  error: string
+  status: number
+  authRequired?: boolean
+}
+
 async function parseJson(res: Response) {
   try {
     return await res.json()
@@ -34,27 +41,37 @@ function asShared(lab: SharedHardwareLab | null | undefined): SharedHardwareLab 
   }
 }
 
+function authError(data: { error?: string } | null): LabApiError {
+  return {
+    ok: false,
+    error: data?.error || 'Sign in required',
+    status: 401,
+    authRequired: true,
+  }
+}
+
 export async function fetchSharedHardwareLab(): Promise<
   | { ok: true; lab: SharedHardwareLab; storage: string }
-  | { ok: false; error: string; status: number }
+  | LabApiError
 > {
   try {
     const res = await fetch('/api/hardware/lab', { credentials: 'include' })
     const data = await parseJson(res)
+    if (res.status === 401) return authError(data)
     if (!res.ok) {
       return {
         ok: false,
-        error: data?.error || 'Could not load shared inventory',
+        error: data?.error || 'Could not load shared lab',
         status: res.status,
       }
     }
     const lab = asShared(data?.lab)
     if (!lab) {
-      return { ok: false, error: 'Shared inventory response was empty', status: 500 }
+      return { ok: false, error: 'Shared lab response was empty', status: 500 }
     }
     return { ok: true, lab, storage: data?.storage || 'redis' }
   } catch {
-    return { ok: false, error: 'Could not reach inventory API', status: 0 }
+    return { ok: false, error: 'Could not reach shared lab API', status: 0 }
   }
 }
 
@@ -64,7 +81,7 @@ export async function saveSharedHardwareLab(
 ): Promise<
   | { ok: true; lab: SharedHardwareLab }
   | { ok: false; conflict: true; lab: SharedHardwareLab }
-  | { ok: false; conflict?: false; error: string }
+  | { ok: false; conflict?: false; error: string; authRequired?: boolean; status?: number }
 > {
   try {
     const res = await fetch('/api/hardware/lab', {
@@ -76,21 +93,24 @@ export async function saveSharedHardwareLab(
     const data = await parseJson(res)
     const shared = asShared(data?.lab)
 
+    if (res.status === 401) {
+      return { ok: false, error: data?.error || 'Sign in required', authRequired: true, status: 401 }
+    }
     if (res.status === 409 && shared) {
       return { ok: false, conflict: true, lab: shared }
     }
     if (!res.ok || !shared) {
-      return { ok: false, error: data?.error || 'Could not save inventory' }
+      return { ok: false, error: data?.error || 'Could not save shared lab' }
     }
     return { ok: true, lab: shared }
   } catch {
-    return { ok: false, error: 'Could not reach inventory API' }
+    return { ok: false, error: 'Could not reach shared lab API' }
   }
 }
 
 export async function resetSharedHardwareLab(): Promise<
   | { ok: true; lab: SharedHardwareLab }
-  | { ok: false; error: string }
+  | { ok: false; error: string; authRequired?: boolean }
 > {
   try {
     const res = await fetch('/api/hardware/lab', {
@@ -98,12 +118,15 @@ export async function resetSharedHardwareLab(): Promise<
       credentials: 'include',
     })
     const data = await parseJson(res)
+    if (res.status === 401) {
+      return { ok: false, error: data?.error || 'Sign in required', authRequired: true }
+    }
     const shared = asShared(data?.lab)
     if (!res.ok || !shared) {
-      return { ok: false, error: data?.error || 'Could not reset inventory' }
+      return { ok: false, error: data?.error || 'Could not reset shared lab' }
     }
     return { ok: true, lab: shared }
   } catch {
-    return { ok: false, error: 'Could not reach inventory API' }
+    return { ok: false, error: 'Could not reach shared lab API' }
   }
 }

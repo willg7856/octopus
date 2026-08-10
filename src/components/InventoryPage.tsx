@@ -11,6 +11,7 @@ import {
   formatMoney,
   hardwareStatusForStock,
   isInventoryKind,
+  isOrderOverdue,
   newId,
   sortUnits,
   stockStatusAfterReceive,
@@ -27,6 +28,7 @@ import type {
   StockStatus,
 } from '../types'
 import { useLabStore } from '../useLabStore'
+import { SyncStatusBanners } from './SyncStatusBanners'
 
 const KIND_OPTIONS = INVENTORY_KINDS.map(
   (kind) => [kind, HARDWARE_KIND_LABELS[kind]] as const,
@@ -35,7 +37,7 @@ const STATUS_OPTIONS = STOCK_STATUS_ORDER.map(
   (status) => [status, STOCK_STATUS_LABELS[status]] as const,
 )
 
-type AttentionFilter = 'all' | 'attention' | 'low' | 'on-order' | 'quarantine'
+type AttentionFilter = 'all' | 'attention' | 'low' | 'on-order' | 'overdue' | 'quarantine'
 type InventoryKind = 'part' | 'consumable' | 'tool' | 'electronics' | 'other'
 type KindFilter = 'all' | InventoryKind
 
@@ -49,7 +51,10 @@ const ATTENTION_STATUSES: StockStatus[] = [
 function matchesAttention(unit: HardwareUnit, filter: AttentionFilter) {
   const status = stockStatusOf(unit)
   if (filter === 'all') return true
-  if (filter === 'attention') return ATTENTION_STATUSES.includes(status)
+  if (filter === 'attention') {
+    return ATTENTION_STATUSES.includes(status) || isOrderOverdue(unit)
+  }
+  if (filter === 'overdue') return isOrderOverdue(unit)
   return status === filter
 }
 
@@ -60,7 +65,7 @@ function matchesKind(unit: HardwareUnit, filter: KindFilter) {
 
 export function InventoryPage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
-  const { lab, sync, syncError, saving, conflict, toast, updatedAt, updatedBy } =
+  const { lab, sync, saving, conflict, toast, updatedAt, updatedBy, hasLoaded } =
     store
   const { confirm, dialog: confirmDialog } = useConfirm()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -80,16 +85,19 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     let attention = 0
     let low = 0
     let onOrder = 0
+    let overdue = 0
     let quarantine = 0
     for (const unit of units) {
       if (!matchesKind(unit, kindFilter)) continue
       const status = stockStatusOf(unit)
-      if (ATTENTION_STATUSES.includes(status)) attention += 1
+      const overdueOrder = isOrderOverdue(unit)
+      if (ATTENTION_STATUSES.includes(status) || overdueOrder) attention += 1
       if (status === 'low') low += 1
       if (status === 'on-order') onOrder += 1
+      if (overdueOrder) overdue += 1
       if (status === 'quarantine') quarantine += 1
     }
-    return { attention, low, onOrder, quarantine }
+    return { attention, low, onOrder, overdue, quarantine }
   }, [units, kindFilter])
 
   const kindCounts = useMemo(() => {
@@ -426,6 +434,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     },
     { id: 'low', label: 'Low', count: attentionCounts.low },
     { id: 'on-order', label: 'On order', count: attentionCounts.onOrder },
+    { id: 'overdue', label: 'Overdue', count: attentionCounts.overdue },
     {
       id: 'quarantine',
       label: 'Quarantine',
@@ -503,85 +512,150 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
             type="button"
             className="btn btn-accent"
             onClick={() => openDetail(null, true)}
+            disabled={!hasLoaded}
           >
             Add item
           </button>
         </div>
       </header>
 
-      {sync === 'error' && syncError ? (
-        <p className="simple-error" role="alert">
-          {syncError}
-        </p>
-      ) : null}
-      {conflict ? (
-        <p className="simple-conflict" role="alert">
-          Someone else saved first. Review the live data, then re-apply your edit.
-        </p>
-      ) : null}
+      <SyncStatusBanners store={store} />
 
-      {sync === 'loading' ? (
-        <p className="simple-muted">Loading…</p>
+      {sync === 'loading' || (sync === 'error' && !hasLoaded) ? (
+        <p className="simple-muted">
+          {sync === 'loading'
+            ? 'Loading…'
+            : 'Could not load shared lab. Retry above — do not add items until it recovers.'}
+        </p>
       ) : (
         <div className="simple-split" data-mode={mobileMode}>
           <section className="simple-list-panel">
-            <div
-              className="inv-filter-row"
-              role="toolbar"
-              aria-label="Type filters"
-            >
-              {kindChips.map((chip) => (
-                <button
-                  key={chip.id}
-                  type="button"
-                  className="inv-filter-chip"
-                  aria-pressed={kindFilter === chip.id}
-                  onClick={() => setKindFilter(chip.id)}
-                >
-                  {chip.label}
-                  {chip.count != null && chip.count > 0 ? (
-                    <span className="inv-filter-count">{chip.count}</span>
-                  ) : null}
-                </button>
-              ))}
+            <div className="inv-filters-desktop">
+              <div
+                className="inv-filter-row"
+                role="toolbar"
+                aria-label="Type filters"
+              >
+                {kindChips.map((chip) => (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    className="inv-filter-chip"
+                    aria-pressed={kindFilter === chip.id}
+                    onClick={() => setKindFilter(chip.id)}
+                  >
+                    {chip.label}
+                    {chip.count != null && chip.count > 0 ? (
+                      <span className="inv-filter-count">{chip.count}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+              <div
+                className="inv-filter-row"
+                role="toolbar"
+                aria-label="Program filters"
+              >
+                {programChips.map((chip) => (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    className="inv-filter-chip"
+                    aria-pressed={programFilter === chip.id}
+                    onClick={() => setProgramFilter(chip.id)}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+              <div
+                className="inv-filter-row"
+                role="toolbar"
+                aria-label="Stock status filters"
+              >
+                {filterChips.map((chip) => (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    className="inv-filter-chip"
+                    aria-pressed={filter === chip.id}
+                    onClick={() => setFilter(chip.id)}
+                  >
+                    {chip.label}
+                    {chip.count != null && chip.count > 0 ? (
+                      <span className="inv-filter-count">{chip.count}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div
-              className="inv-filter-row"
-              role="toolbar"
-              aria-label="Program filters"
-            >
-              {programChips.map((chip) => (
-                <button
-                  key={chip.id}
-                  type="button"
-                  className="inv-filter-chip"
-                  aria-pressed={programFilter === chip.id}
-                  onClick={() => setProgramFilter(chip.id)}
-                >
-                  {chip.label}
-                </button>
-              ))}
-            </div>
-            <div
-              className="inv-filter-row"
-              role="toolbar"
-              aria-label="Stock status filters"
-            >
-              {filterChips.map((chip) => (
-                <button
-                  key={chip.id}
-                  type="button"
-                  className="inv-filter-chip"
-                  aria-pressed={filter === chip.id}
-                  onClick={() => setFilter(chip.id)}
-                >
-                  {chip.label}
-                  {chip.count != null && chip.count > 0 ? (
-                    <span className="inv-filter-count">{chip.count}</span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
+            <details className="inv-filters-mobile">
+              <summary>
+                Filters
+                {filter !== 'all' ||
+                kindFilter !== 'all' ||
+                programFilter !== 'all'
+                  ? ' · active'
+                  : ''}
+              </summary>
+              <div
+                className="inv-filter-row"
+                role="toolbar"
+                aria-label="Type filters"
+              >
+                {kindChips.map((chip) => (
+                  <button
+                    key={`m-${chip.id}`}
+                    type="button"
+                    className="inv-filter-chip"
+                    aria-pressed={kindFilter === chip.id}
+                    onClick={() => setKindFilter(chip.id)}
+                  >
+                    {chip.label}
+                    {chip.count != null && chip.count > 0 ? (
+                      <span className="inv-filter-count">{chip.count}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+              <div
+                className="inv-filter-row"
+                role="toolbar"
+                aria-label="Program filters"
+              >
+                {programChips.map((chip) => (
+                  <button
+                    key={`m-${chip.id}`}
+                    type="button"
+                    className="inv-filter-chip"
+                    aria-pressed={programFilter === chip.id}
+                    onClick={() => setProgramFilter(chip.id)}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+              <div
+                className="inv-filter-row"
+                role="toolbar"
+                aria-label="Stock status filters"
+              >
+                {filterChips.map((chip) => (
+                  <button
+                    key={`m-${chip.id}`}
+                    type="button"
+                    className="inv-filter-chip"
+                    aria-pressed={filter === chip.id}
+                    onClick={() => setFilter(chip.id)}
+                  >
+                    {chip.label}
+                    {chip.count != null && chip.count > 0 ? (
+                      <span className="inv-filter-count">{chip.count}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </details>
             <input
               className="simple-search"
               value={query}
@@ -594,6 +668,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                 const status = stockStatusOf(unit)
                 const onOrder = unitOnOrderQty(unit)
                 const price = unitPriceOf(unit)
+                const overdue = isOrderOverdue(unit)
                 const canReceive =
                   onOrder > 0 ||
                   status === 'on-order' ||
@@ -606,6 +681,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                       data-selected={
                         !adding && selected?.id === unit.id ? 'true' : 'false'
                       }
+                      data-overdue={overdue ? 'true' : undefined}
                     >
                       <button
                         type="button"
@@ -624,19 +700,31 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                             {price != null ? ` · ${formatMoney(price)}/ea` : ''}
                             {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
                             {unit.location ? ` · ${unit.location}` : ''}
-                            {unit.expectedAt
-                              ? ` · ETA ${formatOrderDate(unit.expectedAt)}`
-                              : unit.orderedAt
-                                ? ` · ordered ${formatOrderDate(unit.orderedAt)}`
-                                : ''}
+                            {unit.expectedAt ? (
+                              <>
+                                {' · '}
+                                <span
+                                  className={
+                                    overdue ? 'inv-eta-overdue' : undefined
+                                  }
+                                >
+                                  {overdue ? 'Overdue ' : 'ETA '}
+                                  {formatOrderDate(unit.expectedAt)}
+                                </span>
+                              </>
+                            ) : unit.orderedAt ? (
+                              ` · ordered ${formatOrderDate(unit.orderedAt)}`
+                            ) : (
+                              ''
+                            )}
                           </span>
                         </span>
                         <span
                           className="status-badge"
                           data-kind="stock"
-                          data-status={status}
+                          data-status={overdue ? 'quarantine' : status}
                         >
-                          {stockStatusLabel(status)}
+                          {overdue ? 'Overdue' : stockStatusLabel(status)}
                         </span>
                       </button>
                       <div className="inv-qty-actions">

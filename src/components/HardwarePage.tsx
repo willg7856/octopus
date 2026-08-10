@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
+import { SyncStatusBanners } from './SyncStatusBanners'
 import {
   HARDWARE_KIND_LABELS,
   HARDWARE_STATUS_LABELS,
@@ -38,13 +39,34 @@ const TEST_RESULT_OPTIONS = Object.entries(TEST_RESULT_LABELS) as [
   string,
 ][]
 
+type HardwareFilter =
+  | 'all'
+  | 'in-progress'
+  | 'flight-ready'
+  | 'failed'
+  | 'important'
+
+const IN_PROGRESS_STATUSES: HardwareStatus[] = ['fab', 'assembly', 'checkout']
+
+function matchesHardwareFilter(unit: HardwareUnit, filter: HardwareFilter) {
+  if (filter === 'all') return true
+  if (filter === 'in-progress') return IN_PROGRESS_STATUSES.includes(unit.status)
+  if (filter === 'flight-ready') return unit.status === 'flight-ready'
+  if (filter === 'failed') return unit.status === 'failed'
+  if (filter === 'important') {
+    return Boolean(unit.notesImportant && unit.notes?.trim())
+  }
+  return true
+}
+
 export function HardwarePage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
-  const { lab, sync, syncError, saving, conflict, toast, updatedAt, updatedBy } =
+  const { lab, sync, saving, conflict, toast, updatedAt, updatedBy, hasLoaded } =
     store
   const { confirm, dialog: confirmDialog } = useConfirm()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<HardwareFilter>('all')
   const [adding, setAdding] = useState(false)
   const [editingTestId, setEditingTestId] = useState<string | null>(null)
   const [mobileMode, setMobileMode] = useState<'list' | 'detail'>('list')
@@ -58,10 +80,26 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     for (const u of lab.units) map.set(u.id, u.name)
     return map
   }, [lab.units])
+
+  const filterCounts = useMemo(() => {
+    let inProgress = 0
+    let flightReady = 0
+    let failed = 0
+    let important = 0
+    for (const u of units) {
+      if (IN_PROGRESS_STATUSES.includes(u.status)) inProgress += 1
+      if (u.status === 'flight-ready') flightReady += 1
+      if (u.status === 'failed') failed += 1
+      if (u.notesImportant && u.notes?.trim()) important += 1
+    }
+    return { inProgress, flightReady, failed, important }
+  }, [units])
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return units
     return units.filter((u) => {
+      if (!matchesHardwareFilter(u, statusFilter)) return false
+      if (!q) return true
       const parentName = u.parentVehicleId
         ? unitNameById.get(u.parentVehicleId)
         : undefined
@@ -71,7 +109,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
         .toLowerCase()
         .includes(q)
     })
-  }, [units, query, unitNameById])
+  }, [units, query, unitNameById, statusFilter])
 
   const listTree = useMemo(
     () => buildHardwareTree(filtered, units),
@@ -182,6 +220,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     result: TestResult
     summary: string
     site?: string
+    dataRef?: string
   }) {
     if (!selected) return
     const unitId = selected.id
@@ -196,6 +235,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
       site: input.site?.trim() || undefined,
       operator: user?.name,
       summary: input.summary.trim(),
+      dataRef: input.dataRef?.trim() || undefined,
       createdAt: now,
     }
     void store.commit(
@@ -216,6 +256,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
       summary: string
       site?: string
       date?: string
+      dataRef?: string
     },
   ) {
     if (!input.title.trim() || !input.summary.trim()) return
@@ -232,6 +273,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                 summary: input.summary.trim(),
                 site: input.site?.trim() || undefined,
                 date: input.date?.trim() || t.date,
+                dataRef: input.dataRef?.trim() || undefined,
               }
             : t,
         ),
@@ -313,28 +355,68 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
             type="button"
             className="btn btn-accent"
             onClick={() => openDetail(null, true)}
+            disabled={!hasLoaded}
           >
             Add unit
           </button>
         </div>
       </header>
 
-      {sync === 'error' && syncError ? (
-        <p className="simple-error" role="alert">
-          {syncError}
-        </p>
-      ) : null}
-      {conflict ? (
-        <p className="simple-conflict" role="alert">
-          Someone else saved first. Review the live data, then re-apply your edit.
-        </p>
-      ) : null}
+      <SyncStatusBanners store={store} />
 
-      {sync === 'loading' ? (
-        <p className="simple-muted">Loading…</p>
+      {sync === 'loading' || (sync === 'error' && !hasLoaded) ? (
+        <p className="simple-muted">
+          {sync === 'loading'
+            ? 'Loading…'
+            : 'Could not load shared lab. Retry above — do not add units until it recovers.'}
+        </p>
       ) : (
         <div className="simple-split" data-mode={mobileMode}>
           <section className="simple-list-panel">
+            <div
+              className="inv-filter-row"
+              role="toolbar"
+              aria-label="Hardware status filters"
+            >
+              {(
+                [
+                  { id: 'all' as const, label: 'All', count: undefined },
+                  {
+                    id: 'in-progress' as const,
+                    label: 'In progress',
+                    count: filterCounts.inProgress,
+                  },
+                  {
+                    id: 'flight-ready' as const,
+                    label: 'Flight ready',
+                    count: filterCounts.flightReady,
+                  },
+                  {
+                    id: 'failed' as const,
+                    label: 'Failed',
+                    count: filterCounts.failed,
+                  },
+                  {
+                    id: 'important' as const,
+                    label: 'Important',
+                    count: filterCounts.important,
+                  },
+                ] as const
+              ).map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  className="inv-filter-chip"
+                  aria-pressed={statusFilter === chip.id}
+                  onClick={() => setStatusFilter(chip.id)}
+                >
+                  {chip.label}
+                  {chip.count != null && chip.count > 0 ? (
+                    <span className="inv-filter-count">{chip.count}</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
             <input
               className="simple-search"
               value={query}
@@ -354,8 +436,8 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
               ))}
               {listTree.length === 0 ? (
                 <li className="simple-muted">
-                  {query.trim()
-                    ? 'No units match that search.'
+                  {query.trim() || statusFilter !== 'all'
+                    ? 'No units match that filter.'
                     : 'No vehicles or subsystems yet — add one to start.'}
                 </li>
               ) : null}
@@ -449,6 +531,22 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                                       {test.operator
                                         ? ` · ${test.operator}`
                                         : ''}
+                                      {test.dataRef ? (
+                                        <>
+                                          {' · '}
+                                          {/^https?:\/\//i.test(test.dataRef) ? (
+                                            <a
+                                              href={test.dataRef}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                            >
+                                              Data
+                                            </a>
+                                          ) : (
+                                            <span title={test.dataRef}>Data</span>
+                                          )}
+                                        </>
+                                      ) : null}
                                     </span>
                                   </span>
                                   <div className="hw-test-actions">
@@ -951,6 +1049,7 @@ function TestForm({
     summary: string
     site?: string
     date?: string
+    dataRef?: string
   }) => void
   onCancel?: () => void
   disabled?: boolean
@@ -962,6 +1061,7 @@ function TestForm({
   const [summary, setSummary] = useState(initial?.summary ?? '')
   const [site, setSite] = useState(initial?.site ?? '')
   const [date, setDate] = useState(initial?.date ?? '')
+  const [dataRef, setDataRef] = useState(initial?.dataRef ?? '')
 
   return (
     <form
@@ -977,12 +1077,14 @@ function TestForm({
           summary,
           site,
           date: date || undefined,
+          dataRef,
         })
         if (!isEdit) {
           setTitle('')
           setSummary('')
           setSite('')
           setDate('')
+          setDataRef('')
         }
       }}
     >
@@ -1056,6 +1158,15 @@ function TestForm({
           value={site}
           onChange={(e) => setSite(e.target.value)}
           placeholder="Goods Shed"
+          disabled={disabled}
+        />
+      </label>
+      <label>
+        Data link
+        <input
+          value={dataRef}
+          onChange={(e) => setDataRef(e.target.value)}
+          placeholder="Drive folder, CSV path, or URL"
           disabled={disabled}
         />
       </label>

@@ -2,9 +2,11 @@ import { useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
+import { SyncStatusBanners } from './SyncStatusBanners'
 import {
   HARDWARE_KIND_LABELS,
   PROCESS_STEP_STATUS_LABELS,
+  isInventoryKind,
   isSystemKind,
   newId,
   processCompletion,
@@ -32,7 +34,7 @@ const MORE_STATUSES: ProcessStepStatus[] = ['pending', 'skipped']
 
 export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const store = useLabStore()
-  const { lab, sync, syncError, saving, conflict, toast, updatedAt, updatedBy } =
+  const { lab, sync, saving, conflict, toast, updatedAt, updatedBy, hasLoaded } =
     store
   const { confirm, dialog: confirmDialog } = useConfirm()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -46,6 +48,14 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const systemUnits = useMemo(
     () => units.filter((u) => isSystemKind(u.kind)),
     [units],
+  )
+  const linkableUnits = useMemo(
+    () =>
+      sortUnits([
+        ...systemUnits,
+        ...units.filter((u) => isInventoryKind(u.kind)),
+      ]),
+    [units, systemUnits],
   )
   const processes = useMemo(() => sortProcesses(lab.processes), [lab.processes])
   const unitNameById = useMemo(() => {
@@ -356,25 +366,21 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
             type="button"
             className="btn btn-accent"
             onClick={() => openDetail(null, true)}
+            disabled={!hasLoaded}
           >
             New production
           </button>
         </div>
       </header>
 
-      {sync === 'error' && syncError ? (
-        <p className="simple-error" role="alert">
-          {syncError}
-        </p>
-      ) : null}
-      {conflict ? (
-        <p className="simple-conflict" role="alert">
-          Someone else saved first. Review the live data, then re-apply your edit.
-        </p>
-      ) : null}
+      <SyncStatusBanners store={store} />
 
-      {sync === 'loading' ? (
-        <p className="simple-muted">Loading…</p>
+      {sync === 'loading' || (sync === 'error' && !hasLoaded) ? (
+        <p className="simple-muted">
+          {sync === 'loading'
+            ? 'Loading…'
+            : 'Could not load shared lab. Retry above — do not add productions until it recovers.'}
+        </p>
       ) : (
         <div className="simple-split" data-mode={mobileMode}>
           <section className="simple-list-panel">
@@ -545,7 +551,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                         {isEditing ? (
                           <EditStepForm
                             step={step}
-                            units={systemUnits}
+                            units={linkableUnits}
                             onSave={(patch) =>
                               editStep(selected.id, step.id, patch)
                             }
@@ -568,8 +574,13 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 ) : null}
                                 {linked.length > 0 ? (
                                   <span className="simple-muted">
-                                    Hardware:{' '}
-                                    {linked.map((u) => u.name).join(', ')}
+                                    Linked:{' '}
+                                    {linked
+                                      .map(
+                                        (u) =>
+                                          `${u.name} (${HARDWARE_KIND_LABELS[u.kind]})`,
+                                      )
+                                      .join(', ')}
                                   </span>
                                 ) : null}
                                 {step.status === 'done' && step.completedBy ? (
@@ -883,10 +894,12 @@ function EditStepForm({
         />
       </label>
       <fieldset>
-        <legend>Linked Hardware units</legend>
+        <legend>Linked units</legend>
         <div className="hw-link-units">
           {units.length === 0 ? (
-            <span className="simple-muted">No hardware units yet.</span>
+            <span className="simple-muted">
+              No hardware or inventory units yet.
+            </span>
           ) : (
             units.map((unit) => (
               <label key={unit.id}>
@@ -899,6 +912,7 @@ function EditStepForm({
                 {unit.name}
                 <span className="simple-muted">
                   {HARDWARE_KIND_LABELS[unit.kind]}
+                  {isInventoryKind(unit.kind) ? ' · inventory' : ''}
                 </span>
               </label>
             ))

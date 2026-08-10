@@ -70,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       )
       if (!result.ok) {
         res.status(409).json({
-          error: 'Inventory was updated by someone else. Reloaded latest.',
+          error: 'Lab was updated by someone else. Reloaded latest.',
           lab: result.lab,
           storage: storageMode(),
         })
@@ -96,7 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(405).json({ error: 'Method not allowed' })
   } catch (error) {
     console.error('hardware lab API failed', error)
-    const message = error instanceof Error ? error.message : 'Shared inventory failed'
+    const message = error instanceof Error ? error.message : 'Shared lab failed'
     res.status(500).json({ error: message })
   }
 }

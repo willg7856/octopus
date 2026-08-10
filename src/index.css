@@ -4398,6 +4398,41 @@ button.simple-list-row {
   margin-bottom: 0.65rem;
 }
 
+.inv-filters-mobile {
+  display: none;
+  margin-bottom: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 0.15rem 0.55rem 0.45rem;
+}
+
+.inv-filters-mobile > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.55rem 0.1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.inv-filters-mobile > summary::-webkit-details-marker {
+  display: none;
+}
+
+.inv-eta-overdue {
+  font-weight: 600;
+  color: var(--telem-amber, #c47a12);
+}
+
+.simple-inline-action {
+  display: inline;
+  min-height: 0;
+  padding: 0.1rem 0.35rem;
+  margin-left: 0.15rem;
+  font-size: inherit;
+  vertical-align: baseline;
+}
+
 .inv-filter-chip {
   display: inline-flex;
   align-items: center;
@@ -4673,6 +4708,11 @@ button.simple-list-row {
 
 .simple-sync-ok {
   color: var(--telem-green);
+}
+
+.simple-sync-error {
+  color: var(--telem-red, #d64545);
+  font-weight: 600;
 }
 
 .simple-sync-bar {
@@ -5541,6 +5581,14 @@ button.simple-list-row {
 
   .inv-filter-chip {
     min-height: 2.55rem;
+  }
+
+  .inv-filters-desktop {
+    display: none;
+  }
+
+  .inv-filters-mobile {
+    display: block;
   }
 
   .prod-btn {

@@ -34,6 +34,9 @@ export function SyncBar({
       {sync === 'local' && !saving ? (
         <span className="simple-sync">Local</span>
       ) : null}
+      {sync === 'error' && !saving ? (
+        <span className="simple-sync simple-sync-error">Offline</span>
+      ) : null}
       {updated ? <span className="simple-sync-meta">{updated}</span> : null}
       {conflict ? (
         <span className="simple-conflict" role="status">

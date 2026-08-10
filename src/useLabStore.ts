@@ -1,4 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import {
   fetchSharedHardwareLab,
   resetSharedHardwareLab,
@@ -18,6 +28,26 @@ export type LabSyncState = 'loading' | 'shared' | 'local' | 'error'
 export type LabUpdater =
   | HardwareLabState
   | ((prev: HardwareLabState) => HardwareLabState)
+
+export type LabStore = {
+  lab: HardwareLabState
+  revision: number
+  updatedAt: string | null
+  updatedBy: string | null
+  sync: LabSyncState
+  syncError: string | null
+  /** True after at least one successful load (shared or local). */
+  hasLoaded: boolean
+  saving: boolean
+  conflict: boolean
+  canRetryConflict: boolean
+  toast: string | null
+  refresh: (opts?: { quiet?: boolean }) => Promise<void>
+  commit: (next: LabUpdater, message: string) => Promise<boolean>
+  retryConflict: () => Promise<boolean>
+  dismissConflict: () => void
+  reset: () => Promise<void>
+}
 
 function toLabState(shared: SharedHardwareLab): HardwareLabState {
   return normalizeHardwareLabState({
@@ -47,7 +77,28 @@ function formatRelativeTime(iso: string) {
   return `${days}d ago`
 }
 
-export function useLabStore() {
+const LabContext = createContext<LabStore | null>(null)
+
+export function LabProvider({
+  children,
+  onAuthRequired,
+}: {
+  children: ReactNode
+  onAuthRequired?: () => void
+}) {
+  const store = useLabStoreState(onAuthRequired)
+  return createElement(LabContext.Provider, { value: store }, children)
+}
+
+export function useLabStore(): LabStore {
+  const ctx = useContext(LabContext)
+  if (!ctx) {
+    throw new Error('useLabStore must be used within LabProvider')
+  }
+  return ctx
+}
+
+function useLabStoreState(onAuthRequired?: () => void): LabStore {
   const [lab, setLab] = useState<HardwareLabState>(() => ({
     units: [],
     progress: [],
@@ -59,21 +110,33 @@ export function useLabStore() {
   const [updatedBy, setUpdatedBy] = useState<string | null>(null)
   const [sync, setSync] = useState<LabSyncState>('loading')
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [conflict, setConflict] = useState(false)
+  const [canRetryConflict, setCanRetryConflict] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const revisionRef = useRef(1)
   const labRef = useRef<HardwareLabState>(lab)
   const syncRef = useRef<LabSyncState>(sync)
+  const hasLoadedRef = useRef(false)
   const commitChain = useRef(Promise.resolve(true))
   const savingRef = useRef(false)
   const pendingCount = useRef(0)
+  const pendingUpdaterRef = useRef<LabUpdater | null>(null)
+  const onAuthRequiredRef = useRef(onAuthRequired)
+  onAuthRequiredRef.current = onAuthRequired
 
   syncRef.current = sync
 
   function flash(message: string) {
     setToast(message)
     window.setTimeout(() => setToast(null), 2800)
+  }
+
+  function handleAuthRequired() {
+    setSync('error')
+    setSyncError('Sign in required')
+    onAuthRequiredRef.current?.()
   }
 
   function applyShared(shared: SharedHardwareLab) {
@@ -86,9 +149,11 @@ export function useLabStore() {
     setUpdatedBy(shared.updatedBy)
     setSync('shared')
     setSyncError(null)
+    hasLoadedRef.current = true
+    setHasLoaded(true)
   }
 
-  async function refresh(opts?: { quiet?: boolean }) {
+  const refresh = useCallback(async (opts?: { quiet?: boolean }) => {
     if (savingRef.current) return
     const result = await fetchSharedHardwareLab()
     if (result.ok) {
@@ -99,25 +164,34 @@ export function useLabStore() {
       return
     }
 
+    if (result.authRequired) {
+      handleAuthRequired()
+      return
+    }
+
     if (import.meta.env.DEV && (result.status === 0 || result.status === 404)) {
       const local = loadHardwareLab()
       labRef.current = local
       setLab(local)
       setSync('local')
       setSyncError(null)
+      hasLoadedRef.current = true
+      setHasLoaded(true)
       return
     }
 
+    // Keep previously loaded data visible; mark error so UI can warn + retry.
     setSync('error')
     setSyncError(result.error)
-  }
-
-  useEffect(() => {
-    void refresh({ quiet: true })
   }, [])
 
   useEffect(() => {
-    if (sync !== 'shared') return
+    void refresh({ quiet: true })
+  }, [refresh])
+
+  useEffect(() => {
+    // Keep polling while live OR recovering from a transient error.
+    if (sync !== 'shared' && sync !== 'error') return
 
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
@@ -135,9 +209,15 @@ export function useLabStore() {
       document.removeEventListener('visibilitychange', onVisible)
       window.clearInterval(timer)
     }
-  }, [sync])
+  }, [sync, refresh])
 
-  async function commit(next: LabUpdater, message: string) {
+  const dismissConflict = useCallback(() => {
+    pendingUpdaterRef.current = null
+    setConflict(false)
+    setCanRetryConflict(false)
+  }, [])
+
+  const commit = useCallback(async (next: LabUpdater, message: string) => {
     const run = async () => {
       const resolved =
         typeof next === 'function' ? next(labRef.current) : next
@@ -146,15 +226,22 @@ export function useLabStore() {
         saveHardwareLab(resolved)
         labRef.current = resolved
         setLab(resolved)
-        setConflict(false)
+        dismissConflict()
         flash(message)
         return true
+      }
+
+      // Block edits until we've successfully loaded at least once
+      if (!hasLoadedRef.current || syncRef.current === 'loading') {
+        flash('Lab is still loading — try again in a moment')
+        return false
       }
 
       pendingCount.current += 1
       savingRef.current = true
       setSaving(true)
       setConflict(false)
+      setCanRetryConflict(false)
       const expected = revisionRef.current
       const result = await saveSharedHardwareLab(resolved, expected)
       pendingCount.current = Math.max(0, pendingCount.current - 1)
@@ -163,10 +250,22 @@ export function useLabStore() {
         setSaving(false)
       }
 
+      if ('authRequired' in result && result.authRequired) {
+        handleAuthRequired()
+        flash(result.error)
+        return false
+      }
+
       if ('conflict' in result && result.conflict) {
         applyShared(result.lab)
+        pendingUpdaterRef.current = next
         setConflict(true)
-        flash('Someone else saved first — your edit was not applied. Re-try after reviewing.')
+        setCanRetryConflict(typeof next === 'function')
+        flash(
+          typeof next === 'function'
+            ? 'Someone else saved first — review, then retry your edit.'
+            : 'Someone else saved first — your edit was not applied. Re-apply after reviewing.',
+        )
         return false
       }
 
@@ -176,7 +275,9 @@ export function useLabStore() {
       }
 
       applyShared(result.lab)
+      pendingUpdaterRef.current = null
       setConflict(false)
+      setCanRetryConflict(false)
       flash(message)
       return true
     }
@@ -187,9 +288,21 @@ export function useLabStore() {
       () => true,
     )
     return queued
-  }
+  }, [dismissConflict])
 
-  async function reset() {
+  const retryConflict = useCallback(async () => {
+    const updater = pendingUpdaterRef.current
+    if (!updater || typeof updater !== 'function') {
+      flash('Nothing to retry — re-apply your edit manually')
+      return false
+    }
+    pendingUpdaterRef.current = null
+    setConflict(false)
+    setCanRetryConflict(false)
+    return commit(updater, 'Edit retried')
+  }, [commit])
+
+  const reset = useCallback(async () => {
     if (syncRef.current === 'local') {
       const next = resetHardwareLab()
       labRef.current = next
@@ -204,25 +317,50 @@ export function useLabStore() {
     savingRef.current = false
     setSaving(false)
     if (!result.ok) {
+      if (result.authRequired) handleAuthRequired()
       flash(result.error)
       return
     }
     applyShared(result.lab)
     flash('Shared lab reset to seed')
-  }
+  }, [])
 
-  return {
-    lab,
-    revision,
-    updatedAt,
-    updatedBy,
-    sync,
-    syncError,
-    saving,
-    conflict,
-    toast,
-    refresh,
-    commit,
-    reset,
-  }
+  return useMemo(
+    () => ({
+      lab,
+      revision,
+      updatedAt,
+      updatedBy,
+      sync,
+      syncError,
+      hasLoaded,
+      saving,
+      conflict,
+      canRetryConflict,
+      toast,
+      refresh,
+      commit,
+      retryConflict,
+      dismissConflict,
+      reset,
+    }),
+    [
+      lab,
+      revision,
+      updatedAt,
+      updatedBy,
+      sync,
+      syncError,
+      hasLoaded,
+      saving,
+      conflict,
+      canRetryConflict,
+      toast,
+      refresh,
+      commit,
+      retryConflict,
+      dismissConflict,
+      reset,
+    ],
+  )
 }

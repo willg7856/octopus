@@ -357,6 +357,23 @@ export function unitOnOrderQty(unit: Pick<HardwareUnit, 'onOrderQty'>) {
     : 0
 }
 
+/** True when an outstanding order is past its expected delivery date. */
+export function isOrderOverdue(
+  unit: Pick<HardwareUnit, 'expectedAt' | 'onOrderQty' | 'stockStatus' | 'status'>,
+  today = new Date().toISOString().slice(0, 10),
+) {
+  const eta = unit.expectedAt?.trim()
+  if (!eta) return false
+  const status = stockStatusOf(unit as HardwareUnit)
+  const outstanding =
+    unitOnOrderQty(unit) > 0 ||
+    status === 'on-order' ||
+    status === 'receiving' ||
+    status === 'incoming'
+  if (!outstanding) return false
+  return eta < today
+}
+
 /** Optional unit price for inventory value estimates. */
 export function unitPriceOf(unit: Pick<HardwareUnit, 'unitPrice'>) {
   return typeof unit.unitPrice === 'number' &&
