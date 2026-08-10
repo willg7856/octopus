@@ -4766,6 +4766,47 @@ button.simple-list-row {
   margin-bottom: 0.65rem;
 }
 
+.hw-notes-banner {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--telem-amber, #c47a12) 45%, var(--line));
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--telem-amber, #c47a12) 12%, var(--bg));
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.hw-notes-banner strong {
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--telem-amber, #c47a12);
+}
+
+.hw-notes-flag {
+  font-weight: 600;
+  color: var(--telem-amber, #c47a12);
+}
+
+.hw-notes-important {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.15rem;
+  font-size: 0.88rem;
+}
+
+.hw-notes-important input {
+  width: auto;
+  margin: 0;
+}
+
+.simple-form[data-editing='false'] .hw-notes-important {
+  opacity: 0.85;
+}
+
 .hw-history,
 .hw-tests {
   margin-top: 1.25rem;

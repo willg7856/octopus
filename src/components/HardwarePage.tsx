@@ -509,6 +509,7 @@ function fieldsFromUnit(unit?: HardwareUnit) {
     fwVersion: unit?.fwVersion ?? '',
     owner: unit?.owner ?? '',
     notes: unit?.notes ?? '',
+    notesImportant: Boolean(unit?.notesImportant),
   }
 }
 
@@ -541,6 +542,7 @@ function SystemForm({
     fwVersion,
     owner,
     notes,
+    notesImportant,
   } = fields
 
   useEffect(() => {
@@ -560,6 +562,7 @@ function SystemForm({
     initial?.fwVersion,
     initial?.owner,
     initial?.notes,
+    initial?.notesImportant,
   ])
 
   function setField<K extends keyof typeof fields>(
@@ -592,6 +595,7 @@ function SystemForm({
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!editing || !name.trim() || !serial.trim()) return
+    const trimmedNotes = notes.trim()
     onSave({
       id: initial?.id,
       name: name.trim(),
@@ -605,10 +609,15 @@ function SystemForm({
       fwVersion: fwVersion.trim() || undefined,
       partNumber: initial?.partNumber,
       owner: owner.trim() || undefined,
-      notes: notes.trim() || undefined,
+      notes: trimmedNotes || undefined,
+      notesImportant: Boolean(trimmedNotes && notesImportant),
     })
     if (!isNew) setEditing(false)
   }
+
+  const showImportantBanner = Boolean(
+    (editing ? notesImportant && notes.trim() : initial?.notesImportant && initial?.notes?.trim()),
+  )
 
   return (
     <form
@@ -631,6 +640,14 @@ function SystemForm({
           </button>
         ) : null}
       </div>
+      {showImportantBanner ? (
+        <p className="hw-notes-banner" role="status">
+          <strong>Important notes</strong>
+          <span>
+            {editing ? notes.trim() : (initial?.notes ?? '').trim()}
+          </span>
+        </p>
+      ) : null}
       <fieldset className="simple-form-fields" disabled={!editing}>
         <label>
           Name
@@ -749,6 +766,15 @@ function SystemForm({
             onChange={(e) => setField('notes', e.target.value)}
             placeholder="Open work, constraints, next gate…"
           />
+        </label>
+        <label className="hw-notes-important">
+          <input
+            type="checkbox"
+            checked={notesImportant}
+            disabled={!editing || !notes.trim()}
+            onChange={(e) => setField('notesImportant', e.target.checked)}
+          />
+          Flag notes as important
         </label>
       </fieldset>
       <div className="simple-form-actions">
@@ -876,6 +902,12 @@ function HardwareTreeNodes({
           <span className="simple-muted">
             {unit.serial} · {HARDWARE_KIND_LABELS[unit.kind]}
             {children.length > 0 ? ` · ${children.length} linked` : ''}
+            {unit.notesImportant && unit.notes?.trim() ? (
+              <>
+                {' · '}
+                <span className="hw-notes-flag">Important</span>
+              </>
+            ) : null}
           </span>
         </span>
         <span

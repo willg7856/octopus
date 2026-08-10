@@ -232,6 +232,8 @@ export interface HardwareUnit {
   location?: string
   owner?: string
   notes?: string
+  /** When true, notes are surfaced on the list and detail top. */
+  notesImportant?: boolean
   updatedAt: string
 }
 
