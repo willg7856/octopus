@@ -54,6 +54,9 @@ export function VehicleProcessPage({
   const [creating, setCreating] = useState(false)
   const [editingSteps, setEditingSteps] = useState(false)
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
+  const [integratingStepId, setIntegratingStepId] = useState<string | null>(
+    null,
+  )
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<AttentionFilter>('all')
   const [mobileMode, setMobileMode] = useState<'list' | 'detail'>(() =>
@@ -129,6 +132,7 @@ export function VehicleProcessPage({
     setCreating(isCreating)
     setSelected(id)
     setEditingStepId(null)
+    setIntegratingStepId(null)
     if (!isCreating) setEditingSteps(false)
     setMobileMode('detail')
   }
@@ -137,6 +141,7 @@ export function VehicleProcessPage({
     setCreating(false)
     setEditingSteps(false)
     setEditingStepId(null)
+    setIntegratingStepId(null)
     setMobileMode('list')
   }
 
@@ -297,6 +302,86 @@ export function VehicleProcessPage({
       }),
     }), 'Step saved')
     setEditingStepId(null)
+  }
+
+  /** Attach a Hardware subsystem/vehicle to a step (and mark production in use). */
+  function integrateHardwareOnStep(
+    processId: string,
+    stepId: string,
+    hardwareId: string,
+  ) {
+    const now = new Date().toISOString()
+    void store.commit((prev) => {
+      const process = prev.processes.find((p) => p.id === processId)
+      const hardware = prev.units.find((u) => u.id === hardwareId)
+      if (!process || !hardware || !isSystemKind(hardware.kind)) return prev
+
+      const vehicle = prev.units.find((u) => u.id === process.vehicleUnitId)
+      let nextUnits = prev.units
+      // Nest subsystem under the production vehicle when it has no parent yet
+      if (
+        vehicle?.kind === 'vehicle' &&
+        hardware.kind !== 'vehicle' &&
+        !hardware.parentVehicleId
+      ) {
+        nextUnits = prev.units.map((u) =>
+          u.id === hardwareId
+            ? { ...u, parentVehicleId: vehicle.id, updatedAt: now }
+            : u,
+        )
+      }
+
+      const inUse = new Set(process.linkedHardwareIds ?? [])
+      inUse.add(hardwareId)
+
+      return {
+        ...prev,
+        units: nextUnits,
+        processes: prev.processes.map((p) => {
+          if (p.id !== processId) return p
+          return {
+            ...p,
+            linkedHardwareIds: [...inUse],
+            updatedAt: now,
+            steps: p.steps.map((s) => {
+              if (s.id !== stepId) return s
+              const linked = s.linkedUnitIds ?? []
+              if (linked.includes(hardwareId)) return s
+              return { ...s, linkedUnitIds: [...linked, hardwareId] }
+            }),
+          }
+        }),
+      }
+    }, 'Hardware integrated on step')
+    setIntegratingStepId(null)
+  }
+
+  function removeHardwareFromStep(
+    processId: string,
+    stepId: string,
+    hardwareId: string,
+  ) {
+    const now = new Date().toISOString()
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) => {
+        if (p.id !== processId) return p
+        return {
+          ...p,
+          updatedAt: now,
+          steps: p.steps.map((s) =>
+            s.id === stepId
+              ? {
+                  ...s,
+                  linkedUnitIds: (s.linkedUnitIds ?? []).filter(
+                    (id) => id !== hardwareId,
+                  ),
+                }
+              : s,
+          ),
+        }
+      }),
+    }), 'Hardware removed from step')
   }
 
   async function deleteStep(processId: string, stepId: string) {
@@ -890,6 +975,36 @@ export function VehicleProcessPage({
                                 />
                               </label>
                             ) : null}
+
+                            {!editingSteps ? (
+                              <StepIntegrateHardware
+                                step={step}
+                                linked={linked}
+                                systemUnits={systemUnits}
+                                open={integratingStepId === step.id}
+                                disabled={!hasLoaded}
+                                onOpenHardware={onOpenHardware}
+                                onToggle={() =>
+                                  setIntegratingStepId((cur) =>
+                                    cur === step.id ? null : step.id,
+                                  )
+                                }
+                                onIntegrate={(hardwareId) =>
+                                  integrateHardwareOnStep(
+                                    selected.id,
+                                    step.id,
+                                    hardwareId,
+                                  )
+                                }
+                                onRemove={(hardwareId) =>
+                                  removeHardwareFromStep(
+                                    selected.id,
+                                    step.id,
+                                    hardwareId,
+                                  )
+                                }
+                              />
+                            ) : null}
                           </>
                         )}
                       </li>
@@ -1051,6 +1166,149 @@ function NewProductionForm({
         </button>
       </div>
     </form>
+  )
+}
+
+function StepIntegrateHardware({
+  step,
+  linked,
+  systemUnits,
+  open,
+  disabled,
+  onOpenHardware,
+  onToggle,
+  onIntegrate,
+  onRemove,
+}: {
+  step: VehicleProcessStep
+  linked: HardwareUnit[]
+  systemUnits: HardwareUnit[]
+  open: boolean
+  disabled?: boolean
+  onOpenHardware?: (id: string) => void
+  onToggle: () => void
+  onIntegrate: (hardwareId: string) => void
+  onRemove: (hardwareId: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const linkedIds = useMemo(
+    () => new Set(step.linkedUnitIds ?? []),
+    [step.linkedUnitIds],
+  )
+  const q = query.trim().toLowerCase()
+  const suggestions = useMemo(() => {
+    if (!q) return [] as HardwareUnit[]
+    return systemUnits
+      .filter((u) => !linkedIds.has(u.id))
+      .filter((u) =>
+        [u.name, u.serial, HARDWARE_KIND_LABELS[u.kind], u.program]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(q),
+      )
+      .slice(0, 8)
+  }, [systemUnits, linkedIds, q])
+
+  const hardwareLinked = linked.filter((u) => isSystemKind(u.kind))
+
+  return (
+    <div className="prod-integrate">
+      {hardwareLinked.length > 0 ? (
+        <ul className="prod-integrate-list" aria-label="Integrated hardware">
+          {hardwareLinked.map((unit) => (
+            <li key={unit.id}>
+              <span>
+                {onOpenHardware ? (
+                  <button
+                    type="button"
+                    className="hw-parts-name-btn"
+                    onClick={() => onOpenHardware(unit.id)}
+                  >
+                    {unit.name}
+                  </button>
+                ) : (
+                  <strong>{unit.name}</strong>
+                )}
+                <span className="simple-muted">
+                  {' '}
+                  · {HARDWARE_KIND_LABELS[unit.kind]}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={disabled}
+                onClick={() => onRemove(unit.id)}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <button
+        type="button"
+        className="btn btn-accent prod-integrate-btn"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={onToggle}
+      >
+        {open ? 'Cancel' : 'Integrate hardware'}
+      </button>
+
+      {open ? (
+        <div className="prod-integrate-picker">
+          <input
+            className="simple-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search subsystems / vehicles…"
+            aria-label={`Search hardware to integrate on ${step.title}`}
+            autoFocus
+            disabled={disabled}
+          />
+          {q ? (
+            <ul className="hw-link-suggest">
+              {suggestions.length === 0 ? (
+                <li className="simple-muted">
+                  No matching hardware — add it under Hardware first.
+                </li>
+              ) : (
+                suggestions.map((unit) => (
+                  <li key={unit.id}>
+                    <span>
+                      <strong>{unit.name}</strong>
+                      <span className="simple-muted">
+                        {HARDWARE_KIND_LABELS[unit.kind]}
+                        {unit.serial ? ` · ${unit.serial}` : ''}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-accent"
+                      disabled={disabled}
+                      onClick={() => {
+                        onIntegrate(unit.id)
+                        setQuery('')
+                      }}
+                    >
+                      Integrate
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          ) : (
+            <p className="simple-muted hw-link-search-hint">
+              Type to find a subsystem, then Integrate — links it to this step
+              and marks it in use on the production.
+            </p>
+          )}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
