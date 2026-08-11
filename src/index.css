@@ -5066,8 +5066,14 @@ button.simple-list-row {
 
 .hw-parts-summary,
 .prod-materials-summary {
+  display: grid;
+  gap: 0.25rem;
   margin: 0.55rem 0 0;
   font-size: 0.88rem;
+}
+
+.prod-materials-summary > p {
+  margin: 0;
 }
 
 .hw-parts {
