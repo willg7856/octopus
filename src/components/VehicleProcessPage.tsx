@@ -11,7 +11,9 @@ import {
 import {
   HARDWARE_KIND_LABELS,
   PROCESS_STEP_STATUS_LABELS,
+  formatProcessDate,
   isInventoryKind,
+  isProductionDeadlineOverdue,
   isSystemKind,
   newId,
   processCompletion,
@@ -282,6 +284,31 @@ export function VehicleProcessPage({
     }), 'Hardware in use updated')
   }
 
+  function setProcessDates(
+    processId: string,
+    patch: {
+      startedAt?: string
+      deadlineAt?: string
+      finishedAt?: string
+    },
+  ) {
+    const now = new Date().toISOString()
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) =>
+        p.id === processId
+          ? {
+              ...p,
+              startedAt: patch.startedAt || undefined,
+              deadlineAt: patch.deadlineAt || undefined,
+              finishedAt: patch.finishedAt || undefined,
+              updatedAt: now,
+            }
+          : p,
+      ),
+    }), 'Schedule updated')
+  }
+
   function addStep(processId: string, title: string) {
     if (!title.trim()) return
     const now = new Date().toISOString()
@@ -463,6 +490,9 @@ export function VehicleProcessPage({
     vehicleName?: string
     linkedInventoryQty?: Record<string, number>
     linkedHardwareIds?: string[]
+    startedAt?: string
+    deadlineAt?: string
+    finishedAt?: string
   }) {
     const now = new Date().toISOString()
     const wanted = (input.vehicleName || input.name)
@@ -515,6 +545,9 @@ export function VehicleProcessPage({
         linkedInventoryIds: materials,
         linkedInventoryQty: materialQtySaved,
         linkedHardwareIds: hardwareInUse,
+        startedAt: input.startedAt || undefined,
+        deadlineAt: input.deadlineAt || undefined,
+        finishedAt: input.finishedAt || undefined,
         updatedAt: now,
         steps: [],
       }
@@ -661,6 +694,7 @@ export function VehicleProcessPage({
                 const glance = processGlanceStatus(process)
                 const vehicleName =
                   unitNameById.get(process.vehicleUnitId) ?? 'Vehicle'
+                const overdue = isProductionDeadlineOverdue(process)
                 return (
                   <li key={process.id}>
                     <button
@@ -671,6 +705,7 @@ export function VehicleProcessPage({
                           ? 'true'
                           : 'false'
                       }
+                      data-overdue={overdue ? 'true' : undefined}
                       onClick={() => openDetail(process.id)}
                     >
                       <span>
@@ -678,14 +713,35 @@ export function VehicleProcessPage({
                         <span className="simple-muted">
                           {vehicleName}
                           {total > 0 ? ` · ${done}/${total} done` : ''}
+                          {process.deadlineAt ? (
+                            <>
+                              {' · '}
+                              <span
+                                className={
+                                  overdue ? 'inv-eta-overdue' : undefined
+                                }
+                              >
+                                {overdue ? 'Overdue ' : 'Due '}
+                                {formatProcessDate(process.deadlineAt)}
+                              </span>
+                            </>
+                          ) : process.startedAt ? (
+                            ` · started ${formatProcessDate(process.startedAt)}`
+                          ) : process.finishedAt ? (
+                            ` · finished ${formatProcessDate(process.finishedAt)}`
+                          ) : (
+                            ''
+                          )}
                         </span>
                       </span>
                       <span
                         className="status-badge"
                         data-kind="process"
-                        data-status={glance}
+                        data-status={overdue ? 'blocked' : glance}
                       >
-                        {PROCESS_STEP_STATUS_LABELS[glance]}
+                        {overdue
+                          ? 'Overdue'
+                          : PROCESS_STEP_STATUS_LABELS[glance]}
                       </span>
                     </button>
                   </li>
@@ -736,6 +792,7 @@ export function VehicleProcessPage({
                       {activeStep ? ` · Active: ${activeStep.title}` : ''}
                       {blockedCount > 0 ? ` · ${blockedCount} blocked` : ''}
                     </p>
+                    <ProductionScheduleSummary process={selected} />
                   </div>
                   <div className="prod-detail-actions">
                     <button
@@ -778,6 +835,50 @@ export function VehicleProcessPage({
                         ))}
                       </select>
                     </label>
+                    <div className="prod-schedule-fields">
+                      <label>
+                        Start date
+                        <input
+                          type="date"
+                          value={selected.startedAt ?? ''}
+                          onChange={(e) =>
+                            setProcessDates(selected.id, {
+                              startedAt: e.target.value,
+                              deadlineAt: selected.deadlineAt,
+                              finishedAt: selected.finishedAt,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Deadline
+                        <input
+                          type="date"
+                          value={selected.deadlineAt ?? ''}
+                          onChange={(e) =>
+                            setProcessDates(selected.id, {
+                              startedAt: selected.startedAt,
+                              deadlineAt: e.target.value,
+                              finishedAt: selected.finishedAt,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Finish date
+                        <input
+                          type="date"
+                          value={selected.finishedAt ?? ''}
+                          onChange={(e) =>
+                            setProcessDates(selected.id, {
+                              startedAt: selected.startedAt,
+                              deadlineAt: selected.deadlineAt,
+                              finishedAt: e.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
                     <InventoryLinkPicker
                       units={systemUnits}
                       selectedIds={selected.linkedHardwareIds ?? []}
@@ -1138,12 +1239,18 @@ function NewProductionForm({
     vehicleName?: string
     linkedInventoryQty?: Record<string, number>
     linkedHardwareIds?: string[]
+    startedAt?: string
+    deadlineAt?: string
+    finishedAt?: string
   }) => void
   onCancel: () => void
 }) {
   const [name, setName] = useState('')
   const [vehicleUnitId, setVehicleUnitId] = useState('')
   const [vehicleName, setVehicleName] = useState('')
+  const [startedAt, setStartedAt] = useState('')
+  const [deadlineAt, setDeadlineAt] = useState('')
+  const [finishedAt, setFinishedAt] = useState('')
   const [linkedInventoryQty, setLinkedInventoryQty] = useState<
     Record<string, number>
   >({})
@@ -1160,6 +1267,9 @@ function NewProductionForm({
       vehicleName: vehicleName.trim() || name.trim(),
       linkedInventoryQty,
       linkedHardwareIds,
+      startedAt: startedAt || undefined,
+      deadlineAt: deadlineAt || undefined,
+      finishedAt: finishedAt || undefined,
     })
   }
 
@@ -1167,8 +1277,8 @@ function NewProductionForm({
     <form className="simple-form prod-create" onSubmit={handleSubmit}>
       <h3>New vehicle production</h3>
       <p className="simple-muted">
-        Starts blank — add steps after creating. Optionally link hardware and
-        materials up front.
+        Starts blank — add steps after creating. Optionally set schedule and
+        link hardware/materials up front.
       </p>
       <label>
         Name
@@ -1204,6 +1314,32 @@ function NewProductionForm({
           />
         </label>
       )}
+      <div className="prod-schedule-fields">
+        <label>
+          Start date
+          <input
+            type="date"
+            value={startedAt}
+            onChange={(e) => setStartedAt(e.target.value)}
+          />
+        </label>
+        <label>
+          Deadline
+          <input
+            type="date"
+            value={deadlineAt}
+            onChange={(e) => setDeadlineAt(e.target.value)}
+          />
+        </label>
+        <label>
+          Finish date
+          <input
+            type="date"
+            value={finishedAt}
+            onChange={(e) => setFinishedAt(e.target.value)}
+          />
+        </label>
+      </div>
       <InventoryLinkPicker
         units={vehicles}
         selectedIds={linkedHardwareIds}
@@ -1230,6 +1366,39 @@ function NewProductionForm({
         </button>
       </div>
     </form>
+  )
+}
+
+function ProductionScheduleSummary({ process }: { process: VehicleProcess }) {
+  const overdue = isProductionDeadlineOverdue(process)
+  if (!process.startedAt && !process.deadlineAt && !process.finishedAt) {
+    return (
+      <p className="simple-muted prod-schedule-summary">
+        No schedule yet — Edit steps to set start, deadline, or finish.
+      </p>
+    )
+  }
+  return (
+    <p className="simple-muted prod-schedule-summary">
+      {process.startedAt ? (
+        <span>Started {formatProcessDate(process.startedAt)}</span>
+      ) : null}
+      {process.deadlineAt ? (
+        <span
+          className={overdue ? 'inv-eta-overdue' : undefined}
+        >
+          {process.startedAt ? ' · ' : ''}
+          {overdue ? 'Overdue ' : 'Due '}
+          {formatProcessDate(process.deadlineAt)}
+        </span>
+      ) : null}
+      {process.finishedAt ? (
+        <span>
+          {process.startedAt || process.deadlineAt ? ' · ' : ''}
+          Finished {formatProcessDate(process.finishedAt)}
+        </span>
+      ) : null}
+    </p>
   )
 }
 

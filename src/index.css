@@ -5394,6 +5394,30 @@ button.simple-list-row {
   margin-bottom: 0.85rem;
 }
 
+.prod-schedule-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.prod-schedule-fields label {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.prod-schedule-summary {
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 720px) {
+  .prod-schedule-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .prod-suggested {
   margin-top: 1rem;
   padding-top: 0.85rem;

@@ -254,6 +254,12 @@ export function normalizeHardwareUnit(unit: HardwareUnit): HardwareUnit {
   return unit
 }
 
+function normalizeDateField(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined
+  const trimmed = raw.trim()
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : undefined
+}
+
 function normalizeProcessMaterials(process: VehicleProcess): VehicleProcess {
   const qty: Record<string, number> = {}
   if (process.linkedInventoryQty) {
@@ -272,6 +278,30 @@ function normalizeProcessMaterials(process: VehicleProcess): VehicleProcess {
     ...process,
     linkedInventoryIds: ids.length > 0 ? ids : undefined,
     linkedInventoryQty: ids.length > 0 ? qty : undefined,
+    startedAt: normalizeDateField(process.startedAt),
+    deadlineAt: normalizeDateField(process.deadlineAt),
+    finishedAt: normalizeDateField(process.finishedAt),
+  }
+}
+
+/** True when a production deadline has passed and the tracker is not finished. */
+export function isProductionDeadlineOverdue(process: VehicleProcess) {
+  if (!process.deadlineAt || process.finishedAt) return false
+  if (processOverallStatus(process) === 'done') return false
+  const today = new Date().toISOString().slice(0, 10)
+  return process.deadlineAt < today
+}
+
+export function formatProcessDate(isoDate: string) {
+  try {
+    const [y, m, d] = isoDate.split('-').map(Number)
+    if (!y || !m || !d) return isoDate
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return isoDate
   }
 }
 

@@ -300,6 +300,10 @@ export interface VehicleProcess {
    * Soft link only — does not change Hardware status or inventory.
    */
   linkedHardwareIds?: string[]
+  /** Schedule dates (YYYY-MM-DD). Soft planning fields only. */
+  startedAt?: string
+  deadlineAt?: string
+  finishedAt?: string
   steps: VehicleProcessStep[]
   updatedAt: string
 }
