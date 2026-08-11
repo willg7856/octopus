@@ -20,6 +20,7 @@ import {
   sortProcessSteps,
   sortProcesses,
   sortUnits,
+  unitQuantity,
 } from '../hardwareData'
 import type {
   HardwareUnit,
@@ -56,9 +57,10 @@ export function VehicleProcessPage({
   const [creating, setCreating] = useState(false)
   const [editingSteps, setEditingSteps] = useState(false)
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
-  const [integratingStepId, setIntegratingStepId] = useState<string | null>(
-    null,
-  )
+  const [stepAttach, setStepAttach] = useState<{
+    stepId: string
+    mode: 'hardware' | 'inventory'
+  } | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<AttentionFilter>('all')
   const [mobileMode, setMobileMode] = useState<'list' | 'detail'>(() =>
@@ -134,7 +136,7 @@ export function VehicleProcessPage({
     setCreating(isCreating)
     setSelected(id)
     setEditingStepId(null)
-    setIntegratingStepId(null)
+    setStepAttach(null)
     if (!isCreating) setEditingSteps(false)
     setMobileMode('detail')
   }
@@ -143,7 +145,7 @@ export function VehicleProcessPage({
     setCreating(false)
     setEditingSteps(false)
     setEditingStepId(null)
-    setIntegratingStepId(null)
+    setStepAttach(null)
     setMobileMode('list')
   }
 
@@ -428,13 +430,51 @@ export function VehicleProcessPage({
         }),
       }
     }, 'Hardware integrated on step')
-    setIntegratingStepId(null)
+    setStepAttach(null)
   }
 
-  function removeHardwareFromStep(
+  /** Soft-link inventory on a step and bump production materials qty. */
+  function useInventoryOnStep(
     processId: string,
     stepId: string,
-    hardwareId: string,
+    inventoryId: string,
+    addQty = 1,
+  ) {
+    const qty = Math.max(1, Math.floor(Number(addQty)) || 1)
+    const now = new Date().toISOString()
+    void store.commit((prev) => {
+      const process = prev.processes.find((p) => p.id === processId)
+      const item = prev.units.find((u) => u.id === inventoryId)
+      if (!process || !item || !isInventoryKind(item.kind)) return prev
+
+      return {
+        ...prev,
+        processes: prev.processes.map((p) => {
+          if (p.id !== processId) return p
+          const materials = materialsQtyMap(p)
+          materials[inventoryId] = (materials[inventoryId] ?? 0) + qty
+          const materialIds = Object.keys(materials)
+          return {
+            ...p,
+            linkedInventoryIds: materialIds,
+            linkedInventoryQty: materials,
+            updatedAt: now,
+            steps: p.steps.map((s) => {
+              if (s.id !== stepId) return s
+              const linked = s.linkedUnitIds ?? []
+              if (linked.includes(inventoryId)) return s
+              return { ...s, linkedUnitIds: [...linked, inventoryId] }
+            }),
+          }
+        }),
+      }
+    }, 'Inventory linked on step')
+  }
+
+  function removeUnitFromStep(
+    processId: string,
+    stepId: string,
+    unitId: string,
   ) {
     const now = new Date().toISOString()
     void store.commit((prev) => ({
@@ -449,14 +489,14 @@ export function VehicleProcessPage({
               ? {
                   ...s,
                   linkedUnitIds: (s.linkedUnitIds ?? []).filter(
-                    (id) => id !== hardwareId,
+                    (id) => id !== unitId,
                   ),
                 }
               : s,
           ),
         }
       }),
-    }), 'Hardware removed from step')
+    }), 'Removed from step')
   }
 
   async function deleteStep(processId: string, stepId: string) {
@@ -1044,17 +1084,52 @@ export function VehicleProcessPage({
                                   <button
                                     type="button"
                                     className="btn btn-ghost"
-                                    aria-pressed={integratingStepId === step.id}
+                                    aria-pressed={
+                                      stepAttach?.stepId === step.id &&
+                                      stepAttach.mode === 'hardware'
+                                    }
                                     disabled={!hasLoaded}
                                     onClick={() =>
-                                      setIntegratingStepId((cur) =>
-                                        cur === step.id ? null : step.id,
+                                      setStepAttach((cur) =>
+                                        cur?.stepId === step.id &&
+                                        cur.mode === 'hardware'
+                                          ? null
+                                          : {
+                                              stepId: step.id,
+                                              mode: 'hardware',
+                                            },
                                       )
                                     }
                                   >
-                                    {integratingStepId === step.id
+                                    {stepAttach?.stepId === step.id &&
+                                    stepAttach.mode === 'hardware'
                                       ? 'Cancel integrate'
                                       : 'Integrate'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost"
+                                    aria-pressed={
+                                      stepAttach?.stepId === step.id &&
+                                      stepAttach.mode === 'inventory'
+                                    }
+                                    disabled={!hasLoaded}
+                                    onClick={() =>
+                                      setStepAttach((cur) =>
+                                        cur?.stepId === step.id &&
+                                        cur.mode === 'inventory'
+                                          ? null
+                                          : {
+                                              stepId: step.id,
+                                              mode: 'inventory',
+                                            },
+                                      )
+                                    }
+                                  >
+                                    {stepAttach?.stepId === step.id &&
+                                    stepAttach.mode === 'inventory'
+                                      ? 'Cancel use'
+                                      : 'Use inventory'}
                                   </button>
                                   <button
                                     type="button"
@@ -1141,60 +1216,140 @@ export function VehicleProcessPage({
                             ) : null}
 
                             {editingSteps ? (
-                              <StepIntegrateHardware
-                                step={step}
-                                linked={linked}
-                                systemUnits={systemUnits}
-                                open={integratingStepId === step.id}
-                                disabled={!hasLoaded}
-                                onOpenHardware={onOpenHardware}
-                                onIntegrate={(hardwareId) =>
-                                  integrateHardwareOnStep(
-                                    selected.id,
-                                    step.id,
-                                    hardwareId,
-                                  )
-                                }
-                                onRemove={(hardwareId) =>
-                                  removeHardwareFromStep(
-                                    selected.id,
-                                    step.id,
-                                    hardwareId,
-                                  )
-                                }
-                              />
-                            ) : hardwareLinkedOnly(linked).length > 0 ? (
-                              <div className="prod-integrate prod-integrate-view">
-                                <ul
-                                  className="prod-integrate-list"
-                                  aria-label="Integrated hardware"
-                                >
-                                  {hardwareLinkedOnly(linked).map((unit) => (
-                                    <li key={unit.id}>
-                                      <span>
-                                        {onOpenHardware ? (
-                                          <button
-                                            type="button"
-                                            className="hw-parts-name-btn"
-                                            onClick={() =>
-                                              onOpenHardware(unit.id)
-                                            }
-                                          >
-                                            {unit.name}
-                                          </button>
-                                        ) : (
-                                          <strong>{unit.name}</strong>
-                                        )}
-                                        <span className="simple-muted">
-                                          {' '}
-                                          · {HARDWARE_KIND_LABELS[unit.kind]}
-                                        </span>
-                                      </span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : null}
+                              <>
+                                <StepIntegrateHardware
+                                  step={step}
+                                  linked={linked}
+                                  systemUnits={systemUnits}
+                                  open={
+                                    stepAttach?.stepId === step.id &&
+                                    stepAttach.mode === 'hardware'
+                                  }
+                                  disabled={!hasLoaded}
+                                  onOpenHardware={onOpenHardware}
+                                  onIntegrate={(hardwareId) =>
+                                    integrateHardwareOnStep(
+                                      selected.id,
+                                      step.id,
+                                      hardwareId,
+                                    )
+                                  }
+                                  onRemove={(hardwareId) =>
+                                    removeUnitFromStep(
+                                      selected.id,
+                                      step.id,
+                                      hardwareId,
+                                    )
+                                  }
+                                />
+                                <StepUseInventory
+                                  step={step}
+                                  linked={linked}
+                                  inventoryUnits={inventoryUnits}
+                                  open={
+                                    stepAttach?.stepId === step.id &&
+                                    stepAttach.mode === 'inventory'
+                                  }
+                                  disabled={!hasLoaded}
+                                  onOpenInventory={onOpenInventory}
+                                  onUse={(inventoryId) =>
+                                    useInventoryOnStep(
+                                      selected.id,
+                                      step.id,
+                                      inventoryId,
+                                    )
+                                  }
+                                  onRemove={(inventoryId) =>
+                                    removeUnitFromStep(
+                                      selected.id,
+                                      step.id,
+                                      inventoryId,
+                                    )
+                                  }
+                                />
+                              </>
+                            ) : (
+                              <>
+                                {hardwareLinkedOnly(linked).length > 0 ? (
+                                  <div className="prod-integrate prod-integrate-view">
+                                    <ul
+                                      className="prod-integrate-list"
+                                      aria-label="Integrated hardware"
+                                    >
+                                      {hardwareLinkedOnly(linked).map(
+                                        (unit) => (
+                                          <li key={unit.id}>
+                                            <span>
+                                              {onOpenHardware ? (
+                                                <button
+                                                  type="button"
+                                                  className="hw-parts-name-btn"
+                                                  onClick={() =>
+                                                    onOpenHardware(unit.id)
+                                                  }
+                                                >
+                                                  {unit.name}
+                                                </button>
+                                              ) : (
+                                                <strong>{unit.name}</strong>
+                                              )}
+                                              <span className="simple-muted">
+                                                {' '}
+                                                ·{' '}
+                                                {
+                                                  HARDWARE_KIND_LABELS[
+                                                    unit.kind
+                                                  ]
+                                                }
+                                              </span>
+                                            </span>
+                                          </li>
+                                        ),
+                                      )}
+                                    </ul>
+                                  </div>
+                                ) : null}
+                                {inventoryLinkedOnly(linked).length > 0 ? (
+                                  <div className="prod-integrate prod-integrate-view">
+                                    <ul
+                                      className="prod-integrate-list"
+                                      aria-label="Inventory on step"
+                                    >
+                                      {inventoryLinkedOnly(linked).map(
+                                        (unit) => (
+                                          <li key={unit.id}>
+                                            <span>
+                                              {onOpenInventory ? (
+                                                <button
+                                                  type="button"
+                                                  className="hw-parts-name-btn"
+                                                  onClick={() =>
+                                                    onOpenInventory(unit.id)
+                                                  }
+                                                >
+                                                  {unit.name}
+                                                </button>
+                                              ) : (
+                                                <strong>{unit.name}</strong>
+                                              )}
+                                              <span className="simple-muted">
+                                                {' '}
+                                                ·{' '}
+                                                {
+                                                  HARDWARE_KIND_LABELS[
+                                                    unit.kind
+                                                  ]
+                                                }
+                                              </span>
+                                            </span>
+                                          </li>
+                                        ),
+                                      )}
+                                    </ul>
+                                  </div>
+                                ) : null}
+                              </>
+                            )}
                           </>
                         )}
                       </li>
@@ -1231,6 +1386,10 @@ function shortName(name: string) {
 
 function hardwareLinkedOnly(linked: HardwareUnit[]) {
   return linked.filter((u) => isSystemKind(u.kind))
+}
+
+function inventoryLinkedOnly(linked: HardwareUnit[]) {
+  return linked.filter((u) => isInventoryKind(u.kind))
 }
 
 function processGlanceStatus(process: VehicleProcess): ProcessStepStatus {
@@ -1555,6 +1714,142 @@ function StepIntegrateHardware({
             <p className="simple-muted hw-link-search-hint">
               Type to find a subsystem, then Integrate — links it to this step
               and marks it in use on the production.
+            </p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function StepUseInventory({
+  step,
+  linked,
+  inventoryUnits,
+  open,
+  disabled,
+  onOpenInventory,
+  onUse,
+  onRemove,
+}: {
+  step: VehicleProcessStep
+  linked: HardwareUnit[]
+  inventoryUnits: HardwareUnit[]
+  open: boolean
+  disabled?: boolean
+  onOpenInventory?: (id: string) => void
+  onUse: (inventoryId: string) => void
+  onRemove: (inventoryId: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const linkedIds = useMemo(
+    () => new Set(step.linkedUnitIds ?? []),
+    [step.linkedUnitIds],
+  )
+  const q = query.trim().toLowerCase()
+  const suggestions = useMemo(() => {
+    if (!q) return [] as HardwareUnit[]
+    return inventoryUnits
+      .filter((u) =>
+        [u.name, u.serial, u.partNumber, HARDWARE_KIND_LABELS[u.kind], u.program]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(q),
+      )
+      .slice(0, 8)
+  }, [inventoryUnits, q])
+
+  const inventoryLinked = linked.filter((u) => isInventoryKind(u.kind))
+  if (!open && inventoryLinked.length === 0) return null
+
+  return (
+    <div className="prod-integrate">
+      {inventoryLinked.length > 0 ? (
+        <ul className="prod-integrate-list" aria-label="Inventory on step">
+          {inventoryLinked.map((unit) => (
+            <li key={unit.id}>
+              <span>
+                {onOpenInventory ? (
+                  <button
+                    type="button"
+                    className="hw-parts-name-btn"
+                    onClick={() => onOpenInventory(unit.id)}
+                  >
+                    {unit.name}
+                  </button>
+                ) : (
+                  <strong>{unit.name}</strong>
+                )}
+                <span className="simple-muted">
+                  {' '}
+                  · {HARDWARE_KIND_LABELS[unit.kind]} · {unitQuantity(unit)} on
+                  hand
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={disabled}
+                onClick={() => onRemove(unit.id)}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {open ? (
+        <div className="prod-integrate-picker">
+          <input
+            className="simple-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search inventory…"
+            aria-label={`Search inventory to use on ${step.title}`}
+            autoFocus
+            disabled={disabled}
+          />
+          {q ? (
+            <ul className="hw-link-suggest">
+              {suggestions.length === 0 ? (
+                <li className="simple-muted">
+                  No matching inventory — add it under Inventory first.
+                </li>
+              ) : (
+                suggestions.map((unit) => {
+                  const onStep = linkedIds.has(unit.id)
+                  return (
+                    <li key={unit.id}>
+                      <span>
+                        <strong>{unit.name}</strong>
+                        <span className="simple-muted">
+                          {HARDWARE_KIND_LABELS[unit.kind]}
+                          {` · ${unitQuantity(unit)} on hand`}
+                          {onStep ? ' · on step' : ''}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-accent"
+                        disabled={disabled}
+                        onClick={() => {
+                          onUse(unit.id)
+                          setQuery('')
+                        }}
+                      >
+                        {onStep ? '+1 materials' : 'Use'}
+                      </button>
+                    </li>
+                  )
+                })
+              )}
+            </ul>
+          ) : (
+            <p className="simple-muted hw-link-search-hint">
+              Type to find stock, then Use — links it to this step and adds it
+              to production materials. Does not change on-hand qty.
             </p>
           )}
         </div>

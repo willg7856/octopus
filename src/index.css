@@ -5795,7 +5795,7 @@ button.simple-list-row {
   flex-shrink: 0;
   gap: 0.2rem;
   justify-content: flex-end;
-  max-width: 16rem;
+  max-width: 22rem;
 }
 
 .prod-step-actions .btn {
