@@ -4992,6 +4992,43 @@ button.simple-list-row {
   font-size: 0.8rem;
 }
 
+.hw-link-search {
+  margin: 0.35rem 0 0.45rem;
+}
+
+.hw-link-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0.15rem;
+}
+
+.hw-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.85rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--ignition, #e85d04) 10%, var(--bg));
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.hw-link-chip:hover:not(:disabled),
+.hw-link-chip:focus-visible:not(:disabled) {
+  border-color: var(--fg-muted);
+}
+
+.hw-link-chip span {
+  color: var(--fg-muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .hw-link-group-label {
   margin: 0.45rem 0 0.2rem;
   font-size: 0.72rem;

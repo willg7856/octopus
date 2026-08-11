@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import {
   HARDWARE_KIND_LABELS,
   isInventoryKind,
@@ -18,6 +19,22 @@ type InventoryLinkPickerProps = {
   hint?: string
 }
 
+function matchesQuery(unit: HardwareUnit, q: string) {
+  if (!q) return true
+  return [
+    unit.name,
+    unit.serial,
+    unit.partNumber,
+    unit.program,
+    unit.location,
+    HARDWARE_KIND_LABELS[unit.kind],
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .includes(q)
+}
+
 export function InventoryLinkPicker({
   units,
   selectedIds,
@@ -27,10 +44,36 @@ export function InventoryLinkPicker({
   legend = 'Parts from inventory',
   hint = 'Optional. Linking tracks what this uses — it does not change stock qty.',
 }: InventoryLinkPickerProps) {
-  const inventory = sortUnits(units.filter((u) => isInventoryKind(u.kind)))
-  const hardware = includeHardware
-    ? sortUnits(units.filter((u) => isSystemKind(u.kind)))
-    : []
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+
+  const inventory = useMemo(
+    () => sortUnits(units.filter((u) => isInventoryKind(u.kind))),
+    [units],
+  )
+  const hardware = useMemo(
+    () =>
+      includeHardware
+        ? sortUnits(units.filter((u) => isSystemKind(u.kind)))
+        : [],
+    [units, includeHardware],
+  )
+
+  const filteredHardware = useMemo(
+    () => hardware.filter((u) => matchesQuery(u, q)),
+    [hardware, q],
+  )
+  const filteredInventory = useMemo(
+    () => inventory.filter((u) => matchesQuery(u, q)),
+    [inventory, q],
+  )
+
+  const selectedUnits = useMemo(() => {
+    const byId = new Map(units.map((u) => [u.id, u]))
+    return selectedIds
+      .map((id) => byId.get(id))
+      .filter(Boolean) as HardwareUnit[]
+  }, [selectedIds, units])
 
   function toggle(id: string) {
     onChange(
@@ -40,56 +83,101 @@ export function InventoryLinkPicker({
     )
   }
 
-  const empty =
+  const emptyCatalog =
     inventory.length === 0 && (!includeHardware || hardware.length === 0)
+  const noMatches =
+    !emptyCatalog &&
+    filteredHardware.length === 0 &&
+    filteredInventory.length === 0
 
   return (
     <fieldset className="hw-link-fieldset" disabled={disabled}>
       <legend>{legend}</legend>
       {hint ? <p className="simple-muted hw-link-hint">{hint}</p> : null}
-      <div className="hw-link-units">
-        {empty ? (
-          <span className="simple-muted">
-            {includeHardware
-              ? 'No hardware or inventory units yet.'
-              : 'No inventory items yet — add stock first.'}
-          </span>
-        ) : (
-          <>
-            {includeHardware && hardware.length > 0 ? (
+
+      {selectedUnits.length > 0 ? (
+        <div className="hw-link-selected" aria-label="Selected items">
+          {selectedUnits.map((unit) => (
+            <button
+              key={unit.id}
+              type="button"
+              className="hw-link-chip"
+              disabled={disabled}
+              onClick={() => toggle(unit.id)}
+              title="Remove"
+            >
+              {unit.name}
+              <span aria-hidden="true">×</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {emptyCatalog ? (
+        <p className="simple-muted">
+          {includeHardware
+            ? 'No hardware or inventory units yet.'
+            : 'No inventory items yet — add stock first.'}
+        </p>
+      ) : (
+        <>
+          <input
+            className="simple-search hw-link-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={
+              includeHardware
+                ? 'Search hardware or inventory…'
+                : 'Search inventory…'
+            }
+            aria-label={
+              includeHardware
+                ? 'Search hardware or inventory'
+                : 'Search inventory'
+            }
+            disabled={disabled}
+          />
+          <div className="hw-link-units">
+            {noMatches ? (
+              <span className="simple-muted">No items match that search.</span>
+            ) : (
               <>
-                <p className="hw-link-group-label">Hardware</p>
-                {hardware.map((unit) => (
-                  <UnitCheck
-                    key={unit.id}
-                    unit={unit}
-                    checked={selectedIds.includes(unit.id)}
-                    disabled={disabled}
-                    onToggle={() => toggle(unit.id)}
-                  />
-                ))}
-              </>
-            ) : null}
-            {inventory.length > 0 ? (
-              <>
-                {includeHardware ? (
-                  <p className="hw-link-group-label">Inventory</p>
+                {includeHardware && filteredHardware.length > 0 ? (
+                  <>
+                    <p className="hw-link-group-label">Hardware</p>
+                    {filteredHardware.map((unit) => (
+                      <UnitCheck
+                        key={unit.id}
+                        unit={unit}
+                        checked={selectedIds.includes(unit.id)}
+                        disabled={disabled}
+                        onToggle={() => toggle(unit.id)}
+                      />
+                    ))}
+                  </>
                 ) : null}
-                {inventory.map((unit) => (
-                  <UnitCheck
-                    key={unit.id}
-                    unit={unit}
-                    checked={selectedIds.includes(unit.id)}
-                    disabled={disabled}
-                    onToggle={() => toggle(unit.id)}
-                    showQty
-                  />
-                ))}
+                {filteredInventory.length > 0 ? (
+                  <>
+                    {includeHardware ? (
+                      <p className="hw-link-group-label">Inventory</p>
+                    ) : null}
+                    {filteredInventory.map((unit) => (
+                      <UnitCheck
+                        key={unit.id}
+                        unit={unit}
+                        checked={selectedIds.includes(unit.id)}
+                        disabled={disabled}
+                        onToggle={() => toggle(unit.id)}
+                        showQty
+                      />
+                    ))}
+                  </>
+                ) : null}
               </>
-            ) : null}
-          </>
-        )}
-      </div>
+            )}
+          </div>
+        </>
+      )}
     </fieldset>
   )
 }
@@ -118,6 +206,7 @@ function UnitCheck({
       {unit.name}
       <span className="simple-muted">
         {HARDWARE_KIND_LABELS[unit.kind]}
+        {unit.partNumber ? ` · ${unit.partNumber}` : ''}
         {showQty ? ` · ${unitQuantity(unit)} on hand` : ''}
       </span>
     </label>
