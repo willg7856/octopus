@@ -15,6 +15,8 @@ type InventoryLinkPickerProps = {
   disabled?: boolean
   /** When true, also list hardware system units (for Production steps). */
   includeHardware?: boolean
+  /** When false, hide inventory items (hardware-only picker). Default true. */
+  includeInventory?: boolean
   legend?: string
   hint?: string
 }
@@ -41,6 +43,7 @@ export function InventoryLinkPicker({
   onChange,
   disabled,
   includeHardware = false,
+  includeInventory = true,
   legend = 'Parts from inventory',
   hint = 'Optional. Linking tracks what this uses — it does not change stock qty.',
 }: InventoryLinkPickerProps) {
@@ -48,8 +51,11 @@ export function InventoryLinkPicker({
   const q = query.trim().toLowerCase()
 
   const inventory = useMemo(
-    () => sortUnits(units.filter((u) => isInventoryKind(u.kind))),
-    [units],
+    () =>
+      includeInventory
+        ? sortUnits(units.filter((u) => isInventoryKind(u.kind)))
+        : [],
+    [units, includeInventory],
   )
   const hardware = useMemo(
     () =>
@@ -83,12 +89,26 @@ export function InventoryLinkPicker({
     )
   }
 
-  const emptyCatalog =
-    inventory.length === 0 && (!includeHardware || hardware.length === 0)
+  const emptyCatalog = inventory.length === 0 && hardware.length === 0
   const noMatches =
     !emptyCatalog &&
     filteredHardware.length === 0 &&
     filteredInventory.length === 0
+  const showBothGroups = includeHardware && includeInventory
+
+  const emptyMessage = (() => {
+    if (includeHardware && includeInventory) {
+      return 'No hardware or inventory units yet.'
+    }
+    if (includeHardware) return 'No hardware units yet — add them under Hardware.'
+    return 'No inventory items yet — add stock first.'
+  })()
+
+  const searchPlaceholder = (() => {
+    if (includeHardware && includeInventory) return 'Search hardware or inventory…'
+    if (includeHardware) return 'Search hardware…'
+    return 'Search inventory…'
+  })()
 
   return (
     <fieldset className="hw-link-fieldset" disabled={disabled}>
@@ -114,27 +134,15 @@ export function InventoryLinkPicker({
       ) : null}
 
       {emptyCatalog ? (
-        <p className="simple-muted">
-          {includeHardware
-            ? 'No hardware or inventory units yet.'
-            : 'No inventory items yet — add stock first.'}
-        </p>
+        <p className="simple-muted">{emptyMessage}</p>
       ) : (
         <>
           <input
             className="simple-search hw-link-search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={
-              includeHardware
-                ? 'Search hardware or inventory…'
-                : 'Search inventory…'
-            }
-            aria-label={
-              includeHardware
-                ? 'Search hardware or inventory'
-                : 'Search inventory'
-            }
+            placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder.replace('…', '')}
             disabled={disabled}
           />
           <div className="hw-link-units">
@@ -142,9 +150,11 @@ export function InventoryLinkPicker({
               <span className="simple-muted">No items match that search.</span>
             ) : (
               <>
-                {includeHardware && filteredHardware.length > 0 ? (
+                {filteredHardware.length > 0 ? (
                   <>
-                    <p className="hw-link-group-label">Hardware</p>
+                    {showBothGroups ? (
+                      <p className="hw-link-group-label">Hardware</p>
+                    ) : null}
                     {filteredHardware.map((unit) => (
                       <UnitCheck
                         key={unit.id}
@@ -158,7 +168,7 @@ export function InventoryLinkPicker({
                 ) : null}
                 {filteredInventory.length > 0 ? (
                   <>
-                    {includeHardware ? (
+                    {showBothGroups ? (
                       <p className="hw-link-group-label">Inventory</p>
                     ) : null}
                     {filteredInventory.map((unit) => (
@@ -214,6 +224,13 @@ function UnitCheck({
 }
 
 export function linkedInventoryNames(
+  ids: string[] | undefined,
+  units: HardwareUnit[],
+) {
+  return linkedUnitNames(ids, units)
+}
+
+export function linkedUnitNames(
   ids: string[] | undefined,
   units: HardwareUnit[],
 ) {

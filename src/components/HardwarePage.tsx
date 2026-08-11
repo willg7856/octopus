@@ -344,18 +344,29 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
           })),
           processes: prev.processes
             .filter((p) => p.vehicleUnitId !== id)
-            .map((p) => ({
-              ...p,
-              linkedInventoryIds: (p.linkedInventoryIds ?? []).filter(
+            .map((p) => {
+              const linkedInventoryIds = (p.linkedInventoryIds ?? []).filter(
                 (uid) => uid !== id,
-              ),
-              steps: p.steps.map((s) => ({
-                ...s,
-                linkedUnitIds: (s.linkedUnitIds ?? []).filter(
-                  (uid) => uid !== id,
-                ),
-              })),
-            })),
+              )
+              const linkedHardwareIds = (p.linkedHardwareIds ?? []).filter(
+                (uid) => uid !== id,
+              )
+              return {
+                ...p,
+                linkedInventoryIds:
+                  linkedInventoryIds.length > 0
+                    ? linkedInventoryIds
+                    : undefined,
+                linkedHardwareIds:
+                  linkedHardwareIds.length > 0 ? linkedHardwareIds : undefined,
+                steps: p.steps.map((s) => ({
+                  ...s,
+                  linkedUnitIds: (s.linkedUnitIds ?? []).filter(
+                    (uid) => uid !== id,
+                  ),
+                })),
+              }
+            }),
         }
       },
       'Removed',

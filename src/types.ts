@@ -284,6 +284,11 @@ export interface VehicleProcess {
    * Linking does not change stock quantities.
    */
   linkedInventoryIds?: string[]
+  /**
+   * Hardware vehicles / subsystems used on this production overall.
+   * Soft link only — does not change Hardware status or inventory.
+   */
+  linkedHardwareIds?: string[]
   steps: VehicleProcessStep[]
   updatedAt: string
 }

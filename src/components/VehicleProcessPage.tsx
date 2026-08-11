@@ -176,6 +176,23 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     }), 'Materials updated')
   }
 
+  function setProcessHardware(processId: string, linkedHardwareIds: string[]) {
+    const now = new Date().toISOString()
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) =>
+        p.id === processId
+          ? {
+              ...p,
+              linkedHardwareIds:
+                linkedHardwareIds.length > 0 ? linkedHardwareIds : undefined,
+              updatedAt: now,
+            }
+          : p,
+      ),
+    }), 'Hardware in use updated')
+  }
+
   function addStep(processId: string, title: string) {
     if (!title.trim()) return
     const now = new Date().toISOString()
@@ -276,6 +293,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     vehicleUnitId?: string
     vehicleName?: string
     linkedInventoryIds?: string[]
+    linkedHardwareIds?: string[]
   }) {
     const now = new Date().toISOString()
     const wanted = (input.vehicleName || input.name)
@@ -285,6 +303,10 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     const materials =
       input.linkedInventoryIds && input.linkedInventoryIds.length > 0
         ? input.linkedInventoryIds
+        : undefined
+    const hardwareInUse =
+      input.linkedHardwareIds && input.linkedHardwareIds.length > 0
+        ? input.linkedHardwareIds
         : undefined
 
     void store.commit((prev) => {
@@ -321,6 +343,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
         vehicleUnitId: vehicle.id,
         name: input.name.trim(),
         linkedInventoryIds: materials,
+        linkedHardwareIds: hardwareInUse,
         updatedAt: now,
         steps: [],
       }
@@ -363,6 +386,9 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const blockedCount = steps.filter((s) => s.status === 'blocked').length
   const selectedMaterials = selected
     ? linkedInventoryNames(selected.linkedInventoryIds, units)
+    : []
+  const selectedHardwareInUse = selected
+    ? linkedInventoryNames(selected.linkedHardwareIds, units)
     : []
 
   return (
@@ -527,6 +553,15 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                       </select>
                     </label>
                     <InventoryLinkPicker
+                      units={systemUnits}
+                      selectedIds={selected.linkedHardwareIds ?? []}
+                      onChange={(ids) => setProcessHardware(selected.id, ids)}
+                      includeHardware
+                      includeInventory={false}
+                      legend="Hardware in use"
+                      hint="Subsystems and vehicles used on this production. Soft link only — does not change Hardware status."
+                    />
+                    <InventoryLinkPicker
                       units={inventoryUnits}
                       selectedIds={selected.linkedInventoryIds ?? []}
                       onChange={(ids) => setProcessInventory(selected.id, ids)}
@@ -535,11 +570,18 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                     />
                   </div>
                 ) : (
-                  <p className="simple-muted prod-materials-summary">
-                    {selectedMaterials.length > 0
-                      ? `Materials: ${selectedMaterials.join(', ')}`
-                      : 'No inventory materials linked — Edit steps to add some.'}
-                  </p>
+                  <div className="prod-materials-summary">
+                    <p className="simple-muted">
+                      {selectedHardwareInUse.length > 0
+                        ? `Hardware in use: ${selectedHardwareInUse.join(', ')}`
+                        : 'No hardware linked — Edit steps to mark subsystems in use.'}
+                    </p>
+                    <p className="simple-muted">
+                      {selectedMaterials.length > 0
+                        ? `Materials: ${selectedMaterials.join(', ')}`
+                        : 'No inventory materials linked — Edit steps to add some.'}
+                    </p>
+                  </div>
                 )}
 
                 {completion && completion.total > 0 ? (
@@ -790,6 +832,7 @@ function NewProductionForm({
     vehicleUnitId?: string
     vehicleName?: string
     linkedInventoryIds?: string[]
+    linkedHardwareIds?: string[]
   }) => void
   onCancel: () => void
 }) {
@@ -797,6 +840,7 @@ function NewProductionForm({
   const [vehicleUnitId, setVehicleUnitId] = useState('')
   const [vehicleName, setVehicleName] = useState('')
   const [linkedInventoryIds, setLinkedInventoryIds] = useState<string[]>([])
+  const [linkedHardwareIds, setLinkedHardwareIds] = useState<string[]>([])
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -808,6 +852,7 @@ function NewProductionForm({
       vehicleUnitId: vehicleUnitId || undefined,
       vehicleName: vehicleName.trim() || name.trim(),
       linkedInventoryIds,
+      linkedHardwareIds,
     })
   }
 
@@ -815,8 +860,8 @@ function NewProductionForm({
     <form className="simple-form prod-create" onSubmit={handleSubmit}>
       <h3>New vehicle production</h3>
       <p className="simple-muted">
-        Starts blank — add steps after creating. Optionally pick materials from
-        inventory up front.
+        Starts blank — add steps after creating. Optionally link hardware and
+        materials up front.
       </p>
       <label>
         Name
@@ -852,6 +897,15 @@ function NewProductionForm({
           />
         </label>
       )}
+      <InventoryLinkPicker
+        units={vehicles}
+        selectedIds={linkedHardwareIds}
+        onChange={setLinkedHardwareIds}
+        includeHardware
+        includeInventory={false}
+        legend="Hardware in use"
+        hint="Optional. Mark subsystems/vehicles used on this production."
+      />
       <InventoryLinkPicker
         units={inventory}
         selectedIds={linkedInventoryIds}
