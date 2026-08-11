@@ -46,6 +46,7 @@ type HardwareFilter =
   | 'all'
   | 'in-progress'
   | 'flight-ready'
+  | 'completed'
   | 'failed'
   | 'important'
 
@@ -55,6 +56,7 @@ function matchesHardwareFilter(unit: HardwareUnit, filter: HardwareFilter) {
   if (filter === 'all') return true
   if (filter === 'in-progress') return IN_PROGRESS_STATUSES.includes(unit.status)
   if (filter === 'flight-ready') return unit.status === 'flight-ready'
+  if (filter === 'completed') return unit.status === 'completed'
   if (filter === 'failed') return unit.status === 'failed'
   if (filter === 'important') {
     return Boolean(unit.notesImportant && unit.notes?.trim())
@@ -91,15 +93,17 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
   const filterCounts = useMemo(() => {
     let inProgress = 0
     let flightReady = 0
+    let completed = 0
     let failed = 0
     let important = 0
     for (const u of units) {
       if (IN_PROGRESS_STATUSES.includes(u.status)) inProgress += 1
       if (u.status === 'flight-ready') flightReady += 1
+      if (u.status === 'completed') completed += 1
       if (u.status === 'failed') failed += 1
       if (u.notesImportant && u.notes?.trim()) important += 1
     }
-    return { inProgress, flightReady, failed, important }
+    return { inProgress, flightReady, completed, failed, important }
   }, [units])
 
   const filtered = useMemo(() => {
@@ -418,6 +422,11 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                     id: 'flight-ready' as const,
                     label: 'Flight ready',
                     count: filterCounts.flightReady,
+                  },
+                  {
+                    id: 'completed' as const,
+                    label: 'Completed',
+                    count: filterCounts.completed,
                   },
                   {
                     id: 'failed' as const,

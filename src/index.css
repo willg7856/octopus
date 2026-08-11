@@ -4318,7 +4318,8 @@ button.simple-list-row {
 }
 
 .status-badge[data-kind='stock'][data-status='in-stock'],
-.status-badge[data-kind='hardware'][data-status='flight-ready'] {
+.status-badge[data-kind='hardware'][data-status='flight-ready'],
+.status-badge[data-kind='hardware'][data-status='completed'] {
   border-color: color-mix(in srgb, var(--telem-green) 45%, var(--line));
   color: var(--telem-green);
   background: color-mix(in srgb, var(--telem-green) 10%, transparent);

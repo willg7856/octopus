@@ -176,6 +176,8 @@ export type HardwareStatus =
   | 'assembly'
   | 'checkout'
   | 'flight-ready'
+  /** Done for non-flight hardware (pad, GSE, ground gear, fixtures). */
+  | 'completed'
   | 'retired'
   | 'failed'
 

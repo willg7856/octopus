@@ -67,6 +67,7 @@ export const HARDWARE_STATUS_LABELS: Record<HardwareStatus, string> = {
   assembly: 'Assembly',
   checkout: 'Checkout',
   'flight-ready': 'Flight ready',
+  completed: 'Completed',
   retired: 'Retired',
   failed: 'Failed',
 }
@@ -78,6 +79,7 @@ export const HARDWARE_STATUS_ORDER: HardwareStatus[] = [
   'assembly',
   'checkout',
   'flight-ready',
+  'completed',
   'retired',
   'failed',
 ]
