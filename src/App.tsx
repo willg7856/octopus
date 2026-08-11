@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 import { applyTheme, getPreferredTheme, type Theme } from './theme'
 import {
   fetchSession,
@@ -91,6 +92,7 @@ export default function App() {
           </h1>
           <p className="auth-copy">Checking session…</p>
         </div>
+        <Analytics />
       </div>
     )
   }
@@ -104,6 +106,7 @@ export default function App() {
           onSignedIn={handleSignedIn}
           login={authLogin}
         />
+        <Analytics />
       </div>
     )
   }
@@ -130,6 +133,7 @@ export default function App() {
             ) : null}
           </div>
         </div>
+        <Analytics />
       </div>
     </LabProvider>
   )
