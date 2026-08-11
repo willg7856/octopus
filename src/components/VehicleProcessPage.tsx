@@ -1419,7 +1419,6 @@ function StepIntegrateHardware({
   open,
   disabled,
   onOpenHardware,
-  onToggle,
   onIntegrate,
   onRemove,
 }: {
@@ -1429,7 +1428,6 @@ function StepIntegrateHardware({
   open: boolean
   disabled?: boolean
   onOpenHardware?: (id: string) => void
-  onToggle: () => void
   onIntegrate: (hardwareId: string) => void
   onRemove: (hardwareId: string) => void
 }) {
@@ -1454,6 +1452,7 @@ function StepIntegrateHardware({
   }, [systemUnits, linkedIds, q])
 
   const hardwareLinked = linked.filter((u) => isSystemKind(u.kind))
+  if (!open && hardwareLinked.length === 0) return null
 
   return (
     <div className="prod-integrate">
@@ -1490,16 +1489,6 @@ function StepIntegrateHardware({
           ))}
         </ul>
       ) : null}
-
-      <button
-        type="button"
-        className="btn btn-ghost prod-integrate-btn"
-        aria-expanded={open}
-        disabled={disabled}
-        onClick={onToggle}
-      >
-        {open ? 'Cancel' : 'Integrate hardware'}
-      </button>
 
       {open ? (
         <div className="prod-integrate-picker">
