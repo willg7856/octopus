@@ -180,6 +180,7 @@ export type HardwareStatus =
   | 'completed'
   | 'retired'
   | 'failed'
+  | 'destroyed'
 
 /** Stock-room status for inventory items (separate from hardware build status). */
 export type StockStatus =

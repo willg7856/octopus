@@ -70,6 +70,7 @@ export const HARDWARE_STATUS_LABELS: Record<HardwareStatus, string> = {
   completed: 'Completed',
   retired: 'Retired',
   failed: 'Failed',
+  destroyed: 'Destroyed',
 }
 
 export const HARDWARE_STATUS_ORDER: HardwareStatus[] = [
@@ -82,6 +83,7 @@ export const HARDWARE_STATUS_ORDER: HardwareStatus[] = [
   'completed',
   'retired',
   'failed',
+  'destroyed',
 ]
 
 /** Stock-facing labels for inventory items. */
@@ -116,6 +118,7 @@ const LEGACY_STATUS_TO_STOCK: Partial<Record<HardwareStatus, StockStatus>> = {
   fab: 'receiving',
   concept: 'incoming',
   failed: 'quarantine',
+  destroyed: 'depleted',
   retired: 'depleted',
 }
 
@@ -722,6 +725,77 @@ export function unlinkInventoryFromHardware(
     }
     return u
   })
+}
+
+/**
+ * Return some (or all) drawn qty from a hardware unit back to inventory.
+ * Reserved whole-line installs always return as a full line.
+ */
+export function returnInventoryQtyFromHardware(
+  units: HardwareUnit[],
+  hardwareId: string,
+  inventoryId: string,
+  returnQty: number,
+  now = new Date().toISOString(),
+): { units: HardwareUnit[]; error?: string } {
+  const hardware = units.find((u) => u.id === hardwareId)
+  const item = units.find((u) => u.id === inventoryId)
+  if (!hardware || !isSystemKind(hardware.kind)) {
+    return { units, error: 'Hardware unit not found' }
+  }
+  if (!item || !isInventoryKind(item.kind)) {
+    return { units, error: 'Inventory item not found' }
+  }
+
+  const qty = Math.floor(Number(returnQty))
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return { units, error: 'Enter a quantity to return' }
+  }
+
+  if (item.installedOnUnitId === hardwareId) {
+    return returnInventoryFromHardware(units, inventoryId, now)
+  }
+
+  const drawn = hardware.linkedInventoryDraws?.[inventoryId] ?? 0
+  if (drawn <= 0) {
+    return { units, error: 'Nothing drawn to return' }
+  }
+  if (qty > drawn) {
+    return { units, error: `Only ${drawn} drawn on this unit` }
+  }
+  if (qty >= drawn) {
+    return { units: unlinkInventoryFromHardware(units, hardwareId, inventoryId, now) }
+  }
+
+  const nextQty = unitQuantity(item) + qty
+  const stockStatus = applyInventoryStockRules(
+    stockStatusOf(item) === 'reserved' ? 'in-stock' : stockStatusOf(item),
+    nextQty,
+    item.minQty,
+  )
+  return {
+    units: units.map((u) => {
+      if (u.id === inventoryId) {
+        return {
+          ...u,
+          quantity: nextQty,
+          stockStatus,
+          status: hardwareStatusForStock(stockStatus),
+          updatedAt: now,
+        }
+      }
+      if (u.id === hardwareId) {
+        const draws = { ...(u.linkedInventoryDraws ?? {}) }
+        draws[inventoryId] = drawn - qty
+        return {
+          ...u,
+          linkedInventoryDraws: draws,
+          updatedAt: now,
+        }
+      }
+      return u
+    }),
+  }
 }
 
 /** When removing a hardware unit, return reserved + drawn inventory. */

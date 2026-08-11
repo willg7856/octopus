@@ -4348,7 +4348,8 @@ button.simple-list-row {
 }
 
 .status-badge[data-kind='stock'][data-status='quarantine'],
-.status-badge[data-kind='hardware'][data-status='failed'] {
+.status-badge[data-kind='hardware'][data-status='failed'],
+.status-badge[data-kind='hardware'][data-status='destroyed'] {
   border-color: color-mix(in srgb, var(--telem-red) 45%, var(--line));
   color: var(--telem-red);
   background: color-mix(in srgb, var(--telem-red) 10%, transparent);
@@ -5315,6 +5316,21 @@ button.simple-list-row {
   background: var(--surface);
   color: inherit;
   font: inherit;
+  text-align: center;
+}
+
+.hw-parts-qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.hw-parts-qty-btn {
+  min-width: 2.1rem;
+  min-height: 2.1rem;
+  padding: 0.25rem 0.45rem;
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .inv-reserved-actions {

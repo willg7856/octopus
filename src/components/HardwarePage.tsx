@@ -52,6 +52,7 @@ type HardwareFilter =
   | 'flight-ready'
   | 'completed'
   | 'failed'
+  | 'destroyed'
   | 'important'
 
 const IN_PROGRESS_STATUSES: HardwareStatus[] = ['fab', 'assembly', 'checkout']
@@ -62,6 +63,7 @@ function matchesHardwareFilter(unit: HardwareUnit, filter: HardwareFilter) {
   if (filter === 'flight-ready') return unit.status === 'flight-ready'
   if (filter === 'completed') return unit.status === 'completed'
   if (filter === 'failed') return unit.status === 'failed'
+  if (filter === 'destroyed') return unit.status === 'destroyed'
   if (filter === 'important') {
     return Boolean(unit.notesImportant && unit.notes?.trim())
   }
@@ -118,15 +120,17 @@ export function HardwarePage({
     let flightReady = 0
     let completed = 0
     let failed = 0
+    let destroyed = 0
     let important = 0
     for (const u of units) {
       if (IN_PROGRESS_STATUSES.includes(u.status)) inProgress += 1
       if (u.status === 'flight-ready') flightReady += 1
       if (u.status === 'completed') completed += 1
       if (u.status === 'failed') failed += 1
+      if (u.status === 'destroyed') destroyed += 1
       if (u.notesImportant && u.notes?.trim()) important += 1
     }
-    return { inProgress, flightReady, completed, failed, important }
+    return { inProgress, flightReady, completed, failed, destroyed, important }
   }, [units])
 
   const filtered = useMemo(() => {
@@ -431,6 +435,37 @@ export function HardwarePage({
     setMobileMode('list')
   }
 
+  async function markDestroyed(id: string) {
+    const unit = lab.units.find((u) => u.id === id)
+    if (!unit || unit.status === 'destroyed') return
+    const ok = await confirm(
+      `Mark “${unit.name}” as destroyed? This logs a progress note. Installed parts stay reserved until you return them.`,
+    )
+    if (!ok) return
+    const now = new Date().toISOString()
+    void store.commit((prev) => {
+      const existing = prev.units.find((u) => u.id === id)
+      if (!existing || existing.status === 'destroyed') return prev
+      const note: HardwareProgressNote = {
+        id: newId('pg'),
+        unitId: id,
+        date: now.slice(0, 10),
+        status: 'destroyed',
+        note: 'Marked destroyed',
+        author: user?.name,
+      }
+      return {
+        ...prev,
+        units: prev.units.map((u) =>
+          u.id === id
+            ? { ...u, status: 'destroyed' as const, updatedAt: now }
+            : u,
+        ),
+        progress: [note, ...prev.progress],
+      }
+    }, 'Marked destroyed')
+  }
+
   return (
     <main className="simple-page" aria-label="Hardware">
       <header className="simple-head">
@@ -499,6 +534,11 @@ export function HardwarePage({
                     id: 'failed' as const,
                     label: 'Failed',
                     count: filterCounts.failed,
+                  },
+                  {
+                    id: 'destroyed' as const,
+                    label: 'Destroyed',
+                    count: filterCounts.destroyed,
                   },
                   {
                     id: 'important' as const,
@@ -606,6 +646,11 @@ export function HardwarePage({
                   parentCandidates={units}
                   onSave={saveUnit}
                   onDelete={() => removeUnit(selected.id)}
+                  onMarkDestroyed={
+                    selected.status === 'destroyed'
+                      ? undefined
+                      : () => markDestroyed(selected.id)
+                  }
                 />
                 <HardwarePartsPanel
                   hardware={selected}
@@ -756,6 +801,7 @@ function SystemForm({
   parentCandidates,
   onSave,
   onDelete,
+  onMarkDestroyed,
   onCancel,
 }: {
   initial?: HardwareUnit
@@ -763,6 +809,7 @@ function SystemForm({
   parentCandidates: HardwareUnit[]
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
+  onMarkDestroyed?: () => void
   onCancel?: () => void
 }) {
   const isNew = !initial
@@ -1025,6 +1072,15 @@ function SystemForm({
               Cancel
             </button>
           </>
+        ) : null}
+        {onMarkDestroyed ? (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void onMarkDestroyed()}
+          >
+            Mark destroyed
+          </button>
         ) : null}
         {onDelete && editing ? (
           <button type="button" className="btn btn-ghost" onClick={onDelete}>
