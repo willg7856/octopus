@@ -358,12 +358,91 @@ export function processCompletion(process: VehicleProcess) {
 }
 
 export function processOverallStatus(process: VehicleProcess): ProcessStepStatus {
+  if (process.steps.length === 0) return 'pending'
   if (process.steps.some((s) => s.status === 'blocked')) return 'blocked'
   if (process.steps.every((s) => s.status === 'done' || s.status === 'skipped')) {
     return 'done'
   }
   if (process.steps.some((s) => s.status === 'active')) return 'active'
   return 'pending'
+}
+
+export type HardwareProductionUsage = {
+  processId: string
+  processName: string
+  /** How this unit is attached to the production. */
+  role: 'vehicle' | 'in-use' | 'step'
+  stepId?: string
+  stepTitle?: string
+  stepStatus?: ProcessStepStatus
+  processStatus: ProcessStepStatus
+}
+
+/** Productions that reference a hardware unit as vehicle, in-use, or per-step. */
+export function productionsUsingHardware(
+  unitId: string,
+  processes: VehicleProcess[],
+): HardwareProductionUsage[] {
+  const out: HardwareProductionUsage[] = []
+  for (const process of processes) {
+    const processStatus = processOverallStatus(process)
+    const stepLinks: HardwareProductionUsage[] = []
+    for (const step of process.steps) {
+      if ((step.linkedUnitIds ?? []).includes(unitId)) {
+        stepLinks.push({
+          processId: process.id,
+          processName: process.name,
+          role: 'step',
+          stepId: step.id,
+          stepTitle: step.title,
+          stepStatus: step.status,
+          processStatus,
+        })
+      }
+    }
+    if (stepLinks.length > 0) {
+      out.push(...stepLinks)
+    } else if ((process.linkedHardwareIds ?? []).includes(unitId)) {
+      out.push({
+        processId: process.id,
+        processName: process.name,
+        role: 'in-use',
+        processStatus,
+      })
+    }
+    if (process.vehicleUnitId === unitId) {
+      out.push({
+        processId: process.id,
+        processName: process.name,
+        role: 'vehicle',
+        processStatus,
+      })
+    }
+  }
+  return out.sort((a, b) => a.processName.localeCompare(b.processName))
+}
+
+export function hardwareProductionUsageLabel(usage: HardwareProductionUsage) {
+  const short = usage.processName.replace(/\s+production\s*$/i, '').trim()
+  const name = short || usage.processName
+  if (usage.role === 'step') {
+    const stepBit = usage.stepTitle ? ` · ${usage.stepTitle}` : ''
+    if (usage.stepStatus === 'done') {
+      return `Integrated in ${name}${stepBit}`
+    }
+    if (usage.stepStatus === 'active') {
+      return `In use on ${name}${stepBit}`
+    }
+    return `Linked to ${name}${stepBit}`
+  }
+  if (usage.role === 'vehicle') {
+    if (usage.processStatus === 'done') return `Primary vehicle for ${name} (done)`
+    if (usage.processStatus === 'active') return `Primary vehicle for ${name}`
+    return `Primary vehicle for ${name}`
+  }
+  if (usage.processStatus === 'done') return `Used in ${name} (done)`
+  if (usage.processStatus === 'active') return `In use on ${name}`
+  return `Used in ${name}`
 }
 
 export function unitQuantity(unit: HardwareUnit) {

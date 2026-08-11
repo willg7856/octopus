@@ -4826,6 +4826,27 @@ button.simple-list-row {
   color: var(--telem-amber, #c47a12);
 }
 
+.hw-production-banner {
+  border-color: color-mix(in srgb, var(--accent, #2f6fed) 40%, var(--line));
+  background: color-mix(in srgb, var(--accent, #2f6fed) 10%, var(--bg));
+}
+
+.hw-production-banner strong {
+  color: var(--accent, #2f6fed);
+}
+
+.hw-production-usage {
+  list-style: none;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.hw-production-usage li {
+  margin: 0;
+}
+
 .hw-notes-flag {
   font-weight: 600;
   color: var(--telem-amber, #c47a12);

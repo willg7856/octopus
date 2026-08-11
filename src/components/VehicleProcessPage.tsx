@@ -157,30 +157,59 @@ export function VehicleProcessPage({
     blockedReason?: string,
   ) {
     const now = new Date().toISOString()
-    void store.commit((prev) => ({
-      ...prev,
-      processes: prev.processes.map((p) => {
-        if (p.id !== processId) return p
-        return {
-          ...p,
-          updatedAt: now,
-          steps: p.steps.map((s) => {
-            if (s.id !== stepId) return s
-            const done = status === 'done' || status === 'skipped'
-            return {
-              ...s,
-              status,
-              completedAt: done ? s.completedAt || now : undefined,
-              completedBy: done ? s.completedBy || user?.name : undefined,
-              blockedReason:
-                status === 'blocked'
-                  ? (blockedReason ?? s.blockedReason)
-                  : undefined,
-            }
-          }),
+    void store.commit((prev) => {
+      const process = prev.processes.find((p) => p.id === processId)
+      const step = process?.steps.find((s) => s.id === stepId)
+      const wasDone = step?.status === 'done' || step?.status === 'skipped'
+      const becomingDone = status === 'done' || status === 'skipped'
+
+      let progress = prev.progress
+      if (process && step && becomingDone && !wasDone) {
+        const linkedHardware = (step.linkedUnitIds ?? [])
+          .map((id) => prev.units.find((u) => u.id === id))
+          .filter((u): u is NonNullable<typeof u> =>
+            Boolean(u && isSystemKind(u.kind)),
+          )
+        if (linkedHardware.length > 0) {
+          const date = now.slice(0, 10)
+          const notes = linkedHardware.map((unit) => ({
+            id: newId('pg'),
+            unitId: unit.id,
+            date,
+            status: unit.status,
+            note: `Integrated on ${process.name} · ${step.title}`,
+            author: user?.name,
+          }))
+          progress = [...notes, ...prev.progress]
         }
-      }),
-    }), 'Updated')
+      }
+
+      return {
+        ...prev,
+        progress,
+        processes: prev.processes.map((p) => {
+          if (p.id !== processId) return p
+          return {
+            ...p,
+            updatedAt: now,
+            steps: p.steps.map((s) => {
+              if (s.id !== stepId) return s
+              const done = status === 'done' || status === 'skipped'
+              return {
+                ...s,
+                status,
+                completedAt: done ? s.completedAt || now : undefined,
+                completedBy: done ? s.completedBy || user?.name : undefined,
+                blockedReason:
+                  status === 'blocked'
+                    ? (blockedReason ?? s.blockedReason)
+                    : undefined,
+              }
+            }),
+          }
+        }),
+      }
+    }, status === 'done' ? 'Step done' : 'Updated')
   }
 
   function setBlockedReason(processId: string, stepId: string, reason: string) {

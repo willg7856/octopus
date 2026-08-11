@@ -10,13 +10,16 @@ import {
   SYSTEM_KINDS,
   TEST_KIND_LABELS,
   TEST_RESULT_LABELS,
+  hardwareProductionUsageLabel,
   isInventoryKind,
   isSystemKind,
   newId,
+  productionsUsingHardware,
   returnAllInstalledOnHardware,
   sortProgress,
   sortTests,
   sortUnits,
+  type HardwareProductionUsage,
 } from '../hardwareData'
 import type {
   HardwareKind,
@@ -69,11 +72,13 @@ export function HardwarePage({
   selectedId: routeSelectedId = null,
   onSelectId,
   onOpenInventory,
+  onOpenProduction,
 }: {
   user: AuthUser | null
   selectedId?: string | null
   onSelectId?: (id: string | null) => void
   onOpenInventory?: (id: string) => void
+  onOpenProduction?: (id: string) => void
 }) {
   const store = useLabStore()
   const { lab, sync, saving, conflict, toast, updatedAt, updatedBy, hasLoaded } =
@@ -144,9 +149,22 @@ export function HardwarePage({
     [filtered, units],
   )
 
+  const productionUsageByUnit = useMemo(() => {
+    const map = new Map<string, HardwareProductionUsage[]>()
+    for (const unit of units) {
+      const usages = productionsUsingHardware(unit.id, lab.processes)
+      if (usages.length > 0) map.set(unit.id, usages)
+    }
+    return map
+  }, [units, lab.processes])
+
   const selected =
     units.find((u) => u.id === selectedId) ??
     (mobileMode === 'detail' ? null : filtered[0] ?? null)
+
+  const selectedProductionUsage = selected
+    ? productionUsageByUnit.get(selected.id) ?? []
+    : []
 
   const unitProgress = useMemo(
     () =>
@@ -516,6 +534,7 @@ export function HardwarePage({
                   node={node}
                   depth={0}
                   selectedId={!adding ? selected?.id ?? null : null}
+                  productionUsageByUnit={productionUsageByUnit}
                   onOpen={openDetail}
                 />
               ))}
@@ -553,6 +572,30 @@ export function HardwarePage({
               />
             ) : selected ? (
               <>
+                {selectedProductionUsage.length > 0 ? (
+                  <div className="hw-notes-banner hw-production-banner" role="status">
+                    <strong>In production</strong>
+                    <ul className="hw-production-usage">
+                      {selectedProductionUsage.map((usage) => (
+                        <li
+                          key={`${usage.processId}:${usage.role}:${usage.stepId ?? ''}`}
+                        >
+                          {onOpenProduction ? (
+                            <button
+                              type="button"
+                              className="hw-parts-name-btn"
+                              onClick={() => onOpenProduction(usage.processId)}
+                            >
+                              {hardwareProductionUsageLabel(usage)}
+                            </button>
+                          ) : (
+                            <span>{hardwareProductionUsageLabel(usage)}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 <SystemForm
                   key={selected.id}
                   initial={selected}
@@ -1070,15 +1113,24 @@ function HardwareTreeNodes({
   node,
   depth,
   selectedId,
+  productionUsageByUnit,
   onOpen,
 }: {
   node: HardwareTreeNode
   depth: number
   selectedId: string | null
+  productionUsageByUnit: Map<string, HardwareProductionUsage[]>
   onOpen: (id: string) => void
 }) {
   const { unit, children } = node
   const nested = depth > 0
+  const usages = productionUsageByUnit.get(unit.id) ?? []
+  const usageLabel =
+    usages.length === 0
+      ? null
+      : usages.length === 1
+        ? hardwareProductionUsageLabel(usages[0])
+        : `In ${usages.length} productions`
   return (
     <li className={nested ? undefined : 'hw-vehicle-group'}>
       <button
@@ -1098,6 +1150,7 @@ function HardwareTreeNodes({
             {(unit.linkedInventoryIds?.length ?? 0) > 0
               ? ` · ${unit.linkedInventoryIds!.length} parts`
               : ''}
+            {usageLabel ? ` · ${usageLabel}` : ''}
             {unit.notesImportant && unit.notes?.trim() ? (
               <>
                 {' · '}
@@ -1122,6 +1175,7 @@ function HardwareTreeNodes({
               node={child}
               depth={depth + 1}
               selectedId={selectedId}
+              productionUsageByUnit={productionUsageByUnit}
               onOpen={onOpen}
             />
           ))}

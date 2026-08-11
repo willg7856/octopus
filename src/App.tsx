@@ -93,6 +93,10 @@ export default function App() {
     navigateHash('hardware', id)
   }
 
+  function openProduction(id: string) {
+    navigateHash('vehicles', id)
+  }
+
   if (authState === 'loading') {
     return (
       <div className="app">
@@ -148,6 +152,7 @@ export default function App() {
                 selectedId={route.id}
                 onSelectId={handleSelectId}
                 onOpenInventory={openInventory}
+                onOpenProduction={openProduction}
               />
             ) : null}
             {route.view === 'vehicles' ? (
