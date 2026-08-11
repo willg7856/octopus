@@ -1,28 +1,83 @@
 import { useEffect, useId, useRef, useState } from 'react'
 
-type ConfirmState = {
+type ConfirmRequest = {
   message: string
-  resolve: (value: boolean) => void
+  confirmLabel?: string
+  noteLabel?: string
+  notePlaceholder?: string
+  noteRequired?: boolean
+  resolve: (value: ConfirmSettle) => void
 }
 
+export type ConfirmSettle =
+  | false
+  | true
+  | { ok: true; note: string }
+
 export function useConfirm() {
-  const [state, setState] = useState<ConfirmState | null>(null)
+  const [state, setState] = useState<ConfirmRequest | null>(null)
+  const [note, setNote] = useState('')
   const cancelRef = useRef<HTMLButtonElement | null>(null)
+  const noteRef = useRef<HTMLTextAreaElement | null>(null)
   const previouslyFocused = useRef<HTMLElement | null>(null)
   const titleId = useId()
+  const noteId = useId()
 
-  function confirm(message: string) {
-    return new Promise<boolean>((resolve) => {
+  function confirm(
+    message: string,
+    options?: { confirmLabel?: string },
+  ): Promise<boolean> {
+    return new Promise((resolve) => {
       previouslyFocused.current = document.activeElement as HTMLElement | null
-      setState({ message, resolve })
+      setNote('')
+      setState({
+        message,
+        confirmLabel: options?.confirmLabel,
+        resolve: (value) => resolve(value === true),
+      })
     })
   }
 
-  function settle(value: boolean) {
+  /** Confirm with an optional/required cause note. */
+  function confirmNote(options: {
+    message: string
+    confirmLabel?: string
+    noteLabel?: string
+    notePlaceholder?: string
+    noteRequired?: boolean
+  }): Promise<{ ok: false } | { ok: true; note: string }> {
+    return new Promise((resolve) => {
+      previouslyFocused.current = document.activeElement as HTMLElement | null
+      setNote('')
+      setState({
+        message: options.message,
+        confirmLabel: options.confirmLabel,
+        noteLabel: options.noteLabel ?? 'Cause / notes',
+        notePlaceholder:
+          options.notePlaceholder ?? 'What happened? (required)',
+        noteRequired: options.noteRequired ?? true,
+        resolve: (value) => {
+          if (value && typeof value === 'object' && value.ok) {
+            resolve({ ok: true, note: value.note })
+          } else {
+            resolve({ ok: false })
+          }
+        },
+      })
+    })
+  }
+
+  function settle(value: ConfirmSettle) {
     state?.resolve(value)
     setState(null)
+    setNote('')
     window.setTimeout(() => previouslyFocused.current?.focus?.(), 0)
   }
+
+  const wantsNote = Boolean(state?.noteLabel)
+  const noteTrimmed = note.trim()
+  const canConfirm =
+    !wantsNote || !state?.noteRequired || noteTrimmed.length > 0
 
   useEffect(() => {
     if (!state) return
@@ -54,9 +109,12 @@ export function useConfirm() {
     }
 
     window.addEventListener('keydown', onKey)
-    window.setTimeout(() => cancelRef.current?.focus(), 0)
+    window.setTimeout(() => {
+      if (wantsNote) noteRef.current?.focus()
+      else cancelRef.current?.focus()
+    }, 0)
     return () => window.removeEventListener('keydown', onKey)
-  }, [state])
+  }, [state, wantsNote])
 
   const dialog = state ? (
     <div
@@ -74,6 +132,20 @@ export function useConfirm() {
         <p id={titleId} className="confirm-message">
           {state.message}
         </p>
+        {wantsNote ? (
+          <label className="confirm-note" htmlFor={noteId}>
+            {state.noteLabel}
+            <textarea
+              ref={noteRef}
+              id={noteId}
+              rows={3}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={state.notePlaceholder}
+              required={state.noteRequired}
+            />
+          </label>
+        ) : null}
         <div className="confirm-actions">
           <button
             ref={cancelRef}
@@ -86,14 +158,19 @@ export function useConfirm() {
           <button
             type="button"
             className="btn btn-accent"
-            onClick={() => settle(true)}
+            disabled={!canConfirm}
+            onClick={() => {
+              if (!canConfirm) return
+              if (wantsNote) settle({ ok: true, note: noteTrimmed })
+              else settle(true)
+            }}
           >
-            Delete
+            {state.confirmLabel ?? 'Confirm'}
           </button>
         </div>
       </div>
     </div>
   ) : null
 
-  return { confirm, dialog }
+  return { confirm, confirmNote, dialog }
 }

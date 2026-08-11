@@ -2154,13 +2154,15 @@ button {
 }
 
 .confirm-dialog {
-  width: min(22rem, 100%);
+  width: min(24rem, 100%);
   padding: 1.15rem 1.2rem 1.05rem;
   border: 1px solid var(--line-strong);
   border-radius: var(--r);
   background: var(--bg-panel-solid);
   box-shadow: var(--shadow-panel);
   color: var(--fg);
+  display: grid;
+  gap: 0.85rem;
 }
 
 .confirm-message {
@@ -2168,6 +2170,18 @@ button {
   font-family: var(--font-body);
   font-size: 0.98rem;
   line-height: 1.4;
+}
+
+.confirm-note {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.inv-destroyed-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
 }
 
 .confirm-actions {

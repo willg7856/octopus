@@ -5,13 +5,14 @@ import {
   destroyInventoryQtyFromHardware,
   installInventoryOnHardware,
   isInventoryKind,
+  newId,
   returnInventoryQtyFromHardware,
   sortUnits,
   unitQuantity,
   unlinkInventoryFromHardware,
   type HardwareLabState,
 } from '../hardwareData'
-import type { HardwareUnit } from '../types'
+import type { HardwareProgressNote, HardwareUnit } from '../types'
 import type { LabStore } from '../useLabStore'
 
 type HardwarePartsPanelProps = {
@@ -20,6 +21,7 @@ type HardwarePartsPanelProps = {
   allUnits: HardwareUnit[]
   store: LabStore
   disabled?: boolean
+  userName?: string
   onOpenInventory?: (inventoryId: string) => void
 }
 
@@ -34,9 +36,10 @@ export function HardwarePartsPanel({
   allUnits,
   store,
   disabled,
+  userName,
   onOpenInventory,
 }: HardwarePartsPanelProps) {
-  const { confirm, dialog: confirmDialog } = useConfirm()
+  const { confirm, confirmNote, dialog: confirmDialog } = useConfirm()
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [qtyById, setQtyById] = useState<Record<string, string>>({})
@@ -182,22 +185,41 @@ export function HardwarePartsPanel({
       Math.max(1, parseQty(qtyById[inventoryId], 1)),
       maxDestroy,
     )
-    const ok = await confirm(
-      `Destroy ${qty}× “${part?.name ?? 'this part'}” on this unit? It will not return to stock.`,
-    )
-    if (!ok) return
+    const answered = await confirmNote({
+      message: `Destroy ${qty}× “${part?.name ?? 'this part'}” on ${hardware.name}? It will not return to stock.`,
+      confirmLabel: 'Destroy',
+      noteLabel: 'Cause of destruction',
+      notePlaceholder: 'e.g. shorted on bench, cracked housing, failed cal…',
+      noteRequired: true,
+    })
+    if (!answered.ok) return
+    const now = new Date().toISOString()
     const result = destroyInventoryQtyFromHardware(
       allUnits,
       hardware.id,
       inventoryId,
       qty,
+      now,
     )
     if (result.error) {
       setError(result.error)
       return
     }
-    saveUnits(
-      result.units,
+    const note: HardwareProgressNote = {
+      id: newId('pg'),
+      unitId: inventoryId,
+      date: now.slice(0, 10),
+      status: 'destroyed',
+      note: `Destroyed ${qty} on ${hardware.name} · ${answered.note}`,
+      author: userName,
+    }
+    setError(null)
+    void store.commit(
+      (prev: HardwareLabState) => ({
+        ...prev,
+        units: result.units,
+        progress: [note, ...prev.progress],
+      }),
       qty > 1 ? `Destroyed ${qty}` : 'Destroyed',
     )
     setQtyById((prev) => {

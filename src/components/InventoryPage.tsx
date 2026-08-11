@@ -92,7 +92,7 @@ export function InventoryPage({
   const store = useLabStore()
   const { lab, sync, saving, conflict, toast, updatedAt, updatedBy, hasLoaded } =
     store
-  const { confirm, dialog: confirmDialog } = useConfirm()
+  const { confirm, confirmNote, dialog: confirmDialog } = useConfirm()
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null)
   const selectedId = onSelectId ? routeSelectedId : localSelectedId
   const [query, setQuery] = useState('')
@@ -531,10 +531,14 @@ export function InventoryPage({
   async function markInventoryDestroyed(id: string) {
     const unit = lab.units.find((u) => u.id === id)
     if (!unit || stockStatusOf(unit) === 'destroyed') return
-    const ok = await confirm(
-      `Mark “${unit.name}” as destroyed? On-hand becomes 0 and it will not return to stock. Any hardware draws/reserves are written off.`,
-    )
-    if (!ok) return
+    const answered = await confirmNote({
+      message: `Mark “${unit.name}” as destroyed? On-hand becomes 0 and it will not return to stock. Any hardware draws/reserves are written off.`,
+      confirmLabel: 'Destroy',
+      noteLabel: 'Cause of destruction',
+      notePlaceholder: 'e.g. dropped, burned in test, lost beyond recovery…',
+      noteRequired: true,
+    })
+    if (!answered.ok) return
     const now = new Date().toISOString()
     void store.commit((prev) => {
       const result = destroyInventoryStock(prev.units, id, undefined, now)
@@ -544,7 +548,7 @@ export function InventoryPage({
         unitId: id,
         date: now.slice(0, 10),
         status: 'destroyed',
-        note: 'Marked destroyed',
+        note: `Marked destroyed · ${answered.note}`,
         author: user?.name,
       }
       return {
@@ -554,6 +558,20 @@ export function InventoryPage({
       }
     }, 'Marked destroyed')
   }
+
+  const destroyCauseByUnit = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const note of lab.progress) {
+      if (note.status !== 'destroyed') continue
+      if (map.has(note.unitId)) continue
+      const cause = note.note
+        .replace(/^Destroyed \d+ on .+ · /, '')
+        .replace(/^Marked destroyed · /, '')
+        .trim()
+      if (cause) map.set(note.unitId, cause)
+    }
+    return map
+  }, [lab.progress])
 
   const filterChips: { id: AttentionFilter; label: string; count?: number }[] = [
     { id: 'all', label: 'All status' },
@@ -799,6 +817,11 @@ export function InventoryPage({
               placeholder="Search…"
               aria-label="Search inventory"
             />
+            {filter === 'destroyed' ? (
+              <p className="simple-muted inv-destroyed-hint">
+                Destroyed stock — open an item for the full cause in History.
+              </p>
+            ) : null}
             <ul className="simple-list">
               {filtered.map((unit) => {
                 const status = stockStatusOf(unit)
@@ -810,6 +833,7 @@ export function InventoryPage({
                 const host = unit.installedOnUnitId
                   ? lab.units.find((u) => u.id === unit.installedOnUnitId)
                   : null
+                const destroyCause = destroyCauseByUnit.get(unit.id)
                 const canReceive =
                   !reserved &&
                   (onOrder > 0 ||
@@ -843,6 +867,7 @@ export function InventoryPage({
                             {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
                             {host ? ` · on ${host.name}` : ''}
                             {unit.location ? ` · ${unit.location}` : ''}
+                            {destroyCause ? ` · ${destroyCause}` : ''}
                             {unit.expectedAt ? (
                               <>
                                 {' · '}

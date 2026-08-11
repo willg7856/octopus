@@ -86,7 +86,7 @@ export function HardwarePage({
   const store = useLabStore()
   const { lab, sync, saving, conflict, toast, updatedAt, updatedBy, hasLoaded } =
     store
-  const { confirm, dialog: confirmDialog } = useConfirm()
+  const { confirm, confirmNote, dialog: confirmDialog } = useConfirm()
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null)
   const selectedId = onSelectId ? routeSelectedId : localSelectedId
   const [query, setQuery] = useState('')
@@ -438,10 +438,14 @@ export function HardwarePage({
   async function markDestroyed(id: string) {
     const unit = lab.units.find((u) => u.id === id)
     if (!unit || unit.status === 'destroyed') return
-    const ok = await confirm(
-      `Mark “${unit.name}” as destroyed? This logs a progress note. Installed parts stay reserved until you return them.`,
-    )
-    if (!ok) return
+    const answered = await confirmNote({
+      message: `Mark “${unit.name}” as destroyed? Installed parts stay reserved until you return or destroy them.`,
+      confirmLabel: 'Destroy',
+      noteLabel: 'Cause of destruction',
+      notePlaceholder: 'e.g. crash damage, scrap after test, beyond repair…',
+      noteRequired: true,
+    })
+    if (!answered.ok) return
     const now = new Date().toISOString()
     void store.commit((prev) => {
       const existing = prev.units.find((u) => u.id === id)
@@ -451,7 +455,7 @@ export function HardwarePage({
         unitId: id,
         date: now.slice(0, 10),
         status: 'destroyed',
-        note: 'Marked destroyed',
+        note: `Marked destroyed · ${answered.note}`,
         author: user?.name,
       }
       return {
@@ -658,6 +662,7 @@ export function HardwarePage({
                   allUnits={lab.units}
                   store={store}
                   disabled={!hasLoaded}
+                  userName={user?.name}
                   onOpenInventory={onOpenInventory}
                 />
                 <section className="hw-history" aria-label="Progress history">
