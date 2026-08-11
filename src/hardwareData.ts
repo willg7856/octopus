@@ -370,79 +370,88 @@ export function processOverallStatus(process: VehicleProcess): ProcessStepStatus
 export type HardwareProductionUsage = {
   processId: string
   processName: string
-  /** How this unit is attached to the production. */
-  role: 'vehicle' | 'in-use' | 'step'
-  stepId?: string
-  stepTitle?: string
-  stepStatus?: ProcessStepStatus
+  shortName: string
+  isPrimary: boolean
   processStatus: ProcessStepStatus
+  /** Steps on this production that link this hardware unit. */
+  steps: {
+    id: string
+    title: string
+    status: ProcessStepStatus
+  }[]
 }
 
-/** Productions that reference a hardware unit as vehicle, in-use, or per-step. */
+function shortProcessName(name: string) {
+  return name.replace(/\s+production\s*$/i, '').trim() || name
+}
+
+/** One summary per production that references this hardware unit. */
 export function productionsUsingHardware(
   unitId: string,
   processes: VehicleProcess[],
 ): HardwareProductionUsage[] {
   const out: HardwareProductionUsage[] = []
   for (const process of processes) {
-    const processStatus = processOverallStatus(process)
-    const stepLinks: HardwareProductionUsage[] = []
-    for (const step of process.steps) {
-      if ((step.linkedUnitIds ?? []).includes(unitId)) {
-        stepLinks.push({
-          processId: process.id,
-          processName: process.name,
-          role: 'step',
-          stepId: step.id,
-          stepTitle: step.title,
-          stepStatus: step.status,
-          processStatus,
-        })
-      }
-    }
-    if (stepLinks.length > 0) {
-      out.push(...stepLinks)
-    } else if ((process.linkedHardwareIds ?? []).includes(unitId)) {
-      out.push({
-        processId: process.id,
-        processName: process.name,
-        role: 'in-use',
-        processStatus,
-      })
-    }
-    if (process.vehicleUnitId === unitId) {
-      out.push({
-        processId: process.id,
-        processName: process.name,
-        role: 'vehicle',
-        processStatus,
-      })
-    }
+    const isPrimary = process.vehicleUnitId === unitId
+    const inUse = (process.linkedHardwareIds ?? []).includes(unitId)
+    const steps = process.steps
+      .filter((s) => (s.linkedUnitIds ?? []).includes(unitId))
+      .map((s) => ({ id: s.id, title: s.title, status: s.status }))
+    if (!isPrimary && !inUse && steps.length === 0) continue
+    out.push({
+      processId: process.id,
+      processName: process.name,
+      shortName: shortProcessName(process.name),
+      isPrimary,
+      processStatus: processOverallStatus(process),
+      steps,
+    })
   }
-  return out.sort((a, b) => a.processName.localeCompare(b.processName))
+  return out.sort((a, b) => a.shortName.localeCompare(b.shortName))
 }
 
+/** Compact list-row label, e.g. "in TVC" or "in 2 productions". */
+export function hardwareProductionListLabel(usages: HardwareProductionUsage[]) {
+  if (usages.length === 0) return null
+  if (usages.length === 1) return `in ${usages[0].shortName}`
+  return `in ${usages.length} productions`
+}
+
+/** One-line detail under a production name. */
+export function hardwareProductionUsageDetail(usage: HardwareProductionUsage) {
+  const bits: string[] = []
+  if (usage.isPrimary) bits.push('Primary vehicle')
+  else if (usage.steps.length === 0) bits.push('Marked in use')
+
+  const done = usage.steps.filter((s) => s.status === 'done').length
+  const active = usage.steps.find((s) => s.status === 'active')
+  if (active) {
+    bits.push(`Active: ${active.title}`)
+  } else if (usage.steps.length === 1) {
+    const step = usage.steps[0]
+    bits.push(
+      step.status === 'done'
+        ? `Integrated · ${step.title}`
+        : `Linked · ${step.title}`,
+    )
+  } else if (usage.steps.length > 1) {
+    bits.push(
+      done === usage.steps.length
+        ? `${done} steps integrated`
+        : `${done}/${usage.steps.length} steps integrated`,
+    )
+  }
+
+  if (usage.processStatus === 'done') bits.push('Production done')
+  else if (usage.processStatus === 'blocked') bits.push('Production blocked')
+
+  return bits.join(' · ')
+}
+
+/** @deprecated Use hardwareProductionListLabel / hardwareProductionUsageDetail */
 export function hardwareProductionUsageLabel(usage: HardwareProductionUsage) {
-  const short = usage.processName.replace(/\s+production\s*$/i, '').trim()
-  const name = short || usage.processName
-  if (usage.role === 'step') {
-    const stepBit = usage.stepTitle ? ` · ${usage.stepTitle}` : ''
-    if (usage.stepStatus === 'done') {
-      return `Integrated in ${name}${stepBit}`
-    }
-    if (usage.stepStatus === 'active') {
-      return `In use on ${name}${stepBit}`
-    }
-    return `Linked to ${name}${stepBit}`
-  }
-  if (usage.role === 'vehicle') {
-    if (usage.processStatus === 'done') return `Primary vehicle for ${name} (done)`
-    if (usage.processStatus === 'active') return `Primary vehicle for ${name}`
-    return `Primary vehicle for ${name}`
-  }
-  if (usage.processStatus === 'done') return `Used in ${name} (done)`
-  if (usage.processStatus === 'active') return `In use on ${name}`
-  return `Used in ${name}`
+  const detail = hardwareProductionUsageDetail(usage)
+  return detail ? `${usage.shortName} · ${detail}` : usage.shortName
 }
 
 export function unitQuantity(unit: HardwareUnit) {

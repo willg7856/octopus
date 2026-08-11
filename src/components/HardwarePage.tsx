@@ -10,7 +10,8 @@ import {
   SYSTEM_KINDS,
   TEST_KIND_LABELS,
   TEST_RESULT_LABELS,
-  hardwareProductionUsageLabel,
+  hardwareProductionListLabel,
+  hardwareProductionUsageDetail,
   isInventoryKind,
   isSystemKind,
   newId,
@@ -573,24 +574,26 @@ export function HardwarePage({
             ) : selected ? (
               <>
                 {selectedProductionUsage.length > 0 ? (
-                  <div className="hw-notes-banner hw-production-banner" role="status">
-                    <strong>In production</strong>
+                  <div className="hw-production-banner" role="status">
+                    <p className="hw-production-banner-label">In production</p>
                     <ul className="hw-production-usage">
                       {selectedProductionUsage.map((usage) => (
-                        <li
-                          key={`${usage.processId}:${usage.role}:${usage.stepId ?? ''}`}
-                        >
+                        <li key={usage.processId}>
+                          <div className="hw-production-usage-main">
+                            <strong>{usage.shortName}</strong>
+                            <span className="simple-muted">
+                              {hardwareProductionUsageDetail(usage)}
+                            </span>
+                          </div>
                           {onOpenProduction ? (
                             <button
                               type="button"
-                              className="hw-parts-name-btn"
+                              className="btn btn-ghost"
                               onClick={() => onOpenProduction(usage.processId)}
                             >
-                              {hardwareProductionUsageLabel(usage)}
+                              Open
                             </button>
-                          ) : (
-                            <span>{hardwareProductionUsageLabel(usage)}</span>
-                          )}
+                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -1125,12 +1128,7 @@ function HardwareTreeNodes({
   const { unit, children } = node
   const nested = depth > 0
   const usages = productionUsageByUnit.get(unit.id) ?? []
-  const usageLabel =
-    usages.length === 0
-      ? null
-      : usages.length === 1
-        ? hardwareProductionUsageLabel(usages[0])
-        : `In ${usages.length} productions`
+  const usageLabel = hardwareProductionListLabel(usages)
   return (
     <li className={nested ? undefined : 'hw-vehicle-group'}>
       <button
