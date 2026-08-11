@@ -162,11 +162,20 @@ export function VehicleProcessPage({
     void store.commit((prev) => {
       const process = prev.processes.find((p) => p.id === processId)
       const step = process?.steps.find((s) => s.id === stepId)
-      const wasDone = step?.status === 'done' || step?.status === 'skipped'
+      if (!process || !step) return prev
+      // Re-clicking the current status should not re-save / flicker.
+      if (
+        step.status === status &&
+        (status !== 'blocked' || blockedReason === undefined)
+      ) {
+        return prev
+      }
+
+      const wasDone = step.status === 'done' || step.status === 'skipped'
       const becomingDone = status === 'done' || status === 'skipped'
 
       let progress = prev.progress
-      if (process && step && becomingDone && !wasDone) {
+      if (becomingDone && !wasDone) {
         const linkedHardware = (step.linkedUnitIds ?? [])
           .map((id) => prev.units.find((u) => u.id === id))
           .filter((u): u is NonNullable<typeof u> =>
@@ -195,23 +204,33 @@ export function VehicleProcessPage({
             ...p,
             updatedAt: now,
             steps: p.steps.map((s) => {
-              if (s.id !== stepId) return s
-              const done = status === 'done' || status === 'skipped'
-              return {
-                ...s,
-                status,
-                completedAt: done ? s.completedAt || now : undefined,
-                completedBy: done ? s.completedBy || user?.name : undefined,
-                blockedReason:
-                  status === 'blocked'
-                    ? (blockedReason ?? s.blockedReason)
-                    : undefined,
+              if (s.id === stepId) {
+                const done = status === 'done' || status === 'skipped'
+                return {
+                  ...s,
+                  status,
+                  completedAt: done ? s.completedAt || now : undefined,
+                  completedBy: done ? s.completedBy || user?.name : undefined,
+                  blockedReason:
+                    status === 'blocked'
+                      ? (blockedReason ?? s.blockedReason)
+                      : undefined,
+                }
               }
+              // Timeline: only one active step at a time on a production.
+              if (
+                status === 'active' &&
+                s.status === 'active' &&
+                s.id !== stepId
+              ) {
+                return { ...s, status: 'pending' as const }
+              }
+              return s
             }),
           }
         }),
       }
-    }, status === 'done' ? 'Step done' : 'Updated')
+    }, '')
   }
 
   function setBlockedReason(processId: string, stepId: string, reason: string) {

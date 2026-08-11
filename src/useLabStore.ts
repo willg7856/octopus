@@ -129,7 +129,9 @@ function useLabStoreState(onAuthRequired?: () => void): LabStore {
   syncRef.current = sync
 
   function flash(message: string) {
-    setToast(message)
+    const text = message.trim()
+    if (!text) return
+    setToast(text)
     window.setTimeout(() => setToast(null), 2800)
   }
 
@@ -219,8 +221,12 @@ function useLabStoreState(onAuthRequired?: () => void): LabStore {
 
   const commit = useCallback(async (next: LabUpdater, message: string) => {
     const run = async () => {
+      const previous = labRef.current
       const resolved =
-        typeof next === 'function' ? next(labRef.current) : next
+        typeof next === 'function' ? next(previous) : next
+
+      // Updater decided nothing changed — avoid a save flicker.
+      if (resolved === previous) return true
 
       if (syncRef.current === 'local') {
         saveHardwareLab(resolved)
@@ -237,6 +243,10 @@ function useLabStoreState(onAuthRequired?: () => void): LabStore {
         return false
       }
 
+      // Optimistic UI so status / timeline buttons respond immediately.
+      labRef.current = resolved
+      setLab(resolved)
+
       pendingCount.current += 1
       savingRef.current = true
       setSaving(true)
@@ -251,6 +261,8 @@ function useLabStoreState(onAuthRequired?: () => void): LabStore {
       }
 
       if ('authRequired' in result && result.authRequired) {
+        labRef.current = previous
+        setLab(previous)
         handleAuthRequired()
         flash(result.error)
         return false
@@ -270,6 +282,8 @@ function useLabStoreState(onAuthRequired?: () => void): LabStore {
       }
 
       if (!result.ok) {
+        labRef.current = previous
+        setLab(previous)
         flash(result.error)
         return false
       }
