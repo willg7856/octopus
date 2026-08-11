@@ -785,7 +785,7 @@ function SystemForm({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!editing || !name.trim() || !serial.trim()) return
+    if (!editing || !name.trim()) return
     const trimmedNotes = notes.trim()
     onSave({
       id: initial?.id,
@@ -856,8 +856,7 @@ function SystemForm({
           <input
             value={serial}
             onChange={(e) => setField('serial', e.target.value)}
-            placeholder="SVX-B1M-001"
-            required={editing}
+            placeholder="Optional"
           />
         </label>
         <div className="simple-form-row">
@@ -1093,7 +1092,8 @@ function HardwareTreeNodes({
         <span>
           <strong>{unit.name}</strong>
           <span className="simple-muted">
-            {unit.serial} · {HARDWARE_KIND_LABELS[unit.kind]}
+            {unit.serial?.trim() ? `${unit.serial.trim()} · ` : ''}
+            {HARDWARE_KIND_LABELS[unit.kind]}
             {children.length > 0 ? ` · ${children.length} nested` : ''}
             {(unit.linkedInventoryIds?.length ?? 0) > 0
               ? ` · ${unit.linkedInventoryIds!.length} parts`
