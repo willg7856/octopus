@@ -3,10 +3,7 @@ import {
   HARDWARE_KIND_LABELS,
   installInventoryOnHardware,
   isInventoryKind,
-  linkInventoryToHardware,
-  returnInventoryFromHardware,
   sortUnits,
-  stockStatusOf,
   unitQuantity,
   unlinkInventoryFromHardware,
   type HardwareLabState,
@@ -33,19 +30,35 @@ export function HardwarePartsPanel({
   const [error, setError] = useState<string | null>(null)
   const q = query.trim().toLowerCase()
 
-  const linkedIds = hardware.linkedInventoryIds ?? []
-  const linkedParts = useMemo(() => {
+  const parts = useMemo(() => {
     const byId = new Map(allUnits.map((u) => [u.id, u]))
-    return linkedIds
-      .map((id) => byId.get(id))
-      .filter((u): u is HardwareUnit => Boolean(u && isInventoryKind(u.kind)))
-  }, [linkedIds, allUnits])
+    const seen = new Set<string>()
+    const list: HardwareUnit[] = []
+
+    for (const u of allUnits) {
+      if (u.installedOnUnitId === hardware.id && isInventoryKind(u.kind)) {
+        seen.add(u.id)
+        list.push(u)
+      }
+    }
+    // Legacy soft-links (pre install-only) still show until Install or Return
+    for (const id of hardware.linkedInventoryIds ?? []) {
+      if (seen.has(id)) continue
+      const u = byId.get(id)
+      if (u && isInventoryKind(u.kind)) {
+        seen.add(id)
+        list.push(u)
+      }
+    }
+    return sortUnits(list)
+  }, [allUnits, hardware.id, hardware.linkedInventoryIds])
+
+  const partIds = useMemo(() => new Set(parts.map((p) => p.id)), [parts])
 
   const availableToAdd = useMemo(() => {
-    const linked = new Set(linkedIds)
     return sortUnits(
       inventory.filter((u) => {
-        if (linked.has(u.id)) return false
+        if (partIds.has(u.id)) return false
         if (!q) return true
         return [u.name, u.serial, u.partNumber, HARDWARE_KIND_LABELS[u.kind]]
           .filter(Boolean)
@@ -54,7 +67,7 @@ export function HardwarePartsPanel({
           .includes(q)
       }),
     )
-  }, [inventory, linkedIds, q])
+  }, [inventory, partIds, q])
 
   function saveUnits(nextUnits: HardwareUnit[], message: string) {
     setError(null)
@@ -62,15 +75,6 @@ export function HardwarePartsPanel({
       (prev: HardwareLabState) => ({ ...prev, units: nextUnits }),
       message,
     )
-  }
-
-  function linkPart(inventoryId: string) {
-    const now = new Date().toISOString()
-    const next = linkInventoryToHardware(allUnits, hardware.id, inventoryId).map(
-      (u) => (u.id === hardware.id ? { ...u, updatedAt: now } : u),
-    )
-    saveUnits(next, 'Part linked')
-    setQuery('')
   }
 
   function installPart(inventoryId: string) {
@@ -87,19 +91,11 @@ export function HardwarePartsPanel({
     setQuery('')
   }
 
+  /** Return stock to inventory and remove from this hardware unit. */
   function returnPart(inventoryId: string) {
-    const result = returnInventoryFromHardware(allUnits, inventoryId)
-    if (result.error) {
-      setError(result.error)
-      return
-    }
-    saveUnits(result.units, 'Returned to stock')
-  }
-
-  function unlinkPart(inventoryId: string) {
     saveUnits(
       unlinkInventoryFromHardware(allUnits, hardware.id, inventoryId),
-      'Part unlinked',
+      'Returned to stock',
     )
   }
 
@@ -107,8 +103,8 @@ export function HardwarePartsPanel({
     <section className="hw-parts" aria-label="Parts from inventory">
       <h4>Parts</h4>
       <p className="simple-muted">
-        Link for BOM tracking, or Install to reserve stock on this unit
-        (unavailable elsewhere until returned).
+        Install inventory onto this unit to reserve it — unavailable elsewhere
+        until returned.
       </p>
 
       {error ? (
@@ -117,11 +113,11 @@ export function HardwarePartsPanel({
         </p>
       ) : null}
 
-      {linkedParts.length === 0 ? (
-        <p className="simple-muted">No parts linked yet.</p>
+      {parts.length === 0 ? (
+        <p className="simple-muted">No parts installed yet.</p>
       ) : (
         <ul className="hw-parts-list">
-          {linkedParts.map((part) => {
+          {parts.map((part) => {
             const installedHere = part.installedOnUnitId === hardware.id
             const installedElsewhere =
               Boolean(part.installedOnUnitId) && !installedHere
@@ -139,23 +135,19 @@ export function HardwarePartsPanel({
                       ? ' · installed here'
                       : installedElsewhere
                         ? ` · on ${elsewhere?.name ?? 'other unit'}`
-                        : ' · linked only'}
+                        : ' · not reserved yet'}
                   </span>
                 </div>
                 <span
                   className="status-badge"
                   data-kind="stock"
-                  data-status={
-                    installedHere || installedElsewhere
-                      ? 'reserved'
-                      : stockStatusOf(part)
-                  }
+                  data-status={installedHere || installedElsewhere ? 'reserved' : 'low'}
                 >
                   {installedHere
                     ? 'Installed'
                     : installedElsewhere
                       ? 'Reserved elsewhere'
-                      : 'Linked'}
+                      : 'Needs install'}
                 </span>
                 <div className="hw-parts-actions">
                   {installedHere ? (
@@ -168,28 +160,30 @@ export function HardwarePartsPanel({
                       Return
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      disabled={disabled || installedElsewhere}
-                      onClick={() => installPart(part.id)}
-                      title={
-                        installedElsewhere
-                          ? 'Return it from the other unit first'
-                          : 'Reserve this stock on this hardware unit'
-                      }
-                    >
-                      Install
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-accent"
+                        disabled={disabled || installedElsewhere}
+                        onClick={() => installPart(part.id)}
+                        title={
+                          installedElsewhere
+                            ? 'Return it from the other unit first'
+                            : 'Reserve this stock on this hardware unit'
+                        }
+                      >
+                        Install
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        disabled={disabled}
+                        onClick={() => returnPart(part.id)}
+                      >
+                        Remove
+                      </button>
+                    </>
                   )}
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    disabled={disabled}
-                    onClick={() => unlinkPart(part.id)}
-                  >
-                    Unlink
-                  </button>
                 </div>
               </li>
             )
@@ -202,8 +196,8 @@ export function HardwarePartsPanel({
           className="simple-search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search inventory to add…"
-          aria-label="Search inventory to add parts"
+          placeholder="Search inventory to install…"
+          aria-label="Search inventory to install parts"
           disabled={disabled}
         />
         {query.trim() ? (
@@ -231,14 +225,6 @@ export function HardwarePartsPanel({
                     <span className="hw-parts-actions">
                       <button
                         type="button"
-                        className="btn btn-ghost"
-                        disabled={disabled}
-                        onClick={() => linkPart(part.id)}
-                      >
-                        Link
-                      </button>
-                      <button
-                        type="button"
                         className="btn btn-accent"
                         disabled={disabled || busy}
                         onClick={() => installPart(part.id)}
@@ -253,7 +239,7 @@ export function HardwarePartsPanel({
           </ul>
         ) : (
           <p className="simple-muted hw-parts-add-hint">
-            Type to find inventory, then Link (track only) or Install (reserve).
+            Type to find inventory, then Install to reserve it on this unit.
           </p>
         )}
       </div>

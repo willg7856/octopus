@@ -232,8 +232,8 @@ export interface HardwareUnit {
    */
   parentVehicleId?: string
   /**
-   * Hardware: inventory part / tool / consumable ids this unit uses (BOM-style).
-   * Soft links do not change stock. Install/reserve uses `installedOnUnitId` on the inventory item.
+   * Hardware: inventory ids installed on this unit (mirrors items with
+   * `installedOnUnitId` pointing here; kept for listing / export).
    */
   linkedInventoryIds?: string[]
   /**
