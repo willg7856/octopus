@@ -254,10 +254,32 @@ export function normalizeHardwareUnit(unit: HardwareUnit): HardwareUnit {
   return unit
 }
 
+function normalizeProcessMaterials(process: VehicleProcess): VehicleProcess {
+  const qty: Record<string, number> = {}
+  if (process.linkedInventoryQty) {
+    for (const [id, raw] of Object.entries(process.linkedInventoryQty)) {
+      const n = Math.floor(Number(raw))
+      if (id && Number.isFinite(n) && n > 0) qty[id] = n
+    }
+  }
+  if (Object.keys(qty).length === 0) {
+    for (const id of process.linkedInventoryIds ?? []) {
+      if (id) qty[id] = qty[id] ?? 1
+    }
+  }
+  const ids = Object.keys(qty)
+  return {
+    ...process,
+    linkedInventoryIds: ids.length > 0 ? ids : undefined,
+    linkedInventoryQty: ids.length > 0 ? qty : undefined,
+  }
+}
+
 export function normalizeHardwareLabState(state: HardwareLabState): HardwareLabState {
   return {
     ...state,
     units: state.units.map(normalizeHardwareUnit),
+    processes: state.processes.map(normalizeProcessMaterials),
   }
 }
 

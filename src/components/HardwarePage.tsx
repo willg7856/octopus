@@ -348,6 +348,12 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
               const linkedInventoryIds = (p.linkedInventoryIds ?? []).filter(
                 (uid) => uid !== id,
               )
+              const nextQty: Record<string, number> = {}
+              for (const mid of linkedInventoryIds) {
+                const n = p.linkedInventoryQty?.[mid]
+                nextQty[mid] =
+                  typeof n === 'number' && n > 0 ? Math.floor(n) : 1
+              }
               const linkedHardwareIds = (p.linkedHardwareIds ?? []).filter(
                 (uid) => uid !== id,
               )
@@ -357,6 +363,8 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                   linkedInventoryIds.length > 0
                     ? linkedInventoryIds
                     : undefined,
+                linkedInventoryQty:
+                  linkedInventoryIds.length > 0 ? nextQty : undefined,
                 linkedHardwareIds:
                   linkedHardwareIds.length > 0 ? linkedHardwareIds : undefined,
                 steps: p.steps.map((s) => ({

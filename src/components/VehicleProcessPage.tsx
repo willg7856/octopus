@@ -6,6 +6,7 @@ import { SyncStatusBanners } from './SyncStatusBanners'
 import {
   InventoryLinkPicker,
   linkedInventoryNames,
+  materialsQtyMap,
 } from './InventoryLinkPicker'
 import {
   HARDWARE_KIND_LABELS,
@@ -159,16 +160,20 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     }), 'Vehicle linked')
   }
 
-  function setProcessInventory(processId: string, linkedInventoryIds: string[]) {
+  function setProcessInventoryQty(
+    processId: string,
+    linkedInventoryQty: Record<string, number>,
+  ) {
     const now = new Date().toISOString()
+    const ids = Object.keys(linkedInventoryQty)
     void store.commit((prev) => ({
       ...prev,
       processes: prev.processes.map((p) =>
         p.id === processId
           ? {
               ...p,
-              linkedInventoryIds:
-                linkedInventoryIds.length > 0 ? linkedInventoryIds : undefined,
+              linkedInventoryIds: ids.length > 0 ? ids : undefined,
+              linkedInventoryQty: ids.length > 0 ? linkedInventoryQty : undefined,
               updatedAt: now,
             }
           : p,
@@ -292,7 +297,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     name: string
     vehicleUnitId?: string
     vehicleName?: string
-    linkedInventoryIds?: string[]
+    linkedInventoryQty?: Record<string, number>
     linkedHardwareIds?: string[]
   }) {
     const now = new Date().toISOString()
@@ -300,10 +305,11 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       .replace(/\s+production\s*$/i, '')
       .trim()
     const processId = newId('proc')
-    const materials =
-      input.linkedInventoryIds && input.linkedInventoryIds.length > 0
-        ? input.linkedInventoryIds
-        : undefined
+    const materialQty = input.linkedInventoryQty ?? {}
+    const materialIds = Object.keys(materialQty)
+    const materials = materialIds.length > 0 ? materialIds : undefined
+    const materialQtySaved =
+      materialIds.length > 0 ? materialQty : undefined
     const hardwareInUse =
       input.linkedHardwareIds && input.linkedHardwareIds.length > 0
         ? input.linkedHardwareIds
@@ -343,6 +349,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
         vehicleUnitId: vehicle.id,
         name: input.name.trim(),
         linkedInventoryIds: materials,
+        linkedInventoryQty: materialQtySaved,
         linkedHardwareIds: hardwareInUse,
         updatedAt: now,
         steps: [],
@@ -384,8 +391,13 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       : 0
   const activeStep = steps.find((s) => s.status === 'active')
   const blockedCount = steps.filter((s) => s.status === 'blocked').length
+  const selectedMaterialQty = selected ? materialsQtyMap(selected) : {}
   const selectedMaterials = selected
-    ? linkedInventoryNames(selected.linkedInventoryIds, units)
+    ? linkedInventoryNames(
+        Object.keys(selectedMaterialQty),
+        units,
+        selectedMaterialQty,
+      )
     : []
   const selectedHardwareInUse = selected
     ? linkedInventoryNames(selected.linkedHardwareIds, units)
@@ -563,10 +575,13 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                     />
                     <InventoryLinkPicker
                       units={inventoryUnits}
-                      selectedIds={selected.linkedInventoryIds ?? []}
-                      onChange={(ids) => setProcessInventory(selected.id, ids)}
+                      selectedIds={Object.keys(selectedMaterialQty)}
+                      quantities={selectedMaterialQty}
+                      onQuantitiesChange={(qty) =>
+                        setProcessInventoryQty(selected.id, qty)
+                      }
                       legend="Materials from inventory"
-                      hint="Parts and tools for this production overall. Linking does not change stock qty."
+                      hint="Search to add parts/tools. Add the same item again to increase qty — does not change stock."
                     />
                   </div>
                 ) : (
@@ -831,7 +846,7 @@ function NewProductionForm({
     name: string
     vehicleUnitId?: string
     vehicleName?: string
-    linkedInventoryIds?: string[]
+    linkedInventoryQty?: Record<string, number>
     linkedHardwareIds?: string[]
   }) => void
   onCancel: () => void
@@ -839,7 +854,9 @@ function NewProductionForm({
   const [name, setName] = useState('')
   const [vehicleUnitId, setVehicleUnitId] = useState('')
   const [vehicleName, setVehicleName] = useState('')
-  const [linkedInventoryIds, setLinkedInventoryIds] = useState<string[]>([])
+  const [linkedInventoryQty, setLinkedInventoryQty] = useState<
+    Record<string, number>
+  >({})
   const [linkedHardwareIds, setLinkedHardwareIds] = useState<string[]>([])
 
   function handleSubmit(e: FormEvent) {
@@ -851,7 +868,7 @@ function NewProductionForm({
         : `${name.trim()} production`,
       vehicleUnitId: vehicleUnitId || undefined,
       vehicleName: vehicleName.trim() || name.trim(),
-      linkedInventoryIds,
+      linkedInventoryQty,
       linkedHardwareIds,
     })
   }
@@ -908,10 +925,11 @@ function NewProductionForm({
       />
       <InventoryLinkPicker
         units={inventory}
-        selectedIds={linkedInventoryIds}
-        onChange={setLinkedInventoryIds}
+        selectedIds={Object.keys(linkedInventoryQty)}
+        quantities={linkedInventoryQty}
+        onQuantitiesChange={setLinkedInventoryQty}
         legend="Materials from inventory"
-        hint="Optional. Track parts/tools for this production — does not change stock qty."
+        hint="Optional. Search to add — add again to increase qty. Does not change stock."
       />
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent">

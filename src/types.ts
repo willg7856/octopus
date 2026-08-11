@@ -282,8 +282,14 @@ export interface VehicleProcess {
   /**
    * Inventory parts / tools / materials for this production overall.
    * Linking does not change stock quantities.
+   * Prefer `linkedInventoryQty` when quantities matter; ids stay in sync.
    */
   linkedInventoryIds?: string[]
+  /**
+   * Qty of each inventory material for this production (unitId → count).
+   * Soft link only — does not decrement stock.
+   */
+  linkedInventoryQty?: Record<string, number>
   /**
    * Hardware vehicles / subsystems used on this production overall.
    * Soft link only — does not change Hardware status or inventory.
