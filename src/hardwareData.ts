@@ -542,8 +542,9 @@ export function formatMoney(amount: number) {
 
 /**
  * Install inventory onto a hardware unit.
- * - qty 1 / draw-all: reserve the whole line (`installedOnUnitId` + reserved)
- * - partial qty on multi-qty lines: draw from on-hand, track on `linkedInventoryDraws`
+ * - Explicit `drawQty`: always draw from on-hand (tracks `linkedInventoryDraws`)
+ *   so operators can keep adding/returning qty.
+ * - Omit `drawQty` with on-hand ≤ 1: reserve the whole line (`installedOnUnitId`).
  */
 export function installInventoryOnHardware(
   units: HardwareUnit[],
@@ -568,22 +569,30 @@ export function installInventoryOnHardware(
     }
   }
 
-  const onHand = unitQuantity(item)
-  if (onHand <= 0) {
-    return { units, error: 'Nothing on hand to install' }
+  // Reserved whole-line on this unit → convert to draw tracking so qty can change.
+  let working = units
+  if (item.installedOnUnitId === hardwareId) {
+    working = convertReservedInstallToDraw(units, hardwareId, inventoryId, now)
   }
 
-  const qty = drawQty == null ? (onHand <= 1 ? 1 : 1) : Math.floor(drawQty)
+  const live = working.find((u) => u.id === inventoryId)!
+  const onHand = unitQuantity(live)
+  if (onHand <= 0) {
+    return { units: working, error: 'Nothing on hand to install' }
+  }
+
+  const qty = drawQty == null ? 1 : Math.floor(drawQty)
   if (!Number.isFinite(qty) || qty <= 0) {
-    return { units, error: 'Enter a quantity to install' }
+    return { units: working, error: 'Enter a quantity to install' }
   }
   if (qty > onHand) {
-    return { units, error: `Only ${onHand} on hand` }
+    return { units: working, error: `Only ${onHand} on hand` }
   }
 
-  const reserveWhole = qty >= onHand
+  // Explicit qty always draws. Legacy no-qty + single on-hand still reserves.
+  const reserveWhole = drawQty == null && onHand <= 1
 
-  const next = units.map((u) => {
+  const next = working.map((u) => {
     if (u.id === hardwareId) {
       const linked = u.linkedInventoryIds ?? []
       const draws = { ...(u.linkedInventoryDraws ?? {}) }
@@ -630,6 +639,48 @@ export function installInventoryOnHardware(
     return u
   })
   return { units: next }
+}
+
+/**
+ * Turn a whole-line reserve into draw tracking (qty 0 on hand, N drawn on hardware)
+ * so Add / Return qty controls keep working.
+ */
+export function convertReservedInstallToDraw(
+  units: HardwareUnit[],
+  hardwareId: string,
+  inventoryId: string,
+  now = new Date().toISOString(),
+): HardwareUnit[] {
+  const item = units.find((u) => u.id === inventoryId)
+  if (!item || item.installedOnUnitId !== hardwareId) return units
+  const qty = unitQuantity(item)
+  const stockStatus = applyInventoryStockRules('in-stock', 0, item.minQty)
+  return units.map((u) => {
+    if (u.id === inventoryId) {
+      return {
+        ...u,
+        quantity: 0,
+        installedOnUnitId: undefined,
+        stockStatus,
+        status: hardwareStatusForStock(stockStatus),
+        updatedAt: now,
+      }
+    }
+    if (u.id === hardwareId) {
+      const linked = u.linkedInventoryIds ?? []
+      const draws = { ...(u.linkedInventoryDraws ?? {}) }
+      draws[inventoryId] = (draws[inventoryId] ?? 0) + Math.max(1, qty)
+      return {
+        ...u,
+        linkedInventoryIds: linked.includes(inventoryId)
+          ? linked
+          : [...linked, inventoryId],
+        linkedInventoryDraws: draws,
+        updatedAt: now,
+      }
+    }
+    return u
+  })
 }
 
 /** Return a reserved (whole-line) inventory item to available stock. */
@@ -729,7 +780,7 @@ export function unlinkInventoryFromHardware(
 
 /**
  * Return some (or all) drawn qty from a hardware unit back to inventory.
- * Reserved whole-line installs always return as a full line.
+ * Reserved whole-line installs are converted to draw tracking first.
  */
 export function returnInventoryQtyFromHardware(
   units: HardwareUnit[],
@@ -752,29 +803,34 @@ export function returnInventoryQtyFromHardware(
     return { units, error: 'Enter a quantity to return' }
   }
 
+  let working = units
   if (item.installedOnUnitId === hardwareId) {
-    return returnInventoryFromHardware(units, inventoryId, now)
+    working = convertReservedInstallToDraw(units, hardwareId, inventoryId, now)
   }
 
-  const drawn = hardware.linkedInventoryDraws?.[inventoryId] ?? 0
+  const hardwareNow = working.find((u) => u.id === hardwareId)
+  const drawn = hardwareNow?.linkedInventoryDraws?.[inventoryId] ?? 0
   if (drawn <= 0) {
-    return { units, error: 'Nothing drawn to return' }
+    return { units: working, error: 'Nothing drawn to return' }
   }
   if (qty > drawn) {
-    return { units, error: `Only ${drawn} drawn on this unit` }
+    return { units: working, error: `Only ${drawn} drawn on this unit` }
   }
   if (qty >= drawn) {
-    return { units: unlinkInventoryFromHardware(units, hardwareId, inventoryId, now) }
+    return {
+      units: unlinkInventoryFromHardware(working, hardwareId, inventoryId, now),
+    }
   }
 
-  const nextQty = unitQuantity(item) + qty
+  const live = working.find((u) => u.id === inventoryId)!
+  const nextQty = unitQuantity(live) + qty
   const stockStatus = applyInventoryStockRules(
-    stockStatusOf(item) === 'reserved' ? 'in-stock' : stockStatusOf(item),
+    stockStatusOf(live) === 'reserved' ? 'in-stock' : stockStatusOf(live),
     nextQty,
-    item.minQty,
+    live.minQty,
   )
   return {
-    units: units.map((u) => {
+    units: working.map((u) => {
       if (u.id === inventoryId) {
         return {
           ...u,

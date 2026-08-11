@@ -107,18 +107,30 @@ export function HardwarePartsPanel({
   function installPart(inventoryId: string) {
     const item = allUnits.find((u) => u.id === inventoryId)
     const onHand = item ? unitQuantity(item) : 0
-    const qty = Math.min(Math.max(1, parseQty(qtyById[inventoryId], 1)), Math.max(1, onHand))
+    if (item?.installedOnUnitId === hardware.id) {
+      setError('Return qty first, then add from stock')
+      return
+    }
+    if (onHand <= 0) {
+      setError('Nothing on hand to install')
+      return
+    }
+    const qty = Math.min(
+      Math.max(1, parseQty(qtyById[inventoryId], 1)),
+      onHand,
+    )
+    // Always pass an explicit qty so installs draw (never whole-line reserve).
     const result = installInventoryOnHardware(
       allUnits,
       hardware.id,
       inventoryId,
-      onHand <= 1 ? 1 : qty,
+      qty,
     )
     if (result.error) {
       setError(result.error)
       return
     }
-    saveUnits(result.units, qty > 1 ? `Installed ${qty}` : 'Installed / reserved')
+    saveUnits(result.units, qty > 1 ? `Installed ${qty}` : 'Installed')
     setQuery('')
     setQtyById((prev) => {
       const next = { ...prev }
@@ -198,9 +210,8 @@ export function HardwarePartsPanel({
               ? allUnits.find((u) => u.id === part.installedOnUnitId)
               : null
             const onHand = unitQuantity(part)
-            const qtyMax = installedHere
-              ? Math.max(1, onHand)
-              : Math.max(1, drawn > 0 ? Math.max(drawn, onHand) : onHand)
+            const usingCount = installedHere ? onHand : drawn
+            const qtyMax = Math.max(1, Math.max(usingCount, onHand))
             const qtyVal = String(
               Math.min(parseQty(qtyById[part.id], 1), qtyMax),
             )
@@ -221,7 +232,7 @@ export function HardwarePartsPanel({
                   <span className="simple-muted">
                     {HARDWARE_KIND_LABELS[part.kind]} · {onHand} on hand
                     {installedHere
-                      ? ' · reserved here'
+                      ? ` · using ${usingCount} (reserved)`
                       : drawn > 0
                         ? ` · using ${drawn}`
                         : installedElsewhere
@@ -241,7 +252,7 @@ export function HardwarePartsPanel({
                   }
                 >
                   {installedHere
-                    ? 'Installed'
+                    ? `Using ${usingCount}`
                     : drawn > 0
                       ? `Using ${drawn}`
                       : installedElsewhere
@@ -249,16 +260,7 @@ export function HardwarePartsPanel({
                         : 'Needs install'}
                 </span>
                 <div className="hw-parts-actions">
-                  {installedHere ? (
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      disabled={disabled}
-                      onClick={() => void returnAll(part.id)}
-                    >
-                      Return
-                    </button>
-                  ) : drawn > 0 ? (
+                  {installedHere || drawn > 0 ? (
                     <>
                       <QtyStepper
                         id={part.id}
@@ -272,7 +274,14 @@ export function HardwarePartsPanel({
                       <button
                         type="button"
                         className="btn btn-accent"
-                        disabled={disabled || onHand <= 0}
+                        disabled={disabled || installedHere || onHand <= 0}
+                        title={
+                          installedHere
+                            ? 'Return qty first, then add from stock'
+                            : onHand <= 0
+                              ? 'Nothing left on hand to add'
+                              : undefined
+                        }
                         onClick={() => installPart(part.id)}
                       >
                         Add
