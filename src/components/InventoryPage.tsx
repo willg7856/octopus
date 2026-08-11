@@ -1020,7 +1020,7 @@ function UnitForm({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!editing || !name.trim() || !serial.trim()) return
+    if (!editing || !name.trim()) return
     const qty = Number(quantity)
     const ordered = Number(onOrderQty)
     const min = minQty.trim() === '' ? undefined : Number(minQty)
@@ -1129,8 +1129,7 @@ function UnitForm({
             <input
               value={serial}
               onChange={(e) => setField('serial', e.target.value)}
-              placeholder="INV-AN4-BOLT"
-              required={editing}
+              placeholder="Optional"
             />
           </label>
           <label>
@@ -1138,7 +1137,7 @@ function UnitForm({
             <input
               value={partNumber}
               onChange={(e) => setField('partNumber', e.target.value)}
-              placeholder="AN4-14A"
+              placeholder="Optional"
             />
           </label>
         </div>
