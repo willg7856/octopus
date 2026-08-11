@@ -488,18 +488,32 @@ export function InventoryPage({
             ...t,
             unitIds: t.unitIds.filter((uid) => uid !== id),
           })),
-          processes: prev.processes.map((p) => ({
-            ...p,
-            linkedInventoryIds: (p.linkedInventoryIds ?? []).filter(
+          processes: prev.processes.map((p) => {
+            const linkedInventoryIds = (p.linkedInventoryIds ?? []).filter(
               (uid) => uid !== id,
-            ),
-            steps: p.steps.map((s) => ({
-              ...s,
-              linkedUnitIds: (s.linkedUnitIds ?? []).filter(
-                (uid) => uid !== id,
-              ),
-            })),
-          })),
+            )
+            const nextQty: Record<string, number> = {}
+            for (const mid of linkedInventoryIds) {
+              const n = p.linkedInventoryQty?.[mid]
+              nextQty[mid] =
+                typeof n === 'number' && n > 0 ? Math.floor(n) : 1
+            }
+            return {
+              ...p,
+              linkedInventoryIds:
+                linkedInventoryIds.length > 0
+                  ? linkedInventoryIds
+                  : undefined,
+              linkedInventoryQty:
+                linkedInventoryIds.length > 0 ? nextQty : undefined,
+              steps: p.steps.map((s) => ({
+                ...s,
+                linkedUnitIds: (s.linkedUnitIds ?? []).filter(
+                  (uid) => uid !== id,
+                ),
+              })),
+            }
+          }),
         }
       },
       'Removed',

@@ -122,10 +122,19 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
     }),
     '',
     '## vehicle_processes',
-    'process_id,process_name,campaign,vehicle_unit_id,vehicle_name,materials,step_order,step_title,step_status,step_owner,linked_units,blocked_reason,completed_at,completed_by',
+    'process_id,process_name,campaign,vehicle_unit_id,vehicle_name,hardware_in_use,materials,step_order,step_title,step_status,step_owner,linked_units,blocked_reason,completed_at,completed_by',
     ...processes.flatMap((proc) => {
       const materials = csvEscape(
-        (proc.linkedInventoryIds ?? []).map(unitName).join('|'),
+        (proc.linkedInventoryIds ?? [])
+          .map((id) => {
+            const qty = proc.linkedInventoryQty?.[id]
+            const label = unitName(id)
+            return qty && qty > 1 ? `${label}×${qty}` : label
+          })
+          .join('|'),
+      )
+      const hardwareInUse = csvEscape(
+        (proc.linkedHardwareIds ?? []).map(unitName).join('|'),
       )
       const sorted = [...proc.steps].sort((a, b) => a.order - b.order)
       if (sorted.length === 0) {
@@ -136,6 +145,7 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
             csvEscape(proc.campaign ?? ''),
             proc.vehicleUnitId,
             csvEscape(unitName(proc.vehicleUnitId)),
+            hardwareInUse,
             materials,
             '',
             '',
@@ -155,6 +165,7 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
           csvEscape(proc.campaign ?? ''),
           proc.vehicleUnitId,
           csvEscape(unitName(proc.vehicleUnitId)),
+          hardwareInUse,
           materials,
           String(step.order),
           csvEscape(step.title),
