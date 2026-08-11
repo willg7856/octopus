@@ -4349,7 +4349,8 @@ button.simple-list-row {
 
 .status-badge[data-kind='stock'][data-status='quarantine'],
 .status-badge[data-kind='hardware'][data-status='failed'],
-.status-badge[data-kind='hardware'][data-status='destroyed'] {
+.status-badge[data-kind='hardware'][data-status='destroyed'],
+.status-badge[data-kind='stock'][data-status='destroyed'] {
   border-color: color-mix(in srgb, var(--telem-red) 45%, var(--line));
   color: var(--telem-red);
   background: color-mix(in srgb, var(--telem-red) 10%, transparent);

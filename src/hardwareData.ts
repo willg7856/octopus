@@ -96,6 +96,7 @@ export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
   incoming: 'Incoming',
   quarantine: 'Quarantine',
   depleted: 'Depleted',
+  destroyed: 'Destroyed',
 }
 
 export const STOCK_STATUS_ORDER: StockStatus[] = [
@@ -107,6 +108,7 @@ export const STOCK_STATUS_ORDER: StockStatus[] = [
   'incoming',
   'quarantine',
   'depleted',
+  'destroyed',
 ]
 
 /** Map legacy hardware statuses that inventory used to reuse. */
@@ -131,6 +133,7 @@ const STOCK_TO_HARDWARE_STATUS: Record<StockStatus, HardwareStatus> = {
   incoming: 'concept',
   quarantine: 'failed',
   depleted: 'retired',
+  destroyed: 'destroyed',
 }
 
 export function stockStatusOf(unit: HardwareUnit): StockStatus {
@@ -155,6 +158,7 @@ const STOCK_MANUAL_STATUSES: StockStatus[] = [
   'receiving',
   'incoming',
   'quarantine',
+  'destroyed',
 ]
 
 /**
@@ -852,6 +856,169 @@ export function returnInventoryQtyFromHardware(
       return u
     }),
   }
+}
+
+/**
+ * Write off drawn qty on a hardware unit without returning it to stock.
+ * Use when a part/sensor is destroyed while installed.
+ */
+export function destroyInventoryQtyFromHardware(
+  units: HardwareUnit[],
+  hardwareId: string,
+  inventoryId: string,
+  destroyQty: number,
+  now = new Date().toISOString(),
+): { units: HardwareUnit[]; error?: string } {
+  const hardware = units.find((u) => u.id === hardwareId)
+  const item = units.find((u) => u.id === inventoryId)
+  if (!hardware || !isSystemKind(hardware.kind)) {
+    return { units, error: 'Hardware unit not found' }
+  }
+  if (!item || !isInventoryKind(item.kind)) {
+    return { units, error: 'Inventory item not found' }
+  }
+
+  const qty = Math.floor(Number(destroyQty))
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return { units, error: 'Enter a quantity to destroy' }
+  }
+
+  let working = units
+  if (item.installedOnUnitId === hardwareId) {
+    working = convertReservedInstallToDraw(units, hardwareId, inventoryId, now)
+  }
+
+  const hardwareNow = working.find((u) => u.id === hardwareId)
+  const drawn = hardwareNow?.linkedInventoryDraws?.[inventoryId] ?? 0
+  if (drawn <= 0) {
+    return { units: working, error: 'Nothing on this unit to destroy' }
+  }
+  if (qty > drawn) {
+    return { units: working, error: `Only ${drawn} on this unit` }
+  }
+
+  const remainingDraw = drawn - qty
+  return {
+    units: working.map((u) => {
+      if (u.id === hardwareId) {
+        const linked = [...(u.linkedInventoryIds ?? [])]
+        const draws = { ...(u.linkedInventoryDraws ?? {}) }
+        if (remainingDraw <= 0) {
+          delete draws[inventoryId]
+          const nextLinked = linked.filter((id) => id !== inventoryId)
+          return {
+            ...u,
+            linkedInventoryIds:
+              nextLinked.length > 0 ? nextLinked : undefined,
+            linkedInventoryDraws:
+              Object.keys(draws).length > 0 ? draws : undefined,
+            updatedAt: now,
+          }
+        }
+        draws[inventoryId] = remainingDraw
+        return {
+          ...u,
+          linkedInventoryDraws: draws,
+          updatedAt: now,
+        }
+      }
+      // On-hand already reduced when drawn; leave inventory qty alone.
+      // If this write-off empties a unique line that still shows qty 0, mark destroyed.
+      if (u.id === inventoryId && remainingDraw <= 0) {
+        const onHand = unitQuantity(u)
+        if (onHand <= 0 && !u.installedOnUnitId) {
+          const stillDrawnElsewhere = working.some(
+            (h) =>
+              isSystemKind(h.kind) &&
+              h.id !== hardwareId &&
+              (h.linkedInventoryDraws?.[inventoryId] ?? 0) > 0,
+          )
+          if (!stillDrawnElsewhere) {
+            return {
+              ...u,
+              quantity: 0,
+              stockStatus: 'destroyed' as const,
+              status: hardwareStatusForStock('destroyed'),
+              updatedAt: now,
+            }
+          }
+        }
+      }
+      return u
+    }),
+  }
+}
+
+/**
+ * Mark an inventory item (or qty) destroyed — removes from stock, does not return
+ * anything that was drawn/reserved on hardware (those draws are cleared as write-off).
+ */
+export function destroyInventoryStock(
+  units: HardwareUnit[],
+  inventoryId: string,
+  destroyQty?: number,
+  now = new Date().toISOString(),
+): { units: HardwareUnit[]; error?: string } {
+  const item = units.find((u) => u.id === inventoryId)
+  if (!item || !isInventoryKind(item.kind)) {
+    return { units, error: 'Inventory item not found' }
+  }
+  if (stockStatusOf(item) === 'destroyed') {
+    return { units, error: 'Already destroyed' }
+  }
+
+  const onHand = unitQuantity(item)
+  const qty =
+    destroyQty == null ? Math.max(onHand, 1) : Math.floor(Number(destroyQty))
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return { units, error: 'Enter a quantity to destroy' }
+  }
+
+  // Clear draws / reserve links without restocking.
+  let next = clearHardwareLinksToInventory(units, inventoryId, now).map((u) =>
+    u.id === inventoryId
+      ? { ...u, installedOnUnitId: undefined, updatedAt: now }
+      : u,
+  )
+
+  const live = next.find((u) => u.id === inventoryId)!
+  const liveOnHand = unitQuantity(live)
+  const destroyAll = destroyQty == null || qty >= liveOnHand
+  if (destroyAll) {
+    next = next.map((u) =>
+      u.id === inventoryId
+        ? {
+            ...u,
+            quantity: 0,
+            installedOnUnitId: undefined,
+            stockStatus: 'destroyed' as const,
+            status: hardwareStatusForStock('destroyed'),
+            updatedAt: now,
+          }
+        : u,
+    )
+  } else {
+    const remaining = liveOnHand - qty
+    const stockStatus = applyInventoryStockRules(
+      stockStatusOf(live) === 'reserved' ? 'in-stock' : stockStatusOf(live),
+      remaining,
+      live.minQty,
+    )
+    next = next.map((u) =>
+      u.id === inventoryId
+        ? {
+            ...u,
+            quantity: remaining,
+            installedOnUnitId: undefined,
+            stockStatus,
+            status: hardwareStatusForStock(stockStatus),
+            updatedAt: now,
+          }
+        : u,
+    )
+  }
+
+  return { units: next }
 }
 
 /** When removing a hardware unit, return reserved + drawn inventory. */

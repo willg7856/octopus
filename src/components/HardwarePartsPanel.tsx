@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useConfirm } from './ConfirmDialog'
 import {
   HARDWARE_KIND_LABELS,
+  destroyInventoryQtyFromHardware,
   installInventoryOnHardware,
   isInventoryKind,
   returnInventoryQtyFromHardware,
@@ -68,6 +69,7 @@ export function HardwarePartsPanel({
   const availableToAdd = useMemo(() => {
     return sortUnits(
       inventory.filter((u) => {
+        if (u.stockStatus === 'destroyed') return false
         // Fully reserved on this unit — nothing left to draw from the line.
         if (u.installedOnUnitId === hardware.id) return false
         if (u.installedOnUnitId && u.installedOnUnitId !== hardware.id) {
@@ -169,6 +171,42 @@ export function HardwarePartsPanel({
     })
   }
 
+  async function destroyPartQty(inventoryId: string) {
+    const part = allUnits.find((u) => u.id === inventoryId)
+    const drawn = hardware.linkedInventoryDraws?.[inventoryId] ?? 0
+    const reservedHere = part?.installedOnUnitId === hardware.id
+    const maxDestroy = reservedHere
+      ? unitQuantity(part!)
+      : Math.max(1, drawn)
+    const qty = Math.min(
+      Math.max(1, parseQty(qtyById[inventoryId], 1)),
+      maxDestroy,
+    )
+    const ok = await confirm(
+      `Destroy ${qty}× “${part?.name ?? 'this part'}” on this unit? It will not return to stock.`,
+    )
+    if (!ok) return
+    const result = destroyInventoryQtyFromHardware(
+      allUnits,
+      hardware.id,
+      inventoryId,
+      qty,
+    )
+    if (result.error) {
+      setError(result.error)
+      return
+    }
+    saveUnits(
+      result.units,
+      qty > 1 ? `Destroyed ${qty}` : 'Destroyed',
+    )
+    setQtyById((prev) => {
+      const next = { ...prev }
+      delete next[inventoryId]
+      return next
+    })
+  }
+
   async function returnAll(inventoryId: string) {
     const part = allUnits.find((u) => u.id === inventoryId)
     const ok = await confirm(
@@ -187,8 +225,8 @@ export function HardwarePartsPanel({
     <section className="hw-parts" aria-label="Parts from inventory">
       <h4>Parts</h4>
       <p className="simple-muted">
-        Choose how many to install from inventory. Multi-qty lines stay in stock
-        for other hardware — add or return qty anytime.
+        Choose how many to install from inventory. Use Add / Return to adjust,
+        or Destroy to write off qty without returning it to stock.
       </p>
 
       {error ? (
@@ -293,6 +331,14 @@ export function HardwarePartsPanel({
                         onClick={() => returnPartQty(part.id)}
                       >
                         Return
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        disabled={disabled}
+                        onClick={() => void destroyPartQty(part.id)}
+                      >
+                        Destroy
                       </button>
                     </>
                   ) : (

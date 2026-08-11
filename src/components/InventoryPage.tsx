@@ -10,6 +10,7 @@ import {
   STOCK_STATUS_ORDER,
   applyInventoryStockRules,
   clearHardwareLinksToInventory,
+  destroyInventoryStock,
   formatMoney,
   hardwareStatusForStock,
   isInventoryKind,
@@ -49,6 +50,7 @@ type AttentionFilter =
   | 'reserved'
   | 'overdue'
   | 'quarantine'
+  | 'destroyed'
 type InventoryKind = 'part' | 'consumable' | 'tool' | 'electronics' | 'other'
 type KindFilter = 'all' | InventoryKind
 
@@ -58,6 +60,7 @@ const ATTENTION_STATUSES: StockStatus[] = [
   'reserved',
   'quarantine',
   'depleted',
+  'destroyed',
 ]
 
 function matchesAttention(unit: HardwareUnit, filter: AttentionFilter) {
@@ -117,6 +120,7 @@ export function InventoryPage({
     let reserved = 0
     let overdue = 0
     let quarantine = 0
+    let destroyed = 0
     for (const unit of units) {
       if (!matchesKind(unit, kindFilter)) continue
       const status = stockStatusOf(unit)
@@ -127,8 +131,9 @@ export function InventoryPage({
       if (status === 'reserved') reserved += 1
       if (overdueOrder) overdue += 1
       if (status === 'quarantine') quarantine += 1
+      if (status === 'destroyed') destroyed += 1
     }
-    return { attention, low, onOrder, reserved, overdue, quarantine }
+    return { attention, low, onOrder, reserved, overdue, quarantine, destroyed }
   }, [units, kindFilter])
 
   const kindCounts = useMemo(() => {
@@ -288,7 +293,8 @@ export function InventoryPage({
     if (
       !unit ||
       unit.installedOnUnitId ||
-      stockStatusOf(unit) === 'reserved'
+      stockStatusOf(unit) === 'reserved' ||
+      stockStatusOf(unit) === 'destroyed'
     ) {
       return
     }
@@ -522,6 +528,33 @@ export function InventoryPage({
     setMobileMode('list')
   }
 
+  async function markInventoryDestroyed(id: string) {
+    const unit = lab.units.find((u) => u.id === id)
+    if (!unit || stockStatusOf(unit) === 'destroyed') return
+    const ok = await confirm(
+      `Mark “${unit.name}” as destroyed? On-hand becomes 0 and it will not return to stock. Any hardware draws/reserves are written off.`,
+    )
+    if (!ok) return
+    const now = new Date().toISOString()
+    void store.commit((prev) => {
+      const result = destroyInventoryStock(prev.units, id, undefined, now)
+      if (result.error) return prev
+      const note: HardwareProgressNote = {
+        id: newId('pg'),
+        unitId: id,
+        date: now.slice(0, 10),
+        status: 'destroyed',
+        note: 'Marked destroyed',
+        author: user?.name,
+      }
+      return {
+        ...prev,
+        units: result.units,
+        progress: [note, ...prev.progress],
+      }
+    }, 'Marked destroyed')
+  }
+
   const filterChips: { id: AttentionFilter; label: string; count?: number }[] = [
     { id: 'all', label: 'All status' },
     {
@@ -537,6 +570,11 @@ export function InventoryPage({
       id: 'quarantine',
       label: 'Quarantine',
       count: attentionCounts.quarantine,
+    },
+    {
+      id: 'destroyed',
+      label: 'Destroyed',
+      count: attentionCounts.destroyed,
     },
   ]
 
@@ -981,6 +1019,11 @@ export function InventoryPage({
                       ? () => void returnFromInventory(selected.id)
                       : undefined
                   }
+                  onMarkDestroyed={
+                    stockStatusOf(selected) === 'destroyed'
+                      ? undefined
+                      : () => void markInventoryDestroyed(selected.id)
+                  }
                   onSave={saveUnit}
                   onDelete={() => removeUnit(selected.id)}
                 />
@@ -1064,6 +1107,7 @@ function UnitForm({
   installedOnName,
   onOpenHardware,
   onReturn,
+  onMarkDestroyed,
   onSave,
   onDelete,
   onCancel,
@@ -1074,6 +1118,7 @@ function UnitForm({
   installedOnName?: string
   onOpenHardware?: () => void
   onReturn?: () => void
+  onMarkDestroyed?: () => void
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
@@ -1478,6 +1523,15 @@ function UnitForm({
               Cancel
             </button>
           </>
+        ) : null}
+        {onMarkDestroyed ? (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void onMarkDestroyed()}
+          >
+            Mark destroyed
+          </button>
         ) : null}
         {onDelete && editing ? (
           <button type="button" className="btn btn-ghost" onClick={onDelete}>

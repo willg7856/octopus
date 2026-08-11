@@ -192,6 +192,7 @@ export type StockStatus =
   | 'incoming'
   | 'quarantine'
   | 'depleted'
+  | 'destroyed'
 
 export interface HardwareUnit {
   id: string
