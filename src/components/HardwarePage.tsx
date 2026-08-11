@@ -3,10 +3,7 @@ import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
 import { SyncStatusBanners } from './SyncStatusBanners'
-import {
-  InventoryLinkPicker,
-  linkedInventoryNames,
-} from './InventoryLinkPicker'
+import { HardwarePartsPanel } from './HardwarePartsPanel'
 import {
   HARDWARE_KIND_LABELS,
   HARDWARE_STATUS_LABELS,
@@ -16,6 +13,7 @@ import {
   isInventoryKind,
   isSystemKind,
   newId,
+  returnAllInstalledOnHardware,
   sortProgress,
   sortTests,
   sortUnits,
@@ -313,31 +311,49 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     const ok = await confirm(`Remove “${unit.name}” from hardware?`)
     if (!ok) return
     void store.commit(
-      (prev) => ({
-        ...prev,
-        units: prev.units
-          .filter((u) => u.id !== id)
-          .map((u) =>
-            u.parentVehicleId === id ? { ...u, parentVehicleId: undefined } : u,
-          ),
-        progress: prev.progress.filter((p) => p.unitId !== id),
-        tests: prev.tests.map((t) => ({
-          ...t,
-          unitIds: t.unitIds.filter((uid) => uid !== id),
-        })),
-        processes: prev.processes
-          .filter((p) => p.vehicleUnitId !== id)
-          .map((p) => ({
-            ...p,
-            linkedInventoryIds: (p.linkedInventoryIds ?? []).filter(
-              (uid) => uid !== id,
-            ),
-            steps: p.steps.map((s) => ({
-              ...s,
-              linkedUnitIds: (s.linkedUnitIds ?? []).filter((uid) => uid !== id),
-            })),
+      (prev) => {
+        const released = returnAllInstalledOnHardware(prev.units, id)
+        return {
+          ...prev,
+          units: released
+            .filter((u) => u.id !== id)
+            .map((u) => {
+              let next = u
+              if (next.parentVehicleId === id) {
+                next = { ...next, parentVehicleId: undefined }
+              }
+              if (next.linkedInventoryIds?.length) {
+                const linked = next.linkedInventoryIds.filter(
+                  (uid) => uid !== id,
+                )
+                next = {
+                  ...next,
+                  linkedInventoryIds: linked.length > 0 ? linked : undefined,
+                }
+              }
+              return next
+            }),
+          progress: prev.progress.filter((p) => p.unitId !== id),
+          tests: prev.tests.map((t) => ({
+            ...t,
+            unitIds: t.unitIds.filter((uid) => uid !== id),
           })),
-      }),
+          processes: prev.processes
+            .filter((p) => p.vehicleUnitId !== id)
+            .map((p) => ({
+              ...p,
+              linkedInventoryIds: (p.linkedInventoryIds ?? []).filter(
+                (uid) => uid !== id,
+              ),
+              steps: p.steps.map((s) => ({
+                ...s,
+                linkedUnitIds: (s.linkedUnitIds ?? []).filter(
+                  (uid) => uid !== id,
+                ),
+              })),
+            })),
+        }
+      },
       'Removed',
     )
     setSelectedId(null)
@@ -472,7 +488,6 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                 key="new"
                 submitLabel="Add"
                 parentCandidates={units}
-                inventoryCandidates={inventoryUnits}
                 onCancel={() => {
                   setAdding(false)
                   setMobileMode('list')
@@ -486,9 +501,15 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                   initial={selected}
                   submitLabel="Save"
                   parentCandidates={units}
-                  inventoryCandidates={inventoryUnits}
                   onSave={saveUnit}
                   onDelete={() => removeUnit(selected.id)}
+                />
+                <HardwarePartsPanel
+                  hardware={selected}
+                  inventory={inventoryUnits}
+                  allUnits={lab.units}
+                  store={store}
+                  disabled={!hasLoaded || saving}
                 />
                 <section className="hw-history" aria-label="Progress history">
                   <h4>Progress</h4>
@@ -616,7 +637,6 @@ function fieldsFromUnit(unit?: HardwareUnit) {
     kind: (unit && isSystemKind(unit.kind) ? unit.kind : 'vehicle') as HardwareKind,
     status: (unit?.status ?? 'concept') as HardwareStatus,
     parentVehicleId: unit?.parentVehicleId ?? '',
-    linkedInventoryIds: unit?.linkedInventoryIds ?? [],
     location: unit?.location ?? '',
     hwRev: unit?.hwRev ?? '',
     fwVersion: unit?.fwVersion ?? '',
@@ -630,7 +650,6 @@ function SystemForm({
   initial,
   submitLabel,
   parentCandidates,
-  inventoryCandidates,
   onSave,
   onDelete,
   onCancel,
@@ -638,7 +657,6 @@ function SystemForm({
   initial?: HardwareUnit
   submitLabel: string
   parentCandidates: HardwareUnit[]
-  inventoryCandidates: HardwareUnit[]
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
@@ -652,7 +670,6 @@ function SystemForm({
     kind,
     status,
     parentVehicleId,
-    linkedInventoryIds,
     location,
     hwRev,
     fwVersion,
@@ -673,7 +690,6 @@ function SystemForm({
     initial?.kind,
     initial?.status,
     initial?.parentVehicleId,
-    initial?.linkedInventoryIds,
     initial?.location,
     initial?.hwRev,
     initial?.fwVersion,
@@ -720,8 +736,8 @@ function SystemForm({
       kind,
       status,
       parentVehicleId: parentVehicleId || undefined,
-      linkedInventoryIds:
-        linkedInventoryIds.length > 0 ? linkedInventoryIds : undefined,
+      // Parts panel owns linkedInventoryIds / installs — preserve on detail save
+      linkedInventoryIds: initial?.linkedInventoryIds,
       location: location.trim() || undefined,
       quantity: 1,
       hwRev: hwRev.trim() || '—',
@@ -733,11 +749,6 @@ function SystemForm({
     })
     if (!isNew) setEditing(false)
   }
-
-  const partNames = linkedInventoryNames(
-    editing ? linkedInventoryIds : initial?.linkedInventoryIds,
-    inventoryCandidates,
-  )
 
   const showImportantBanner = Boolean(
     (editing ? notesImportant && notes.trim() : initial?.notesImportant && initial?.notes?.trim()),
@@ -900,20 +911,6 @@ function SystemForm({
           />
           Flag notes as important
         </label>
-        {editing ? (
-          <InventoryLinkPicker
-            units={inventoryCandidates}
-            selectedIds={linkedInventoryIds}
-            onChange={(ids) => setField('linkedInventoryIds', ids)}
-            legend="Parts from inventory"
-          />
-        ) : (
-          <p className="simple-muted hw-parts-summary">
-            {partNames.length > 0
-              ? `Uses: ${partNames.join(', ')}`
-              : 'No inventory parts linked.'}
-          </p>
-        )}
       </fieldset>
       <div className="simple-form-actions">
         {editing ? (

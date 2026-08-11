@@ -37,13 +37,21 @@ const STATUS_OPTIONS = STOCK_STATUS_ORDER.map(
   (status) => [status, STOCK_STATUS_LABELS[status]] as const,
 )
 
-type AttentionFilter = 'all' | 'attention' | 'low' | 'on-order' | 'overdue' | 'quarantine'
+type AttentionFilter =
+  | 'all'
+  | 'attention'
+  | 'low'
+  | 'on-order'
+  | 'reserved'
+  | 'overdue'
+  | 'quarantine'
 type InventoryKind = 'part' | 'consumable' | 'tool' | 'electronics' | 'other'
 type KindFilter = 'all' | InventoryKind
 
 const ATTENTION_STATUSES: StockStatus[] = [
   'low',
   'on-order',
+  'reserved',
   'quarantine',
   'depleted',
 ]
@@ -85,6 +93,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     let attention = 0
     let low = 0
     let onOrder = 0
+    let reserved = 0
     let overdue = 0
     let quarantine = 0
     for (const unit of units) {
@@ -94,10 +103,11 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       if (ATTENTION_STATUSES.includes(status) || overdueOrder) attention += 1
       if (status === 'low') low += 1
       if (status === 'on-order') onOrder += 1
+      if (status === 'reserved') reserved += 1
       if (overdueOrder) overdue += 1
       if (status === 'quarantine') quarantine += 1
     }
-    return { attention, low, onOrder, overdue, quarantine }
+    return { attention, low, onOrder, reserved, overdue, quarantine }
   }, [units, kindFilter])
 
   const kindCounts = useMemo(() => {
@@ -365,9 +375,14 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       void store.commit(
         (prev) => ({
           ...prev,
-          units: prev.units.map((u) =>
-            u.id === input.id ? { ...u, ...resolved } : u,
-          ),
+          units: prev.units.map((u) => {
+            if (u.id !== input.id) return u
+            const installedOnUnitId =
+              stockStatus === 'reserved'
+                ? u.installedOnUnitId
+                : undefined
+            return { ...u, ...resolved, installedOnUnitId }
+          }),
         }),
         'Saved',
       )
@@ -444,6 +459,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     },
     { id: 'low', label: 'Low', count: attentionCounts.low },
     { id: 'on-order', label: 'On order', count: attentionCounts.onOrder },
+    { id: 'reserved', label: 'Reserved', count: attentionCounts.reserved },
     { id: 'overdue', label: 'Overdue', count: attentionCounts.overdue },
     {
       id: 'quarantine',
@@ -709,6 +725,13 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                             {onOrder > 0 ? ` · on order ${onOrder}` : ''}
                             {price != null ? ` · ${formatMoney(price)}/ea` : ''}
                             {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
+                            {unit.installedOnUnitId
+                              ? ` · on ${
+                                  lab.units.find(
+                                    (u) => u.id === unit.installedOnUnitId,
+                                  )?.name ?? 'hardware'
+                                }`
+                              : ''}
                             {unit.location ? ` · ${unit.location}` : ''}
                             {unit.expectedAt ? (
                               <>
@@ -844,6 +867,12 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                 initial={selected}
                 submitLabel="Save"
                 programOptions={programOptions}
+                installedOnName={
+                  selected.installedOnUnitId
+                    ? lab.units.find((u) => u.id === selected.installedOnUnitId)
+                        ?.name
+                    : undefined
+                }
                 onSave={saveUnit}
                 onDelete={() => removeUnit(selected.id)}
               />
@@ -900,6 +929,7 @@ function UnitForm({
   initial,
   submitLabel,
   programOptions,
+  installedOnName,
   onSave,
   onDelete,
   onCancel,
@@ -907,6 +937,7 @@ function UnitForm({
   initial?: HardwareUnit
   submitLabel: string
   programOptions: string[]
+  installedOnName?: string
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
@@ -1060,6 +1091,15 @@ function UnitForm({
           </button>
         ) : null}
       </div>
+      {initial?.installedOnUnitId ? (
+        <p className="hw-notes-banner" role="status">
+          <strong>Installed / reserved</strong>
+          <span>
+            On {installedOnName ?? 'a hardware unit'} — unavailable for other
+            builds until returned from Hardware → Parts.
+          </span>
+        </p>
+      ) : null}
       {orderHref ? (
         <div className="inv-order-panel">
           <a

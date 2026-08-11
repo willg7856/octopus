@@ -231,9 +231,14 @@ export interface HardwareUnit {
   parentVehicleId?: string
   /**
    * Hardware: inventory part / tool / consumable ids this unit uses (BOM-style).
-   * Linking does not change stock quantities.
+   * Soft links do not change stock. Install/reserve uses `installedOnUnitId` on the inventory item.
    */
   linkedInventoryIds?: string[]
+  /**
+   * Inventory: hardware unit id this item is installed / reserved on.
+   * When set, stock status should be `reserved` and the item is unavailable elsewhere.
+   */
+  installedOnUnitId?: string
   location?: string
   owner?: string
   notes?: string

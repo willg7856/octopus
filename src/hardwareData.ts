@@ -394,3 +394,140 @@ export function formatMoney(amount: number) {
     return `$${amount.toFixed(2)}`
   }
 }
+
+/** Soft-link an inventory item onto a hardware unit (no stock change). */
+export function linkInventoryToHardware(
+  units: HardwareUnit[],
+  hardwareId: string,
+  inventoryId: string,
+): HardwareUnit[] {
+  return units.map((u) => {
+    if (u.id !== hardwareId) return u
+    const linked = u.linkedInventoryIds ?? []
+    if (linked.includes(inventoryId)) return u
+    return { ...u, linkedInventoryIds: [...linked, inventoryId] }
+  })
+}
+
+/**
+ * Install / reserve an inventory item on a hardware unit.
+ * Marks stock as reserved and records installedOnUnitId.
+ */
+export function installInventoryOnHardware(
+  units: HardwareUnit[],
+  hardwareId: string,
+  inventoryId: string,
+  now = new Date().toISOString(),
+): { units: HardwareUnit[]; error?: string } {
+  const hardware = units.find((u) => u.id === hardwareId)
+  const item = units.find((u) => u.id === inventoryId)
+  if (!hardware || !isSystemKind(hardware.kind)) {
+    return { units, error: 'Hardware unit not found' }
+  }
+  if (!item || !isInventoryKind(item.kind)) {
+    return { units, error: 'Inventory item not found' }
+  }
+  if (item.installedOnUnitId && item.installedOnUnitId !== hardwareId) {
+    const other = units.find((u) => u.id === item.installedOnUnitId)
+    return {
+      units,
+      error: `Already installed on ${other?.name ?? 'another unit'} — return it first`,
+    }
+  }
+
+  const next = units.map((u) => {
+    if (u.id === hardwareId) {
+      const linked = u.linkedInventoryIds ?? []
+      return {
+        ...u,
+        linkedInventoryIds: linked.includes(inventoryId)
+          ? linked
+          : [...linked, inventoryId],
+        updatedAt: now,
+      }
+    }
+    if (u.id === inventoryId) {
+      return {
+        ...u,
+        installedOnUnitId: hardwareId,
+        stockStatus: 'reserved' as const,
+        status: hardwareStatusForStock('reserved'),
+        updatedAt: now,
+      }
+    }
+    return u
+  })
+  return { units: next }
+}
+
+/** Return an installed inventory item to available stock. */
+export function returnInventoryFromHardware(
+  units: HardwareUnit[],
+  inventoryId: string,
+  now = new Date().toISOString(),
+): { units: HardwareUnit[]; error?: string } {
+  const item = units.find((u) => u.id === inventoryId)
+  if (!item || !isInventoryKind(item.kind)) {
+    return { units, error: 'Inventory item not found' }
+  }
+  if (!item.installedOnUnitId) {
+    return { units, error: 'Item is not installed' }
+  }
+
+  const qty = unitQuantity(item)
+  const stockStatus = applyInventoryStockRules('in-stock', qty, item.minQty)
+  const next = units.map((u) =>
+    u.id === inventoryId
+      ? {
+          ...u,
+          installedOnUnitId: undefined,
+          stockStatus,
+          status: hardwareStatusForStock(stockStatus),
+          updatedAt: now,
+        }
+      : u,
+  )
+  return { units: next }
+}
+
+/**
+ * Unlink inventory from a hardware BOM. If it was installed on that unit, return it first.
+ */
+export function unlinkInventoryFromHardware(
+  units: HardwareUnit[],
+  hardwareId: string,
+  inventoryId: string,
+  now = new Date().toISOString(),
+): HardwareUnit[] {
+  const item = units.find((u) => u.id === inventoryId)
+  let next = units
+  if (item?.installedOnUnitId === hardwareId) {
+    const returned = returnInventoryFromHardware(next, inventoryId, now)
+    next = returned.units
+  }
+  return next.map((u) => {
+    if (u.id !== hardwareId) return u
+    const linked = (u.linkedInventoryIds ?? []).filter((id) => id !== inventoryId)
+    return {
+      ...u,
+      linkedInventoryIds: linked.length > 0 ? linked : undefined,
+      updatedAt: now,
+    }
+  })
+}
+
+/** When removing a hardware unit, return any inventory installed on it. */
+export function returnAllInstalledOnHardware(
+  units: HardwareUnit[],
+  hardwareId: string,
+  now = new Date().toISOString(),
+): HardwareUnit[] {
+  let next = units
+  for (const u of units) {
+    if (u.installedOnUnitId === hardwareId) {
+      const result = returnInventoryFromHardware(next, u.id, now)
+      next = result.units
+    }
+  }
+  return next
+}
