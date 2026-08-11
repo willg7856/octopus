@@ -1025,6 +1025,21 @@ export function VehicleProcessPage({
                                   <button
                                     type="button"
                                     className="btn btn-ghost"
+                                    aria-pressed={integratingStepId === step.id}
+                                    disabled={!hasLoaded}
+                                    onClick={() =>
+                                      setIntegratingStepId((cur) =>
+                                        cur === step.id ? null : step.id,
+                                      )
+                                    }
+                                  >
+                                    {integratingStepId === step.id
+                                      ? 'Cancel integrate'
+                                      : 'Integrate'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost"
                                     onClick={() => setEditingStepId(step.id)}
                                   >
                                     Edit
@@ -1114,11 +1129,6 @@ export function VehicleProcessPage({
                                 open={integratingStepId === step.id}
                                 disabled={!hasLoaded}
                                 onOpenHardware={onOpenHardware}
-                                onToggle={() =>
-                                  setIntegratingStepId((cur) =>
-                                    cur === step.id ? null : step.id,
-                                  )
-                                }
                                 onIntegrate={(hardwareId) =>
                                   integrateHardwareOnStep(
                                     selected.id,
