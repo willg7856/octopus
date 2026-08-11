@@ -5749,6 +5749,10 @@ button.simple-list-row {
   border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
 }
 
+.prod-integrate-view {
+  border-top-style: dashed;
+}
+
 .prod-integrate-btn {
   justify-self: start;
   min-height: 2.15rem;

@@ -1005,7 +1005,7 @@ export function VehicleProcessPage({
                               </label>
                             ) : null}
 
-                            {!editingSteps ? (
+                            {editingSteps ? (
                               <StepIntegrateHardware
                                 step={step}
                                 linked={linked}
@@ -1033,6 +1033,37 @@ export function VehicleProcessPage({
                                   )
                                 }
                               />
+                            ) : hardwareLinkedOnly(linked).length > 0 ? (
+                              <div className="prod-integrate prod-integrate-view">
+                                <ul
+                                  className="prod-integrate-list"
+                                  aria-label="Integrated hardware"
+                                >
+                                  {hardwareLinkedOnly(linked).map((unit) => (
+                                    <li key={unit.id}>
+                                      <span>
+                                        {onOpenHardware ? (
+                                          <button
+                                            type="button"
+                                            className="hw-parts-name-btn"
+                                            onClick={() =>
+                                              onOpenHardware(unit.id)
+                                            }
+                                          >
+                                            {unit.name}
+                                          </button>
+                                        ) : (
+                                          <strong>{unit.name}</strong>
+                                        )}
+                                        <span className="simple-muted">
+                                          {' '}
+                                          · {HARDWARE_KIND_LABELS[unit.kind]}
+                                        </span>
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
                             ) : null}
                           </>
                         )}
@@ -1066,6 +1097,10 @@ export function VehicleProcessPage({
 
 function shortName(name: string) {
   return name.replace(/\s+production\s*$/i, '').trim() || name
+}
+
+function hardwareLinkedOnly(linked: HardwareUnit[]) {
+  return linked.filter((u) => isSystemKind(u.kind))
 }
 
 function processGlanceStatus(process: VehicleProcess): ProcessStepStatus {
@@ -1279,7 +1314,7 @@ function StepIntegrateHardware({
 
       <button
         type="button"
-        className="btn btn-accent prod-integrate-btn"
+        className="btn btn-ghost prod-integrate-btn"
         aria-expanded={open}
         disabled={disabled}
         onClick={onToggle}
