@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { readCookie, verifySession } from '../_lib/session.js'
+import { requireUser } from '../_lib/session.js'
 import {
   storageEnvFlags,
   storageMode,
@@ -14,11 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const session = verifySession(readCookie(req))
-  if (!session) {
-    res.status(401).json({ error: 'Sign in required' })
-    return
-  }
+  const session = await requireUser(req, res)
+  if (!session) return
 
   const mode = storageMode()
 

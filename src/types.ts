@@ -237,6 +237,11 @@ export interface HardwareUnit {
    */
   linkedInventoryIds?: string[]
   /**
+   * Hardware: qty drawn from multi-qty inventory lines (consumables).
+   * Unique/reserved installs use `installedOnUnitId` on the inventory item instead.
+   */
+  linkedInventoryDraws?: Record<string, number>
+  /**
    * Inventory: hardware unit id this item is installed / reserved on.
    * When set, stock status should be `reserved` and the item is unavailable elsewhere.
    */

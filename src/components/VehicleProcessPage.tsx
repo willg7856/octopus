@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
@@ -29,17 +29,39 @@ import { useLabStore } from '../useLabStore'
 const QUICK_STATUSES: ProcessStepStatus[] = ['active', 'done', 'blocked']
 const MORE_STATUSES: ProcessStepStatus[] = ['pending', 'skipped']
 
-export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
+type AttentionFilter = 'all' | 'active' | 'blocked' | 'incomplete'
+
+export function VehicleProcessPage({
+  user,
+  selectedId: routeSelectedId = null,
+  onSelectId,
+  onOpenHardware,
+  onOpenInventory,
+}: {
+  user: AuthUser | null
+  selectedId?: string | null
+  onSelectId?: (id: string | null) => void
+  onOpenHardware?: (id: string) => void
+  onOpenInventory?: (id: string) => void
+}) {
   const store = useLabStore()
   const { lab, sync, saving, conflict, toast, updatedAt, updatedBy, hasLoaded } =
     store
   const { confirm, dialog: confirmDialog } = useConfirm()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [localSelectedId, setLocalSelectedId] = useState<string | null>(null)
+  const selectedId = onSelectId ? routeSelectedId : localSelectedId
   const [creating, setCreating] = useState(false)
   const [editingSteps, setEditingSteps] = useState(false)
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [mobileMode, setMobileMode] = useState<'list' | 'detail'>('list')
+  const [filter, setFilter] = useState<AttentionFilter>('all')
+  const [mobileMode, setMobileMode] = useState<'list' | 'detail'>(() =>
+    routeSelectedId ? 'detail' : 'list',
+  )
+
+  useEffect(() => {
+    if (routeSelectedId) setMobileMode('detail')
+  }, [routeSelectedId])
 
   const units = useMemo(() => sortUnits(lab.units), [lab.units])
   const systemUnits = useMemo(
@@ -60,10 +82,28 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     for (const u of units) map.set(u.id, u.name)
     return map
   }, [units])
+
+  const attentionCounts = useMemo(() => {
+    let active = 0
+    let blocked = 0
+    let incomplete = 0
+    for (const p of processes) {
+      const glance = processGlanceStatus(p)
+      if (glance === 'active') active += 1
+      if (glance === 'blocked') blocked += 1
+      if (glance !== 'done') incomplete += 1
+    }
+    return { active, blocked, incomplete }
+  }, [processes])
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return processes
     return processes.filter((p) => {
+      const glance = processGlanceStatus(p)
+      if (filter === 'active' && glance !== 'active') return false
+      if (filter === 'blocked' && glance !== 'blocked') return false
+      if (filter === 'incomplete' && glance === 'done') return false
+      if (!q) return true
       const vehicleName = unitNameById.get(p.vehicleUnitId)
       return [p.name, vehicleName, ...p.steps.map((s) => s.title)]
         .filter(Boolean)
@@ -71,7 +111,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
         .toLowerCase()
         .includes(q)
     })
-  }, [processes, query, unitNameById])
+  }, [processes, query, unitNameById, filter])
   const selected =
     processes.find((p) => p.id === selectedId) ??
     (mobileMode === 'detail' || creating ? null : filtered[0] ?? null)
@@ -79,9 +119,14 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     ? units.find((u) => u.id === selected.vehicleUnitId)
     : null
 
+  function setSelected(id: string | null) {
+    if (onSelectId) onSelectId(id)
+    else setLocalSelectedId(id)
+  }
+
   function openDetail(id: string | null, isCreating = false) {
     setCreating(isCreating)
-    setSelectedId(id)
+    setSelected(id)
     setEditingStepId(null)
     if (!isCreating) setEditingSteps(false)
     setMobileMode('detail')
@@ -92,6 +137,11 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     setEditingSteps(false)
     setEditingStepId(null)
     setMobileMode('list')
+  }
+
+  function openLinkedUnit(unit: HardwareUnit) {
+    if (isSystemKind(unit.kind)) onOpenHardware?.(unit.id)
+    else onOpenInventory?.(unit.id)
   }
 
   function updateStep(
@@ -347,7 +397,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       }),
       'Removed',
     )
-    setSelectedId(null)
+    setSelected(null)
     setEditingSteps(false)
     setEditingStepId(null)
     setMobileMode('list')
@@ -364,6 +414,26 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
   const selectedMaterials = selected
     ? linkedInventoryNames(selected.linkedInventoryIds, units)
     : []
+
+  const filterChips: { id: AttentionFilter; label: string; count?: number }[] =
+    [
+      { id: 'all', label: 'All' },
+      {
+        id: 'active',
+        label: 'Active',
+        count: attentionCounts.active,
+      },
+      {
+        id: 'blocked',
+        label: 'Blocked',
+        count: attentionCounts.blocked,
+      },
+      {
+        id: 'incomplete',
+        label: 'Incomplete',
+        count: attentionCounts.incomplete,
+      },
+    ]
 
   return (
     <main className="simple-page" aria-label="Vehicle production">
@@ -406,6 +476,26 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       ) : (
         <div className="simple-split" data-mode={mobileMode}>
           <section className="simple-list-panel">
+            <div
+              className="inv-filter-row"
+              role="toolbar"
+              aria-label="Production attention filters"
+            >
+              {filterChips.map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  className="inv-filter-chip"
+                  aria-pressed={filter === chip.id}
+                  onClick={() => setFilter(chip.id)}
+                >
+                  {chip.label}
+                  {chip.count != null && chip.count > 0 ? (
+                    <span className="inv-filter-count">{chip.count}</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
             <input
               className="simple-search"
               value={query}
@@ -451,8 +541,8 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
               })}
               {filtered.length === 0 ? (
                 <li className="simple-muted">
-                  {query.trim()
-                    ? 'No productions match that search.'
+                  {query.trim() || filter !== 'all'
+                    ? 'No productions match that filter.'
                     : 'No production trackers yet — add one to start.'}
                 </li>
               ) : null}
@@ -480,7 +570,17 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                   <div>
                     <h3>{selected.name}</h3>
                     <p className="simple-muted">
-                      {selectedVehicle?.name ?? 'Vehicle'}
+                      {selectedVehicle && onOpenHardware ? (
+                        <button
+                          type="button"
+                          className="hw-parts-name-btn"
+                          onClick={() => onOpenHardware(selectedVehicle.id)}
+                        >
+                          {selectedVehicle.name}
+                        </button>
+                      ) : (
+                        (selectedVehicle?.name ?? 'Vehicle')
+                      )}
                       {activeStep ? ` · Active: ${activeStep.title}` : ''}
                       {blockedCount > 0 ? ` · ${blockedCount} blocked` : ''}
                     </p>
@@ -592,12 +692,23 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                                 {linked.length > 0 ? (
                                   <span className="simple-muted">
                                     Linked:{' '}
-                                    {linked
-                                      .map(
-                                        (u) =>
-                                          `${u.name} (${HARDWARE_KIND_LABELS[u.kind]})`,
-                                      )
-                                      .join(', ')}
+                                    {linked.map((u, i) => (
+                                      <span key={u.id}>
+                                        {i > 0 ? ', ' : ''}
+                                        {onOpenHardware || onOpenInventory ? (
+                                          <button
+                                            type="button"
+                                            className="hw-parts-name-btn"
+                                            onClick={() => openLinkedUnit(u)}
+                                          >
+                                            {u.name}
+                                          </button>
+                                        ) : (
+                                          u.name
+                                        )}{' '}
+                                        ({HARDWARE_KIND_LABELS[u.kind]})
+                                      </span>
+                                    ))}
                                   </span>
                                 ) : null}
                                 {step.status === 'done' && step.completedBy ? (

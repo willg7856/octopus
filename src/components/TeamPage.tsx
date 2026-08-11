@@ -77,6 +77,10 @@ export function TeamPage({ user: _user }: { user: AuthUser | null }) {
   async function handleAdd(e: FormEvent) {
     e.preventDefault()
     if (!email.trim() || busy) return
+    if (newPassword.trim() && newPassword.trim().length < 8) {
+      flash('Password must be at least 8 characters')
+      return
+    }
     setBusy(true)
     const result = await addAccessUser(
       email.trim(),
@@ -127,8 +131,8 @@ export function TeamPage({ user: _user }: { user: AuthUser | null }) {
   async function handleSetPassword(e: FormEvent) {
     e.preventDefault()
     if (!passwordEmail || busy) return
-    if (passwordValue.length < 6) {
-      flash('Password must be at least 6 characters')
+    if (passwordValue.length < 8) {
+      flash('Password must be at least 8 characters')
       return
     }
     if (passwordValue !== passwordConfirm) {
@@ -257,7 +261,7 @@ export function TeamPage({ user: _user }: { user: AuthUser | null }) {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Leave blank to use shared team password"
-                    minLength={6}
+                    minLength={8}
                     disabled={busy}
                     autoComplete="new-password"
                   />
@@ -346,8 +350,8 @@ export function TeamPage({ user: _user }: { user: AuthUser | null }) {
                               type="password"
                               value={passwordValue}
                               onChange={(e) => setPasswordValue(e.target.value)}
-                              placeholder="At least 6 characters"
-                              minLength={6}
+                              placeholder="At least 8 characters"
+                              minLength={8}
                               required
                               disabled={busy}
                               autoComplete="new-password"
@@ -362,7 +366,7 @@ export function TeamPage({ user: _user }: { user: AuthUser | null }) {
                                 setPasswordConfirm(e.target.value)
                               }
                               placeholder="Repeat password"
-                              minLength={6}
+                              minLength={8}
                               required
                               disabled={busy}
                               autoComplete="new-password"

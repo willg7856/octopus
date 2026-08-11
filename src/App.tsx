@@ -6,7 +6,7 @@ import {
   logout as authLogout,
   type AuthUser,
 } from './auth'
-import { navigateHash, viewFromHash } from './routing'
+import { navigateHash, routeFromHash, type AppRoute } from './routing'
 import { Header, type AppView } from './components/Header'
 import { InventoryPage } from './components/InventoryPage'
 import { HardwarePage } from './components/HardwarePage'
@@ -21,7 +21,7 @@ export default function App() {
     'loading',
   )
   const [user, setUser] = useState<AuthUser | null>(null)
-  const [view, setView] = useState<AppView>(() => viewFromHash())
+  const [route, setRoute] = useState<AppRoute>(() => routeFromHash())
 
   useEffect(() => {
     applyTheme(theme)
@@ -45,21 +45,17 @@ export default function App() {
 
   useEffect(() => {
     function onHash() {
-      setView(viewFromHash())
+      setRoute(routeFromHash())
     }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
   useEffect(() => {
-    navigateHash(view)
-  }, [view])
-
-  useEffect(() => {
-    if (view === 'team' && user && !user.canManageAccounts) {
-      setView('inventory')
+    if (route.view === 'team' && user && !user.canManageAccounts) {
+      navigateHash('inventory')
     }
-  }, [view, user])
+  }, [route.view, user])
 
   function handleToggleTheme() {
     setTheme((t) => (t === 'light' ? 'dark' : 'light'))
@@ -80,6 +76,22 @@ export default function App() {
     setUser(null)
     setAuthState('signed-out')
   }, [])
+
+  function handleViewChange(view: AppView) {
+    navigateHash(view)
+  }
+
+  function handleSelectId(id: string | null) {
+    navigateHash(route.view, id)
+  }
+
+  function openInventory(id: string) {
+    navigateHash('inventory', id)
+  }
+
+  function openHardware(id: string) {
+    navigateHash('hardware', id)
+  }
 
   if (authState === 'loading') {
     return (
@@ -110,22 +122,44 @@ export default function App() {
 
   return (
     <LabProvider onAuthRequired={handleAuthRequired}>
-      <div className="app" data-view={view}>
+      <div className="app" data-view={route.view}>
         <div className="shell">
           <div className="shell-main">
             <Header
               theme={theme}
-              view={view}
+              view={route.view}
               user={user}
               onToggleTheme={handleToggleTheme}
               onSignOut={handleSignOut}
-              onViewChange={setView}
+              onViewChange={handleViewChange}
             />
 
-            {view === 'inventory' ? <InventoryPage user={user} /> : null}
-            {view === 'hardware' ? <HardwarePage user={user} /> : null}
-            {view === 'vehicles' ? <VehicleProcessPage user={user} /> : null}
-            {view === 'team' && user?.canManageAccounts ? (
+            {route.view === 'inventory' ? (
+              <InventoryPage
+                user={user}
+                selectedId={route.id}
+                onSelectId={handleSelectId}
+                onOpenHardware={openHardware}
+              />
+            ) : null}
+            {route.view === 'hardware' ? (
+              <HardwarePage
+                user={user}
+                selectedId={route.id}
+                onSelectId={handleSelectId}
+                onOpenInventory={openInventory}
+              />
+            ) : null}
+            {route.view === 'vehicles' ? (
+              <VehicleProcessPage
+                user={user}
+                selectedId={route.id}
+                onSelectId={handleSelectId}
+                onOpenHardware={openHardware}
+                onOpenInventory={openInventory}
+              />
+            ) : null}
+            {route.view === 'team' && user?.canManageAccounts ? (
               <TeamPage user={user} />
             ) : null}
           </div>

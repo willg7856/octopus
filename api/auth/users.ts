@@ -9,22 +9,9 @@ import {
   saveAccessList,
   setUserPassword,
 } from '../_lib/accessStore.js'
-import {
-  hashPassword,
-  readCookie,
-  verifySession,
-} from '../_lib/session.js'
+import { hashPassword, requireUser } from '../_lib/session.js'
 
-const MIN_PASSWORD_LENGTH = 6
-
-function requireUser(req: VercelRequest, res: VercelResponse) {
-  const session = verifySession(readCookie(req))
-  if (!session) {
-    res.status(401).json({ error: 'Sign in required' })
-    return null
-  }
-  return session
-}
+const MIN_PASSWORD_LENGTH = 8
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
@@ -35,7 +22,7 @@ function isValidEmail(email: string) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const session = requireUser(req, res)
+  const session = await requireUser(req, res)
   if (!session) return
 
   try {

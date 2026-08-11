@@ -137,8 +137,15 @@ async function writeRedis(state: OpsAccessState) {
 }
 
 function blobAccessCandidates(): BlobAccess[] {
+  // Prefer private; still try public on read for legacy migration only.
   if (resolvedBlobAccess) return [resolvedBlobAccess]
-  return ['public', 'private']
+  return ['private', 'public']
+}
+
+function blobWriteAccessCandidates(): BlobAccess[] {
+  // Never write password hashes / allowlist as a public blob.
+  if (resolvedBlobAccess === 'private') return ['private']
+  return ['private']
 }
 
 async function streamToJson(stream: ReadableStream<Uint8Array>): Promise<unknown> {
@@ -183,7 +190,7 @@ async function readBlob(): Promise<OpsAccessState | null> {
 async function writeBlob(state: OpsAccessState) {
   const body = JSON.stringify(state)
   let lastError: unknown
-  for (const access of blobAccessCandidates()) {
+  for (const access of blobWriteAccessCandidates()) {
     try {
       await put(ACCESS_BLOB_PATHNAME, body, {
         access,
@@ -198,7 +205,12 @@ async function writeBlob(state: OpsAccessState) {
       lastError = error
     }
   }
-  throw lastError instanceof Error ? lastError : new Error(String(lastError))
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(
+        String(lastError) ||
+          'Private blob write failed for ops access — connect Redis or a private Blob store',
+      )
 }
 
 async function readLocal(): Promise<OpsAccessState | null> {

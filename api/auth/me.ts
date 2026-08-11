@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { canManageAccounts } from '../_lib/accessStore.js'
-import { readCookie, verifySession } from '../_lib/session.js'
+import { requireUser } from '../_lib/session.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -8,9 +8,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const session = verifySession(readCookie(req))
+  const session = await requireUser(req, res)
   if (!session) {
-    res.status(401).json({ user: null })
+    // requireUser already sent 401 with { error }; keep me shape for the client
     return
   }
 

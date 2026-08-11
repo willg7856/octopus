@@ -15,7 +15,20 @@ export type SessionPayload = {
 }
 
 function secret() {
-  return readEnv('AUTH_SECRET') || readEnv('OPS_PASSWORD') || 'dev-octopus-secret'
+  const authSecret = readEnv('AUTH_SECRET')
+  if (authSecret) return authSecret
+  const opsPassword = readEnv('OPS_PASSWORD')
+  const isProd =
+    readEnv('NODE_ENV') === 'production' || readEnv('VERCEL') === '1'
+  // Never use the hardcoded dev fallback in production.
+  if (isProd) {
+    if (opsPassword) return opsPassword
+    console.error(
+      'AUTH_SECRET (or OPS_PASSWORD) must be set in production for session signing',
+    )
+    return 'misconfigured-octopus-secret'
+  }
+  return opsPassword || 'dev-octopus-secret'
 }
 
 function b64url(input: string | Buffer) {
@@ -96,6 +109,25 @@ export function verifySession(token: string | undefined): SessionPayload | null 
   } catch {
     return null
   }
+}
+
+/** Verify cookie session and that the email is still on the allowlist. */
+export async function requireUser(
+  req: { headers?: { cookie?: string } },
+  res: { status: (code: number) => { json: (body: unknown) => void } },
+): Promise<SessionPayload | null> {
+  const session = verifySession(readCookie(req))
+  if (!session) {
+    res.status(401).json({ error: 'Sign in required' })
+    return null
+  }
+  const allowed = await effectiveAllowlist()
+  const email = session.email.trim().toLowerCase()
+  if (allowed.length > 0 && !allowed.includes(email)) {
+    res.status(401).json({ error: 'Sign in required' })
+    return null
+  }
+  return session
 }
 
 export function readCookie(req: { headers?: { cookie?: string } }, name = COOKIE) {

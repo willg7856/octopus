@@ -397,28 +397,16 @@ export function formatMoney(amount: number) {
   }
 }
 
-/** Soft-link an inventory item onto a hardware unit (no stock change). */
-export function linkInventoryToHardware(
-  units: HardwareUnit[],
-  hardwareId: string,
-  inventoryId: string,
-): HardwareUnit[] {
-  return units.map((u) => {
-    if (u.id !== hardwareId) return u
-    const linked = u.linkedInventoryIds ?? []
-    if (linked.includes(inventoryId)) return u
-    return { ...u, linkedInventoryIds: [...linked, inventoryId] }
-  })
-}
-
 /**
- * Install / reserve an inventory item on a hardware unit.
- * Marks stock as reserved and records installedOnUnitId.
+ * Install inventory onto a hardware unit.
+ * - qty 1 / draw-all: reserve the whole line (`installedOnUnitId` + reserved)
+ * - partial qty on multi-qty lines: draw from on-hand, track on `linkedInventoryDraws`
  */
 export function installInventoryOnHardware(
   units: HardwareUnit[],
   hardwareId: string,
   inventoryId: string,
+  drawQty?: number,
   now = new Date().toISOString(),
 ): { units: HardwareUnit[]; error?: string } {
   const hardware = units.find((u) => u.id === hardwareId)
@@ -437,23 +425,62 @@ export function installInventoryOnHardware(
     }
   }
 
+  const onHand = unitQuantity(item)
+  if (onHand <= 0) {
+    return { units, error: 'Nothing on hand to install' }
+  }
+
+  const qty = drawQty == null ? (onHand <= 1 ? 1 : 1) : Math.floor(drawQty)
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return { units, error: 'Enter a quantity to install' }
+  }
+  if (qty > onHand) {
+    return { units, error: `Only ${onHand} on hand` }
+  }
+
+  const reserveWhole = qty >= onHand
+
   const next = units.map((u) => {
     if (u.id === hardwareId) {
       const linked = u.linkedInventoryIds ?? []
+      const draws = { ...(u.linkedInventoryDraws ?? {}) }
+      if (reserveWhole) {
+        delete draws[inventoryId]
+      } else {
+        draws[inventoryId] = (draws[inventoryId] ?? 0) + qty
+      }
+      const nextDraws = Object.keys(draws).length > 0 ? draws : undefined
       return {
         ...u,
         linkedInventoryIds: linked.includes(inventoryId)
           ? linked
           : [...linked, inventoryId],
+        linkedInventoryDraws: nextDraws,
         updatedAt: now,
       }
     }
     if (u.id === inventoryId) {
+      if (reserveWhole) {
+        return {
+          ...u,
+          installedOnUnitId: hardwareId,
+          stockStatus: 'reserved' as const,
+          status: hardwareStatusForStock('reserved'),
+          updatedAt: now,
+        }
+      }
+      const remaining = onHand - qty
+      const stockStatus = applyInventoryStockRules(
+        stockStatusOf(u) === 'reserved' ? 'in-stock' : stockStatusOf(u),
+        remaining,
+        u.minQty,
+      )
       return {
         ...u,
-        installedOnUnitId: hardwareId,
-        stockStatus: 'reserved' as const,
-        status: hardwareStatusForStock('reserved'),
+        quantity: remaining,
+        installedOnUnitId: undefined,
+        stockStatus,
+        status: hardwareStatusForStock(stockStatus),
         updatedAt: now,
       }
     }
@@ -462,7 +489,7 @@ export function installInventoryOnHardware(
   return { units: next }
 }
 
-/** Return an installed inventory item to available stock. */
+/** Return a reserved (whole-line) inventory item to available stock. */
 export function returnInventoryFromHardware(
   units: HardwareUnit[],
   inventoryId: string,
@@ -478,22 +505,37 @@ export function returnInventoryFromHardware(
 
   const qty = unitQuantity(item)
   const stockStatus = applyInventoryStockRules('in-stock', qty, item.minQty)
-  const next = units.map((u) =>
-    u.id === inventoryId
-      ? {
-          ...u,
-          installedOnUnitId: undefined,
-          stockStatus,
-          status: hardwareStatusForStock(stockStatus),
-          updatedAt: now,
-        }
-      : u,
-  )
+  const hardwareId = item.installedOnUnitId
+  const next = units.map((u) => {
+    if (u.id === inventoryId) {
+      return {
+        ...u,
+        installedOnUnitId: undefined,
+        stockStatus,
+        status: hardwareStatusForStock(stockStatus),
+        updatedAt: now,
+      }
+    }
+    if (u.id === hardwareId) {
+      const linked = (u.linkedInventoryIds ?? []).filter((id) => id !== inventoryId)
+      const draws = { ...(u.linkedInventoryDraws ?? {}) }
+      delete draws[inventoryId]
+      return {
+        ...u,
+        linkedInventoryIds: linked.length > 0 ? linked : undefined,
+        linkedInventoryDraws:
+          Object.keys(draws).length > 0 ? draws : undefined,
+        updatedAt: now,
+      }
+    }
+    return u
+  })
   return { units: next }
 }
 
 /**
- * Unlink inventory from a hardware BOM. If it was installed on that unit, return it first.
+ * Return drawn consumable qty from a hardware unit back to inventory,
+ * or return a reserved whole-line install.
  */
 export function unlinkInventoryFromHardware(
   units: HardwareUnit[],
@@ -501,35 +543,89 @@ export function unlinkInventoryFromHardware(
   inventoryId: string,
   now = new Date().toISOString(),
 ): HardwareUnit[] {
+  const hardware = units.find((u) => u.id === hardwareId)
   const item = units.find((u) => u.id === inventoryId)
-  let next = units
-  if (item?.installedOnUnitId === hardwareId) {
-    const returned = returnInventoryFromHardware(next, inventoryId, now)
-    next = returned.units
+  if (!hardware || !item) return units
+
+  if (item.installedOnUnitId === hardwareId) {
+    return returnInventoryFromHardware(units, inventoryId, now).units
   }
-  return next.map((u) => {
-    if (u.id !== hardwareId) return u
-    const linked = (u.linkedInventoryIds ?? []).filter((id) => id !== inventoryId)
-    return {
-      ...u,
-      linkedInventoryIds: linked.length > 0 ? linked : undefined,
-      updatedAt: now,
+
+  const drawn = hardware.linkedInventoryDraws?.[inventoryId] ?? 0
+  return units.map((u) => {
+    if (u.id === inventoryId && drawn > 0) {
+      const qty = unitQuantity(u) + drawn
+      const stockStatus = applyInventoryStockRules(
+        stockStatusOf(u) === 'reserved' ? 'in-stock' : stockStatusOf(u),
+        qty,
+        u.minQty,
+      )
+      return {
+        ...u,
+        quantity: qty,
+        stockStatus,
+        status: hardwareStatusForStock(stockStatus),
+        updatedAt: now,
+      }
     }
+    if (u.id === hardwareId) {
+      const linked = (u.linkedInventoryIds ?? []).filter((id) => id !== inventoryId)
+      const draws = { ...(u.linkedInventoryDraws ?? {}) }
+      delete draws[inventoryId]
+      return {
+        ...u,
+        linkedInventoryIds: linked.length > 0 ? linked : undefined,
+        linkedInventoryDraws:
+          Object.keys(draws).length > 0 ? draws : undefined,
+        updatedAt: now,
+      }
+    }
+    return u
   })
 }
 
-/** When removing a hardware unit, return any inventory installed on it. */
+/** When removing a hardware unit, return reserved + drawn inventory. */
 export function returnAllInstalledOnHardware(
   units: HardwareUnit[],
   hardwareId: string,
   now = new Date().toISOString(),
 ): HardwareUnit[] {
+  const hardware = units.find((u) => u.id === hardwareId)
   let next = units
   for (const u of units) {
     if (u.installedOnUnitId === hardwareId) {
-      const result = returnInventoryFromHardware(next, u.id, now)
-      next = result.units
+      next = returnInventoryFromHardware(next, u.id, now).units
+    }
+  }
+  if (hardware?.linkedInventoryIds?.length) {
+    for (const inventoryId of hardware.linkedInventoryIds) {
+      next = unlinkInventoryFromHardware(next, hardwareId, inventoryId, now)
     }
   }
   return next
+}
+
+/** Clear install links when an inventory item leaves reserved without going through Return. */
+export function clearHardwareLinksToInventory(
+  units: HardwareUnit[],
+  inventoryId: string,
+  now = new Date().toISOString(),
+): HardwareUnit[] {
+  return units.map((u) => {
+    if (!isSystemKind(u.kind)) return u
+    const linked = u.linkedInventoryIds ?? []
+    if (!linked.includes(inventoryId) && !u.linkedInventoryDraws?.[inventoryId]) {
+      return u
+    }
+    const nextLinked = linked.filter((id) => id !== inventoryId)
+    const draws = { ...(u.linkedInventoryDraws ?? {}) }
+    delete draws[inventoryId]
+    return {
+      ...u,
+      linkedInventoryIds: nextLinked.length > 0 ? nextLinked : undefined,
+      linkedInventoryDraws:
+        Object.keys(draws).length > 0 ? draws : undefined,
+      updatedAt: now,
+    }
+  })
 }

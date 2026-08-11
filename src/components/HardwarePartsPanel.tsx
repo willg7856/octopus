@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useConfirm } from './ConfirmDialog'
 import {
   HARDWARE_KIND_LABELS,
   installInventoryOnHardware,
@@ -17,6 +18,7 @@ type HardwarePartsPanelProps = {
   allUnits: HardwareUnit[]
   store: LabStore
   disabled?: boolean
+  onOpenInventory?: (inventoryId: string) => void
 }
 
 export function HardwarePartsPanel({
@@ -25,9 +27,12 @@ export function HardwarePartsPanel({
   allUnits,
   store,
   disabled,
+  onOpenInventory,
 }: HardwarePartsPanelProps) {
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [qtyById, setQtyById] = useState<Record<string, string>>({})
   const q = query.trim().toLowerCase()
 
   const parts = useMemo(() => {
@@ -41,7 +46,6 @@ export function HardwarePartsPanel({
         list.push(u)
       }
     }
-    // Legacy soft-links (pre install-only) still show until Install or Return
     for (const id of hardware.linkedInventoryIds ?? []) {
       if (seen.has(id)) continue
       const u = byId.get(id)
@@ -59,6 +63,9 @@ export function HardwarePartsPanel({
     return sortUnits(
       inventory.filter((u) => {
         if (partIds.has(u.id)) return false
+        if (u.installedOnUnitId && u.installedOnUnitId !== hardware.id) {
+          // still show but Install disabled
+        }
         if (!q) return true
         return [u.name, u.serial, u.partNumber, HARDWARE_KIND_LABELS[u.kind]]
           .filter(Boolean)
@@ -67,7 +74,7 @@ export function HardwarePartsPanel({
           .includes(q)
       }),
     )
-  }, [inventory, partIds, q])
+  }, [inventory, partIds, q, hardware.id])
 
   function saveUnits(nextUnits: HardwareUnit[], message: string) {
     setError(null)
@@ -78,10 +85,16 @@ export function HardwarePartsPanel({
   }
 
   function installPart(inventoryId: string) {
+    const item = allUnits.find((u) => u.id === inventoryId)
+    const onHand = item ? unitQuantity(item) : 0
+    const raw = qtyById[inventoryId]
+    const parsed = raw != null && raw !== '' ? Number(raw) : 1
+    const qty = Number.isFinite(parsed) ? Math.floor(parsed) : 1
     const result = installInventoryOnHardware(
       allUnits,
       hardware.id,
       inventoryId,
+      onHand > 1 ? qty : 1,
     )
     if (result.error) {
       setError(result.error)
@@ -89,22 +102,33 @@ export function HardwarePartsPanel({
     }
     saveUnits(result.units, 'Installed / reserved')
     setQuery('')
+    setQtyById((prev) => {
+      const next = { ...prev }
+      delete next[inventoryId]
+      return next
+    })
   }
 
-  /** Return stock to inventory and remove from this hardware unit. */
-  function returnPart(inventoryId: string) {
+  async function returnPart(inventoryId: string) {
+    const part = allUnits.find((u) => u.id === inventoryId)
+    const ok = await confirm(
+      `Return “${part?.name ?? 'this part'}” to stock and remove it from this unit?`,
+    )
+    if (!ok) return
     saveUnits(
       unlinkInventoryFromHardware(allUnits, hardware.id, inventoryId),
       'Returned to stock',
     )
   }
 
+  const suggestions = availableToAdd.slice(0, q ? 8 : 6)
+
   return (
     <section className="hw-parts" aria-label="Parts from inventory">
       <h4>Parts</h4>
       <p className="simple-muted">
-        Install inventory onto this unit to reserve it — unavailable elsewhere
-        until returned.
+        Install inventory onto this unit to reserve it (or draw qty from a
+        multi-qty line). Unavailable elsewhere until returned.
       </p>
 
       {error ? (
@@ -119,6 +143,7 @@ export function HardwarePartsPanel({
         <ul className="hw-parts-list">
           {parts.map((part) => {
             const installedHere = part.installedOnUnitId === hardware.id
+            const drawn = hardware.linkedInventoryDraws?.[part.id] ?? 0
             const installedElsewhere =
               Boolean(part.installedOnUnitId) && !installedHere
             const elsewhere = installedElsewhere
@@ -127,35 +152,55 @@ export function HardwarePartsPanel({
             return (
               <li key={part.id} className="hw-parts-row">
                 <div className="hw-parts-main">
-                  <strong>{part.name}</strong>
+                  {onOpenInventory ? (
+                    <button
+                      type="button"
+                      className="hw-parts-name-btn"
+                      onClick={() => onOpenInventory(part.id)}
+                    >
+                      <strong>{part.name}</strong>
+                    </button>
+                  ) : (
+                    <strong>{part.name}</strong>
+                  )}
                   <span className="simple-muted">
                     {HARDWARE_KIND_LABELS[part.kind]} ·{' '}
                     {unitQuantity(part)} on hand
                     {installedHere
-                      ? ' · installed here'
-                      : installedElsewhere
-                        ? ` · on ${elsewhere?.name ?? 'other unit'}`
-                        : ' · not reserved yet'}
+                      ? ' · reserved here'
+                      : drawn > 0
+                        ? ` · drew ${drawn}`
+                        : installedElsewhere
+                          ? ` · on ${elsewhere?.name ?? 'other unit'}`
+                          : ' · not reserved yet'}
                   </span>
                 </div>
                 <span
                   className="status-badge"
                   data-kind="stock"
-                  data-status={installedHere || installedElsewhere ? 'reserved' : 'low'}
+                  data-status={
+                    installedHere || installedElsewhere
+                      ? 'reserved'
+                      : drawn > 0
+                        ? 'low'
+                        : 'in-stock'
+                  }
                 >
                   {installedHere
                     ? 'Installed'
-                    : installedElsewhere
-                      ? 'Reserved elsewhere'
-                      : 'Needs install'}
+                    : drawn > 0
+                      ? `Drew ${drawn}`
+                      : installedElsewhere
+                        ? 'Reserved elsewhere'
+                        : 'Needs install'}
                 </span>
                 <div className="hw-parts-actions">
-                  {installedHere ? (
+                  {installedHere || drawn > 0 ? (
                     <button
                       type="button"
                       className="btn btn-ghost"
                       disabled={disabled}
-                      onClick={() => returnPart(part.id)}
+                      onClick={() => void returnPart(part.id)}
                     >
                       Return
                     </button>
@@ -166,11 +211,6 @@ export function HardwarePartsPanel({
                         className="btn btn-accent"
                         disabled={disabled || installedElsewhere}
                         onClick={() => installPart(part.id)}
-                        title={
-                          installedElsewhere
-                            ? 'Return it from the other unit first'
-                            : 'Reserve this stock on this hardware unit'
-                        }
                       >
                         Install
                       </button>
@@ -178,7 +218,7 @@ export function HardwarePartsPanel({
                         type="button"
                         className="btn btn-ghost"
                         disabled={disabled}
-                        onClick={() => returnPart(part.id)}
+                        onClick={() => void returnPart(part.id)}
                       >
                         Remove
                       </button>
@@ -200,49 +240,69 @@ export function HardwarePartsPanel({
           aria-label="Search inventory to install parts"
           disabled={disabled}
         />
-        {query.trim() ? (
-          <ul className="hw-parts-suggest">
-            {availableToAdd.length === 0 ? (
-              <li className="simple-muted">No matching inventory items.</li>
-            ) : (
-              availableToAdd.slice(0, 8).map((part) => {
-                const busy =
-                  Boolean(part.installedOnUnitId) &&
-                  part.installedOnUnitId !== hardware.id
-                const host = busy
-                  ? allUnits.find((u) => u.id === part.installedOnUnitId)
-                  : null
-                return (
-                  <li key={part.id}>
-                    <span>
-                      <strong>{part.name}</strong>
-                      <span className="simple-muted">
-                        {HARDWARE_KIND_LABELS[part.kind]} ·{' '}
-                        {unitQuantity(part)} on hand
-                        {busy ? ` · on ${host?.name ?? 'other unit'}` : ''}
-                      </span>
+        <ul className="hw-parts-suggest">
+          {suggestions.length === 0 ? (
+            <li className="simple-muted">
+              {q ? 'No matching inventory items.' : 'No available inventory items.'}
+            </li>
+          ) : (
+            suggestions.map((part) => {
+              const busy =
+                Boolean(part.installedOnUnitId) &&
+                part.installedOnUnitId !== hardware.id
+              const host = busy
+                ? allUnits.find((u) => u.id === part.installedOnUnitId)
+                : null
+              const onHand = unitQuantity(part)
+              return (
+                <li key={part.id}>
+                  <span>
+                    <strong>{part.name}</strong>
+                    <span className="simple-muted">
+                      {HARDWARE_KIND_LABELS[part.kind]} · {onHand} on hand
+                      {busy ? ` · on ${host?.name ?? 'other unit'}` : ''}
                     </span>
-                    <span className="hw-parts-actions">
-                      <button
-                        type="button"
-                        className="btn btn-accent"
+                  </span>
+                  <span className="hw-parts-actions">
+                    {onHand > 1 ? (
+                      <input
+                        className="hw-parts-qty"
+                        type="number"
+                        min={1}
+                        max={onHand}
+                        inputMode="numeric"
+                        value={qtyById[part.id] ?? '1'}
                         disabled={disabled || busy}
-                        onClick={() => installPart(part.id)}
-                      >
-                        Install
-                      </button>
-                    </span>
-                  </li>
-                )
-              })
-            )}
-          </ul>
-        ) : (
+                        onChange={(e) =>
+                          setQtyById((prev) => ({
+                            ...prev,
+                            [part.id]: e.target.value,
+                          }))
+                        }
+                        aria-label={`Quantity of ${part.name} to install`}
+                      />
+                    ) : null}
+                    <button
+                      type="button"
+                      className="btn btn-accent"
+                      disabled={disabled || busy || onHand <= 0}
+                      onClick={() => installPart(part.id)}
+                    >
+                      Install
+                    </button>
+                  </span>
+                </li>
+              )
+            })
+          )}
+        </ul>
+        {!q ? (
           <p className="simple-muted hw-parts-add-hint">
-            Type to find inventory, then Install to reserve it on this unit.
+            Showing available stock — type to filter, set qty for multi-qty lines.
           </p>
-        )}
+        ) : null}
       </div>
+      {confirmDialog}
     </section>
   )
 }

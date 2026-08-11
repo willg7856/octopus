@@ -64,17 +64,34 @@ function matchesHardwareFilter(unit: HardwareUnit, filter: HardwareFilter) {
   return true
 }
 
-export function HardwarePage({ user }: { user: AuthUser | null }) {
+export function HardwarePage({
+  user,
+  selectedId: routeSelectedId = null,
+  onSelectId,
+  onOpenInventory,
+}: {
+  user: AuthUser | null
+  selectedId?: string | null
+  onSelectId?: (id: string | null) => void
+  onOpenInventory?: (id: string) => void
+}) {
   const store = useLabStore()
   const { lab, sync, saving, conflict, toast, updatedAt, updatedBy, hasLoaded } =
     store
   const { confirm, dialog: confirmDialog } = useConfirm()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [localSelectedId, setLocalSelectedId] = useState<string | null>(null)
+  const selectedId = onSelectId ? routeSelectedId : localSelectedId
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<HardwareFilter>('all')
   const [adding, setAdding] = useState(false)
   const [editingTestId, setEditingTestId] = useState<string | null>(null)
-  const [mobileMode, setMobileMode] = useState<'list' | 'detail'>('list')
+  const [mobileMode, setMobileMode] = useState<'list' | 'detail'>(() =>
+    routeSelectedId ? 'detail' : 'list',
+  )
+
+  useEffect(() => {
+    if (routeSelectedId) setMobileMode('detail')
+  }, [routeSelectedId])
 
   const units = useMemo(
     () => sortUnits(lab.units.filter((u) => isSystemKind(u.kind))),
@@ -146,9 +163,14 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
     [lab.tests, selected],
   )
 
+  function setSelected(id: string | null) {
+    if (onSelectId) onSelectId(id)
+    else setLocalSelectedId(id)
+  }
+
   function openDetail(id: string | null, isAdding = false) {
     setAdding(isAdding)
-    setSelectedId(id)
+    setSelected(id)
     setEditingTestId(null)
     setMobileMode('detail')
   }
@@ -312,7 +334,14 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
   async function removeUnit(id: string) {
     const unit = lab.units.find((u) => u.id === id)
     if (!unit) return
-    const ok = await confirm(`Remove “${unit.name}” from hardware?`)
+    const linkedProductions = lab.processes.filter((p) => p.vehicleUnitId === id)
+    const prodNote =
+      linkedProductions.length > 0
+        ? ` This also deletes ${linkedProductions.length} production tracker${
+            linkedProductions.length === 1 ? '' : 's'
+          } (${linkedProductions.map((p) => p.name).join(', ')}).`
+        : ''
+    const ok = await confirm(`Remove “${unit.name}” from hardware?${prodNote}`)
     if (!ok) return
     void store.commit(
       (prev) => {
@@ -360,7 +389,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
       },
       'Removed',
     )
-    setSelectedId(null)
+    setSelected(null)
     setMobileMode('list')
   }
 
@@ -518,7 +547,8 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                   inventory={inventoryUnits}
                   allUnits={lab.units}
                   store={store}
-                  disabled={!hasLoaded || saving}
+                  disabled={!hasLoaded}
+                  onOpenInventory={onOpenInventory}
                 />
                 <section className="hw-history" aria-label="Progress history">
                   <h4>Progress</h4>

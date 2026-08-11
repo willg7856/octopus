@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { readCookie, verifySession } from '../_lib/session.js'
+import { canManageAccounts } from '../_lib/accessStore.js'
+import { requireUser } from '../_lib/session.js'
 import {
   loadSharedLab,
   resetSharedLab,
@@ -7,15 +8,6 @@ import {
   storageMode,
   type HardwareLabState,
 } from '../_lib/hardwareStore.js'
-
-function requireUser(req: VercelRequest, res: VercelResponse) {
-  const session = verifySession(readCookie(req))
-  if (!session) {
-    res.status(401).json({ error: 'Sign in required' })
-    return null
-  }
-  return session
-}
 
 function isLabState(value: unknown): value is HardwareLabState {
   if (!value || typeof value !== 'object') return false
@@ -28,17 +20,8 @@ function isLabState(value: unknown): value is HardwareLabState {
   )
 }
 
-function canAdminReset(email: string | undefined): boolean {
-  if (!email) return false
-  const admins = (process.env.OPS_ADMINS || '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean)
-  return admins.includes(email.trim().toLowerCase())
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const user = requireUser(req, res)
+  const user = await requireUser(req, res)
   if (!user) return
 
   try {
@@ -82,8 +65,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'DELETE') {
-      // Destructive seed reset — admins only (OPS_ADMINS). Prefer PUT for normal edits.
-      if (!canAdminReset(user.email)) {
+      // Destructive seed reset — Team admins only. Prefer PUT for normal edits.
+      if (!canManageAccounts(user.email)) {
         res.status(403).json({ error: 'Admin access required to reset shared lab' })
         return
       }

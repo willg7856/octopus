@@ -4,15 +4,18 @@ import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
 import {
   HARDWARE_KIND_LABELS,
+  HARDWARE_STATUS_LABELS,
   INVENTORY_KINDS,
   STOCK_STATUS_LABELS,
   STOCK_STATUS_ORDER,
   applyInventoryStockRules,
+  clearHardwareLinksToInventory,
   formatMoney,
   hardwareStatusForStock,
   isInventoryKind,
   isOrderOverdue,
   newId,
+  sortProgress,
   sortUnits,
   stockStatusAfterReceive,
   stockStatusLabel,
@@ -20,6 +23,7 @@ import {
   unitOnOrderQty,
   unitPriceOf,
   unitQuantity,
+  unlinkInventoryFromHardware,
 } from '../hardwareData'
 import type {
   HardwareKind,
@@ -71,18 +75,35 @@ function matchesKind(unit: HardwareUnit, filter: KindFilter) {
   return unit.kind === filter
 }
 
-export function InventoryPage({ user }: { user: AuthUser | null }) {
+export function InventoryPage({
+  user,
+  selectedId: routeSelectedId = null,
+  onSelectId,
+  onOpenHardware,
+}: {
+  user: AuthUser | null
+  selectedId?: string | null
+  onSelectId?: (id: string | null) => void
+  onOpenHardware?: (id: string) => void
+}) {
   const store = useLabStore()
   const { lab, sync, saving, conflict, toast, updatedAt, updatedBy, hasLoaded } =
     store
   const { confirm, dialog: confirmDialog } = useConfirm()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [localSelectedId, setLocalSelectedId] = useState<string | null>(null)
+  const selectedId = onSelectId ? routeSelectedId : localSelectedId
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<AttentionFilter>('all')
   const [kindFilter, setKindFilter] = useState<KindFilter>('all')
   const [programFilter, setProgramFilter] = useState<string>('all')
   const [adding, setAdding] = useState(false)
-  const [mobileMode, setMobileMode] = useState<'list' | 'detail'>('list')
+  const [mobileMode, setMobileMode] = useState<'list' | 'detail'>(() =>
+    routeSelectedId ? 'detail' : 'list',
+  )
+
+  useEffect(() => {
+    if (routeSelectedId) setMobileMode('detail')
+  }, [routeSelectedId])
 
   const units = useMemo(
     () => sortUnits(lab.units.filter((u) => isInventoryKind(u.kind))),
@@ -213,9 +234,22 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     units.find((u) => u.id === selectedId) ??
     (mobileMode === 'detail' ? null : filtered[0] ?? null)
 
+  const selectedProgress = useMemo(
+    () =>
+      selected
+        ? sortProgress(lab.progress.filter((p) => p.unitId === selected.id))
+        : [],
+    [lab.progress, selected],
+  )
+
+  function setSelected(id: string | null) {
+    if (onSelectId) onSelectId(id)
+    else setLocalSelectedId(id)
+  }
+
   function openDetail(id: string | null, isAdding = false) {
     setAdding(isAdding)
-    setSelectedId(id)
+    setSelected(id)
     setMobileMode('detail')
   }
 
@@ -250,17 +284,25 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
   }
 
   function adjustQty(id: string, delta: number) {
+    const unit = lab.units.find((u) => u.id === id)
+    if (
+      !unit ||
+      unit.installedOnUnitId ||
+      stockStatusOf(unit) === 'reserved'
+    ) {
+      return
+    }
     patchUnit(
       id,
-      (unit) => {
-        const qty = Math.max(0, unitQuantity(unit) + delta)
+      (u) => {
+        const qty = Math.max(0, unitQuantity(u) + delta)
         const stockStatus = applyInventoryStockRules(
-          stockStatusOf(unit),
+          stockStatusOf(u),
           qty,
-          unit.minQty,
+          u.minQty,
         )
         return {
-          ...unit,
+          ...u,
           quantity: qty,
           stockStatus,
           status: hardwareStatusForStock(stockStatus),
@@ -270,6 +312,24 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
       delta >= 0 ? `Qty +${delta}` : `Qty ${delta}`,
       delta >= 0 ? `Qty +${delta}` : `Qty ${delta}`,
     )
+  }
+
+  async function returnFromInventory(id: string) {
+    const unit = lab.units.find((u) => u.id === id)
+    if (!unit?.installedOnUnitId) return
+    const host = lab.units.find((u) => u.id === unit.installedOnUnitId)
+    const ok = await confirm(
+      `Return “${unit.name}” from ${host?.name ?? 'hardware'} to available stock?`,
+    )
+    if (!ok) return
+    void store.commit((prev) => {
+      const hostId = unit.installedOnUnitId
+      if (!hostId) return prev
+      return {
+        ...prev,
+        units: unlinkInventoryFromHardware(prev.units, hostId, id),
+      }
+    }, 'Returned to stock')
   }
 
   function receiveOne(id: string) {
@@ -372,20 +432,20 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     }
 
     if (input.id) {
-      void store.commit(
-        (prev) => ({
-          ...prev,
-          units: prev.units.map((u) => {
-            if (u.id !== input.id) return u
-            const installedOnUnitId =
-              stockStatus === 'reserved'
-                ? u.installedOnUnitId
-                : undefined
-            return { ...u, ...resolved, installedOnUnitId }
-          }),
-        }),
-        'Saved',
-      )
+      void store.commit((prev) => {
+        const existing = prev.units.find((u) => u.id === input.id)
+        const keepInstall =
+          stockStatus === 'reserved' ? existing?.installedOnUnitId : undefined
+        let units = prev.units.map((u) => {
+          if (u.id !== input.id) return u
+          return { ...u, ...resolved, installedOnUnitId: keepInstall }
+        })
+        // Leaving reserved without Return must clear Hardware part links
+        if (existing?.installedOnUnitId && stockStatus !== 'reserved') {
+          units = clearHardwareLinksToInventory(units, input.id!)
+        }
+        return { ...prev, units }
+      }, 'Saved')
       return
     }
 
@@ -418,35 +478,33 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     const ok = await confirm(`Remove “${unit.name}” from inventory?`)
     if (!ok) return
     void store.commit(
-      (prev) => ({
-        ...prev,
-        units: prev.units
-          .filter((u) => u.id !== id)
-          .map((u) => ({
-            ...u,
-            linkedInventoryIds: (u.linkedInventoryIds ?? []).filter(
+      (prev) => {
+        const cleared = clearHardwareLinksToInventory(prev.units, id)
+        return {
+          ...prev,
+          units: cleared.filter((u) => u.id !== id),
+          progress: prev.progress.filter((p) => p.unitId !== id),
+          tests: prev.tests.map((t) => ({
+            ...t,
+            unitIds: t.unitIds.filter((uid) => uid !== id),
+          })),
+          processes: prev.processes.map((p) => ({
+            ...p,
+            linkedInventoryIds: (p.linkedInventoryIds ?? []).filter(
               (uid) => uid !== id,
             ),
+            steps: p.steps.map((s) => ({
+              ...s,
+              linkedUnitIds: (s.linkedUnitIds ?? []).filter(
+                (uid) => uid !== id,
+              ),
+            })),
           })),
-        progress: prev.progress.filter((p) => p.unitId !== id),
-        tests: prev.tests.map((t) => ({
-          ...t,
-          unitIds: t.unitIds.filter((uid) => uid !== id),
-        })),
-        processes: prev.processes.map((p) => ({
-          ...p,
-          linkedInventoryIds: (p.linkedInventoryIds ?? []).filter(
-            (uid) => uid !== id,
-          ),
-          steps: p.steps.map((s) => ({
-            ...s,
-            linkedUnitIds: (s.linkedUnitIds ?? []).filter((uid) => uid !== id),
-          })),
-        })),
-      }),
+        }
+      },
       'Removed',
     )
-    setSelectedId(null)
+    setSelected(null)
     setMobileMode('list')
   }
 
@@ -695,11 +753,17 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                 const onOrder = unitOnOrderQty(unit)
                 const price = unitPriceOf(unit)
                 const overdue = isOrderOverdue(unit)
+                const reserved =
+                  Boolean(unit.installedOnUnitId) || status === 'reserved'
+                const host = unit.installedOnUnitId
+                  ? lab.units.find((u) => u.id === unit.installedOnUnitId)
+                  : null
                 const canReceive =
-                  onOrder > 0 ||
-                  status === 'on-order' ||
-                  status === 'receiving' ||
-                  status === 'incoming'
+                  !reserved &&
+                  (onOrder > 0 ||
+                    status === 'on-order' ||
+                    status === 'receiving' ||
+                    status === 'incoming')
                 return (
                   <li key={unit.id}>
                     <div
@@ -725,13 +789,7 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                             {onOrder > 0 ? ` · on order ${onOrder}` : ''}
                             {price != null ? ` · ${formatMoney(price)}/ea` : ''}
                             {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
-                            {unit.installedOnUnitId
-                              ? ` · on ${
-                                  lab.units.find(
-                                    (u) => u.id === unit.installedOnUnitId,
-                                  )?.name ?? 'hardware'
-                                }`
-                              : ''}
+                            {host ? ` · on ${host.name}` : ''}
                             {unit.location ? ` · ${unit.location}` : ''}
                             {unit.expectedAt ? (
                               <>
@@ -765,7 +823,12 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                           type="button"
                           className="inv-qty-btn"
                           aria-label={`Decrease ${unit.name} on hand`}
-                          disabled={unitQuantity(unit) <= 0}
+                          title={
+                            reserved
+                              ? 'Return reserved stock before changing qty'
+                              : undefined
+                          }
+                          disabled={reserved || unitQuantity(unit) <= 0}
                           onClick={(e) => {
                             e.stopPropagation()
                             adjustQty(unit.id, -1)
@@ -790,6 +853,12 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                           type="button"
                           className="inv-qty-btn"
                           aria-label={`Increase ${unit.name} on hand`}
+                          title={
+                            reserved
+                              ? 'Return reserved stock before changing qty'
+                              : undefined
+                          }
+                          disabled={reserved}
                           onClick={(e) => {
                             e.stopPropagation()
                             adjustQty(unit.id, 1)
@@ -797,6 +866,19 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                         >
                           +
                         </button>
+                        {reserved ? (
+                          <button
+                            type="button"
+                            className="inv-qty-btn inv-qty-receive"
+                            aria-label={`Return ${unit.name} to stock`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void returnFromInventory(unit.id)
+                            }}
+                          >
+                            Return
+                          </button>
+                        ) : null}
                         {canReceive ? (
                           <button
                             type="button"
@@ -862,20 +944,56 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
                 onSave={saveUnit}
               />
             ) : selected ? (
-              <UnitForm
-                key={selected.id}
-                initial={selected}
-                submitLabel="Save"
-                programOptions={programOptions}
-                installedOnName={
-                  selected.installedOnUnitId
-                    ? lab.units.find((u) => u.id === selected.installedOnUnitId)
-                        ?.name
-                    : undefined
-                }
-                onSave={saveUnit}
-                onDelete={() => removeUnit(selected.id)}
-              />
+              <>
+                <UnitForm
+                  key={selected.id}
+                  initial={selected}
+                  submitLabel="Save"
+                  programOptions={programOptions}
+                  installedOnName={
+                    selected.installedOnUnitId
+                      ? lab.units.find(
+                          (u) => u.id === selected.installedOnUnitId,
+                        )?.name
+                      : undefined
+                  }
+                  onOpenHardware={
+                    selected.installedOnUnitId && onOpenHardware
+                      ? () => onOpenHardware(selected.installedOnUnitId!)
+                      : undefined
+                  }
+                  onReturn={
+                    selected.installedOnUnitId
+                      ? () => void returnFromInventory(selected.id)
+                      : undefined
+                  }
+                  onSave={saveUnit}
+                  onDelete={() => removeUnit(selected.id)}
+                />
+                <section className="hw-history" aria-label="Quantity history">
+                  <h4>History</h4>
+                  {selectedProgress.length === 0 ? (
+                    <p className="simple-muted">
+                      No notes yet — receive and qty changes are logged here.
+                    </p>
+                  ) : (
+                    <ul className="hw-history-list">
+                      {selectedProgress.slice(0, 12).map((note) => (
+                        <li key={note.id}>
+                          <strong>
+                            {note.date} ·{' '}
+                            {HARDWARE_STATUS_LABELS[note.status] ?? note.status}
+                          </strong>
+                          <span className="simple-muted">
+                            {note.note}
+                            {note.author ? ` · ${note.author}` : ''}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </>
             ) : (
               <p className="simple-muted">Select an item or add one.</p>
             )}
@@ -930,6 +1048,8 @@ function UnitForm({
   submitLabel,
   programOptions,
   installedOnName,
+  onOpenHardware,
+  onReturn,
   onSave,
   onDelete,
   onCancel,
@@ -938,6 +1058,8 @@ function UnitForm({
   submitLabel: string
   programOptions: string[]
   installedOnName?: string
+  onOpenHardware?: () => void
+  onReturn?: () => void
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
@@ -1092,13 +1214,33 @@ function UnitForm({
         ) : null}
       </div>
       {initial?.installedOnUnitId ? (
-        <p className="hw-notes-banner" role="status">
+        <div className="hw-notes-banner" role="status">
           <strong>Installed / reserved</strong>
           <span>
             On {installedOnName ?? 'a hardware unit'} — unavailable for other
-            builds until returned from Hardware → Parts.
+            builds until returned.
           </span>
-        </p>
+          <span className="inv-reserved-actions">
+            {onOpenHardware ? (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={onOpenHardware}
+              >
+                Open hardware
+              </button>
+            ) : null}
+            {onReturn ? (
+              <button
+                type="button"
+                className="btn btn-accent"
+                onClick={onReturn}
+              >
+                Return to stock
+              </button>
+            ) : null}
+          </span>
+        </div>
       ) : null}
       {orderHref ? (
         <div className="inv-order-panel">
@@ -1179,6 +1321,12 @@ function UnitForm({
               min={0}
               step={1}
               value={quantity}
+              disabled={Boolean(initial?.installedOnUnitId)}
+              title={
+                initial?.installedOnUnitId
+                  ? 'Return reserved stock before changing qty'
+                  : undefined
+              }
               onChange={(e) => setField('quantity', e.target.value)}
             />
           </label>
