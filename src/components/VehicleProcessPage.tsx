@@ -1088,7 +1088,7 @@ export function VehicleProcessPage({
                                     {step.detail}
                                   </span>
                                 ) : null}
-                                {linked.length > 0 ? (
+                                {linked.length > 0 && !editingSteps ? (
                                   <span className="simple-muted">
                                     Linked:{' '}
                                     {linked.map((u, i) => (
@@ -1336,102 +1336,7 @@ export function VehicleProcessPage({
                                   }
                                 />
                               </>
-                            ) : (
-                              <>
-                                {hardwareLinkedOnly(linked).length > 0 ? (
-                                  <div className="prod-integrate prod-integrate-view">
-                                    <ul
-                                      className="prod-integrate-list"
-                                      aria-label="Integrated hardware"
-                                    >
-                                      {hardwareLinkedOnly(linked).map(
-                                        (unit) => (
-                                          <li key={unit.id}>
-                                            <span>
-                                              {onOpenHardware ? (
-                                                <button
-                                                  type="button"
-                                                  className="hw-parts-name-btn"
-                                                  onClick={() =>
-                                                    onOpenHardware(unit.id)
-                                                  }
-                                                >
-                                                  {unit.name}
-                                                </button>
-                                              ) : (
-                                                <strong>{unit.name}</strong>
-                                              )}
-                                              <span className="simple-muted">
-                                                {' '}
-                                                ·{' '}
-                                                {
-                                                  HARDWARE_KIND_LABELS[
-                                                    unit.kind
-                                                  ]
-                                                }
-                                              </span>
-                                            </span>
-                                          </li>
-                                        ),
-                                      )}
-                                    </ul>
-                                  </div>
-                                ) : null}
-                                {inventoryLinkedOnly(linked).length > 0 ? (
-                                  <div className="prod-integrate prod-integrate-view">
-                                    <ul
-                                      className="prod-integrate-list"
-                                      aria-label="Inventory on step"
-                                    >
-                                      {inventoryLinkedOnly(linked).map(
-                                        (unit) => {
-                                          const planned =
-                                            stepInventoryQtyMap(step, units)[
-                                              unit.id
-                                            ] ?? 1
-                                          const drawn =
-                                            step.consumedInventoryQty?.[
-                                              unit.id
-                                            ] ?? 0
-                                          return (
-                                          <li key={unit.id}>
-                                            <span>
-                                              {onOpenInventory ? (
-                                                <button
-                                                  type="button"
-                                                  className="hw-parts-name-btn"
-                                                  onClick={() =>
-                                                    onOpenInventory(unit.id)
-                                                  }
-                                                >
-                                                  {unit.name}
-                                                </button>
-                                              ) : (
-                                                <strong>{unit.name}</strong>
-                                              )}
-                                              <span className="simple-muted">
-                                                {' '}
-                                                ·{' '}
-                                                {
-                                                  HARDWARE_KIND_LABELS[
-                                                    unit.kind
-                                                  ]
-                                                }
-                                                {` · use ${planned}`}
-                                                {drawn > 0
-                                                  ? ` · drawn ${drawn}`
-                                                  : ''}
-                                              </span>
-                                            </span>
-                                          </li>
-                                          )
-                                        },
-                                      )}
-                                    </ul>
-                                  </div>
-                                ) : null}
-                              </>
-                            )}
+                            ) : null}
                           </>
                         )}
                       </li>
@@ -1469,14 +1374,6 @@ export function VehicleProcessPage({
 
 function shortName(name: string) {
   return name.replace(/\s+production\s*$/i, '').trim() || name
-}
-
-function hardwareLinkedOnly(linked: HardwareUnit[]) {
-  return linked.filter((u) => isSystemKind(u.kind))
-}
-
-function inventoryLinkedOnly(linked: HardwareUnit[]) {
-  return linked.filter((u) => isInventoryKind(u.kind))
 }
 
 function processGlanceStatus(process: VehicleProcess): ProcessStepStatus {
