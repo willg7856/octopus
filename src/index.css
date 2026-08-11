@@ -5720,6 +5720,43 @@ button.simple-list-row {
   font-size: 0.82rem;
 }
 
+.prod-integrate {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.prod-integrate-btn {
+  justify-self: start;
+  min-height: 2.15rem;
+}
+
+.prod-integrate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.prod-integrate-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  font-size: 0.9rem;
+}
+
+.prod-integrate-picker {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .prod-status-row {
   display: flex;
   flex-wrap: wrap;
