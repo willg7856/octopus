@@ -271,6 +271,16 @@ export interface VehicleProcessStep {
   status: ProcessStepStatus
   /** Hardware and/or inventory units this step touches */
   linkedUnitIds?: string[]
+  /**
+   * Planned inventory qty on this step (from Use inventory).
+   * Soft until the step is marked done, then drawn from on-hand.
+   */
+  linkedInventoryQty?: Record<string, number>
+  /**
+   * Qty already drawn from stock when this step was marked done.
+   * Restored if the step leaves Done.
+   */
+  consumedInventoryQty?: Record<string, number>
   blockedReason?: string
   completedAt?: string
   completedBy?: string
@@ -286,13 +296,14 @@ export interface VehicleProcess {
   notes?: string
   /**
    * Inventory parts / tools / materials for this production overall.
-   * Linking does not change stock quantities.
+   * Soft planning link — on-hand stock is drawn when a step that uses
+   * the item is marked Done (see step `consumedInventoryQty`).
    * Prefer `linkedInventoryQty` when quantities matter; ids stay in sync.
    */
   linkedInventoryIds?: string[]
   /**
    * Qty of each inventory material for this production (unitId → count).
-   * Soft link only — does not decrement stock.
+   * Soft planning link until a using step is marked Done.
    */
   linkedInventoryQty?: Record<string, number>
   /**

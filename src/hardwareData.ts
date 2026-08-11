@@ -769,3 +769,164 @@ export function clearHardwareLinksToInventory(
     }
   })
 }
+
+/** Planned inventory qty on a production step (defaults linked inventory ids to 1). */
+export function stepInventoryQtyMap(
+  step: Pick<VehicleProcessStep, 'linkedUnitIds' | 'linkedInventoryQty'>,
+  units: HardwareUnit[],
+): Record<string, number> {
+  const linked = new Set(step.linkedUnitIds ?? [])
+  const out: Record<string, number> = {}
+  if (step.linkedInventoryQty) {
+    for (const [id, raw] of Object.entries(step.linkedInventoryQty)) {
+      if (!linked.has(id)) continue
+      const n = Math.floor(Number(raw))
+      if (!id || !Number.isFinite(n) || n <= 0) continue
+      const unit = units.find((u) => u.id === id)
+      if (unit && isInventoryKind(unit.kind)) out[id] = n
+    }
+  }
+  for (const id of linked) {
+    if (out[id]) continue
+    const unit = units.find((u) => u.id === id)
+    if (unit && isInventoryKind(unit.kind)) out[id] = 1
+  }
+  return out
+}
+
+/**
+ * Decrease on-hand inventory qty (production step Done).
+ * Refuses items reserved/installed on hardware.
+ */
+export function drawInventoryStock(
+  units: HardwareUnit[],
+  inventoryId: string,
+  drawQty: number,
+  now = new Date().toISOString(),
+): { units: HardwareUnit[]; error?: string } {
+  const item = units.find((u) => u.id === inventoryId)
+  if (!item || !isInventoryKind(item.kind)) {
+    return { units, error: 'Inventory item not found' }
+  }
+  if (item.installedOnUnitId) {
+    const other = units.find((u) => u.id === item.installedOnUnitId)
+    return {
+      units,
+      error: `${item.name} is reserved on ${other?.name ?? 'another unit'} — return it first`,
+    }
+  }
+  const qty = Math.floor(Number(drawQty))
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return { units, error: 'Enter a quantity to draw' }
+  }
+  const onHand = unitQuantity(item)
+  if (qty > onHand) {
+    return {
+      units,
+      error:
+        onHand <= 0
+          ? `Nothing on hand for ${item.name}`
+          : `Only ${onHand} on hand for ${item.name}`,
+    }
+  }
+  const remaining = onHand - qty
+  const stockStatus = applyInventoryStockRules(
+    stockStatusOf(item),
+    remaining,
+    item.minQty,
+  )
+  return {
+    units: units.map((u) =>
+      u.id === inventoryId
+        ? {
+            ...u,
+            quantity: remaining,
+            stockStatus,
+            status: hardwareStatusForStock(stockStatus),
+            updatedAt: now,
+          }
+        : u,
+    ),
+  }
+}
+
+/** Restore on-hand inventory qty (undo production step Done). */
+export function restockInventory(
+  units: HardwareUnit[],
+  inventoryId: string,
+  addQty: number,
+  now = new Date().toISOString(),
+): { units: HardwareUnit[]; error?: string } {
+  const item = units.find((u) => u.id === inventoryId)
+  if (!item || !isInventoryKind(item.kind)) {
+    return { units, error: 'Inventory item not found' }
+  }
+  const qty = Math.floor(Number(addQty))
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return { units, error: 'Enter a quantity to restock' }
+  }
+  // Reserved whole-line installs keep their qty; don't bump while reserved.
+  if (item.installedOnUnitId) {
+    return { units }
+  }
+  const nextQty = unitQuantity(item) + qty
+  const stockStatus = applyInventoryStockRules(
+    stockStatusOf(item) === 'reserved' ? 'in-stock' : stockStatusOf(item),
+    nextQty,
+    item.minQty,
+  )
+  return {
+    units: units.map((u) =>
+      u.id === inventoryId
+        ? {
+            ...u,
+            quantity: nextQty,
+            stockStatus,
+            status: hardwareStatusForStock(stockStatus),
+            updatedAt: now,
+          }
+        : u,
+    ),
+  }
+}
+
+/** Draw all planned inventory for a step becoming Done. */
+export function drawInventoryForStepDone(
+  units: HardwareUnit[],
+  step: VehicleProcessStep,
+  now = new Date().toISOString(),
+): {
+  units: HardwareUnit[]
+  consumed: Record<string, number>
+  error?: string
+} {
+  const planned = stepInventoryQtyMap(step, units)
+  const already = step.consumedInventoryQty ?? {}
+  let next = units
+  const consumed: Record<string, number> = { ...already }
+  for (const [id, raw] of Object.entries(planned)) {
+    const need = Math.max(0, raw - (already[id] ?? 0))
+    if (need <= 0) continue
+    const result = drawInventoryStock(next, id, need, now)
+    if (result.error) return { units, consumed: already, error: result.error }
+    next = result.units
+    consumed[id] = (consumed[id] ?? 0) + need
+  }
+  return { units: next, consumed }
+}
+
+/** Restock inventory previously drawn when a step leaves Done. */
+export function restockInventoryForStepUndo(
+  units: HardwareUnit[],
+  consumed: Record<string, number> | undefined,
+  now = new Date().toISOString(),
+): HardwareUnit[] {
+  if (!consumed) return units
+  let next = units
+  for (const [id, raw] of Object.entries(consumed)) {
+    const qty = Math.floor(Number(raw))
+    if (!id || !Number.isFinite(qty) || qty <= 0) continue
+    next = restockInventory(next, id, qty, now).units
+  }
+  return next
+}

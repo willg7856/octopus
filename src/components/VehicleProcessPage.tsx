@@ -11,15 +11,18 @@ import {
 import {
   HARDWARE_KIND_LABELS,
   PROCESS_STEP_STATUS_LABELS,
+  drawInventoryForStepDone,
   formatProcessDate,
   isInventoryKind,
   isProductionDeadlineOverdue,
   isSystemKind,
   newId,
   processCompletion,
+  restockInventoryForStepUndo,
   sortProcessSteps,
   sortProcesses,
   sortUnits,
+  stepInventoryQtyMap,
   unitQuantity,
 } from '../hardwareData'
 import type {
@@ -61,6 +64,7 @@ export function VehicleProcessPage({
     stepId: string
     mode: 'hardware' | 'inventory'
   } | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<AttentionFilter>('all')
   const [mobileMode, setMobileMode] = useState<'list' | 'detail'>(() =>
@@ -160,25 +164,44 @@ export function VehicleProcessPage({
     status: ProcessStepStatus,
     blockedReason?: string,
   ) {
+    const process = lab.processes.find((p) => p.id === processId)
+    const step = process?.steps.find((s) => s.id === stepId)
+    if (!process || !step) return
+
+    const enteringDone = status === 'done' && step.status !== 'done'
+    const leavingDone = step.status === 'done' && status !== 'done'
+    const plannedDraw =
+      enteringDone ? stepInventoryQtyMap(step, lab.units) : {}
+    const willDraw = Object.keys(plannedDraw).length > 0
+    const willRestock = leavingDone && Boolean(step.consumedInventoryQty)
+    const toastMsg = willDraw
+      ? 'Step done · stock drawn'
+      : willRestock
+        ? 'Returned to stock'
+        : ''
+
     const now = new Date().toISOString()
+    let drawError: string | null = null
     void store.commit((prev) => {
-      const process = prev.processes.find((p) => p.id === processId)
-      const step = process?.steps.find((s) => s.id === stepId)
-      if (!process || !step) return prev
+      const processNow = prev.processes.find((p) => p.id === processId)
+      const stepNow = processNow?.steps.find((s) => s.id === stepId)
+      if (!processNow || !stepNow) return prev
       // Re-clicking the current status should not re-save / flicker.
       if (
-        step.status === status &&
+        stepNow.status === status &&
         (status !== 'blocked' || blockedReason === undefined)
       ) {
         return prev
       }
 
-      const wasDone = step.status === 'done' || step.status === 'skipped'
+      const wasDone = stepNow.status === 'done' || stepNow.status === 'skipped'
       const becomingDone = status === 'done' || status === 'skipped'
+      const enteringDoneNow = status === 'done' && stepNow.status !== 'done'
+      const leavingDoneNow = stepNow.status === 'done' && status !== 'done'
 
       let progress = prev.progress
       if (becomingDone && !wasDone) {
-        const linkedHardware = (step.linkedUnitIds ?? [])
+        const linkedHardware = (stepNow.linkedUnitIds ?? [])
           .map((id) => prev.units.find((u) => u.id === id))
           .filter((u): u is NonNullable<typeof u> =>
             Boolean(u && isSystemKind(u.kind)),
@@ -190,15 +213,42 @@ export function VehicleProcessPage({
             unitId: unit.id,
             date,
             status: unit.status,
-            note: `Integrated on ${process.name} · ${step.title}`,
+            note: `Integrated on ${processNow.name} · ${stepNow.title}`,
             author: user?.name,
           }))
           progress = [...notes, ...prev.progress]
         }
       }
 
+      let nextUnits = prev.units
+      let consumedInventoryQty = stepNow.consumedInventoryQty
+
+      if (enteringDoneNow) {
+        const planned = stepInventoryQtyMap(stepNow, prev.units)
+        if (Object.keys(planned).length > 0) {
+          const drawn = drawInventoryForStepDone(prev.units, stepNow, now)
+          if (drawn.error) {
+            drawError = drawn.error
+            return prev
+          }
+          nextUnits = drawn.units
+          consumedInventoryQty =
+            Object.keys(drawn.consumed).length > 0
+              ? drawn.consumed
+              : undefined
+        }
+      } else if (leavingDoneNow && stepNow.consumedInventoryQty) {
+        nextUnits = restockInventoryForStepUndo(
+          prev.units,
+          stepNow.consumedInventoryQty,
+          now,
+        )
+        consumedInventoryQty = undefined
+      }
+
       return {
         ...prev,
+        units: nextUnits,
         progress,
         processes: prev.processes.map((p) => {
           if (p.id !== processId) return p
@@ -217,6 +267,11 @@ export function VehicleProcessPage({
                     status === 'blocked'
                       ? (blockedReason ?? s.blockedReason)
                       : undefined,
+                  consumedInventoryQty: enteringDoneNow
+                    ? consumedInventoryQty
+                    : leavingDoneNow
+                      ? undefined
+                      : s.consumedInventoryQty,
                 }
               }
               // Timeline: only one active step at a time on a production.
@@ -232,7 +287,10 @@ export function VehicleProcessPage({
           }
         }),
       }
-    }, '')
+    }, toastMsg).then(() => {
+      if (drawError) setActionError(drawError)
+      else setActionError(null)
+    })
   }
 
   function setBlockedReason(processId: string, stepId: string, reason: string) {
@@ -462,8 +520,15 @@ export function VehicleProcessPage({
             steps: p.steps.map((s) => {
               if (s.id !== stepId) return s
               const linked = s.linkedUnitIds ?? []
-              if (linked.includes(inventoryId)) return s
-              return { ...s, linkedUnitIds: [...linked, inventoryId] }
+              const stepQty = { ...(s.linkedInventoryQty ?? {}) }
+              stepQty[inventoryId] = (stepQty[inventoryId] ?? 0) + qty
+              return {
+                ...s,
+                linkedUnitIds: linked.includes(inventoryId)
+                  ? linked
+                  : [...linked, inventoryId],
+                linkedInventoryQty: stepQty,
+              }
             }),
           }
         }),
@@ -484,16 +549,19 @@ export function VehicleProcessPage({
         return {
           ...p,
           updatedAt: now,
-          steps: p.steps.map((s) =>
-            s.id === stepId
-              ? {
-                  ...s,
-                  linkedUnitIds: (s.linkedUnitIds ?? []).filter(
-                    (id) => id !== unitId,
-                  ),
-                }
-              : s,
-          ),
+          steps: p.steps.map((s) => {
+            if (s.id !== stepId) return s
+            const nextQty = { ...(s.linkedInventoryQty ?? {}) }
+            delete nextQty[unitId]
+            return {
+              ...s,
+              linkedUnitIds: (s.linkedUnitIds ?? []).filter(
+                (id) => id !== unitId,
+              ),
+              linkedInventoryQty:
+                Object.keys(nextQty).length > 0 ? nextQty : undefined,
+            }
+          }),
         }
       }),
     }), 'Removed from step')
@@ -955,7 +1023,7 @@ export function VehicleProcessPage({
                         setProcessInventoryQty(selected.id, qty)
                       }
                       legend="Materials from inventory"
-                      hint="Search to add parts/tools. Add the same item again to increase qty — does not change stock."
+                      hint="Search to add parts/tools. Add the same item again to increase qty. Stock draws when a step using the item is marked Done."
                     />
                   </div>
                 ) : (
@@ -1316,7 +1384,16 @@ export function VehicleProcessPage({
                                       aria-label="Inventory on step"
                                     >
                                       {inventoryLinkedOnly(linked).map(
-                                        (unit) => (
+                                        (unit) => {
+                                          const planned =
+                                            stepInventoryQtyMap(step, units)[
+                                              unit.id
+                                            ] ?? 1
+                                          const drawn =
+                                            step.consumedInventoryQty?.[
+                                              unit.id
+                                            ] ?? 0
+                                          return (
                                           <li key={unit.id}>
                                             <span>
                                               {onOpenInventory ? (
@@ -1340,10 +1417,15 @@ export function VehicleProcessPage({
                                                     unit.kind
                                                   ]
                                                 }
+                                                {` · use ${planned}`}
+                                                {drawn > 0
+                                                  ? ` · drawn ${drawn}`
+                                                  : ''}
                                               </span>
                                             </span>
                                           </li>
-                                        ),
+                                          )
+                                        },
                                       )}
                                     </ul>
                                   </div>
@@ -1370,6 +1452,11 @@ export function VehicleProcessPage({
         </div>
       )}
 
+      {actionError ? (
+        <div className="toast toast-error" role="alert">
+          {actionError}
+        </div>
+      ) : null}
       {toast ? (
         <div className="toast" role="status">
           {toast}
@@ -1543,7 +1630,7 @@ function NewProductionForm({
         quantities={linkedInventoryQty}
         onQuantitiesChange={setLinkedInventoryQty}
         legend="Materials from inventory"
-        hint="Optional. Search to add — add again to increase qty. Does not change stock."
+        hint="Optional. Search to add — add again to increase qty. Stock draws when a step using the item is marked Done."
       />
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent">
@@ -1761,42 +1848,49 @@ function StepUseInventory({
   }, [inventoryUnits, q])
 
   const inventoryLinked = linked.filter((u) => isInventoryKind(u.kind))
+  const plannedQty = stepInventoryQtyMap(step, inventoryUnits)
+  const consumed = step.consumedInventoryQty ?? {}
   if (!open && inventoryLinked.length === 0) return null
 
   return (
     <div className="prod-integrate">
       {inventoryLinked.length > 0 ? (
         <ul className="prod-integrate-list" aria-label="Inventory on step">
-          {inventoryLinked.map((unit) => (
-            <li key={unit.id}>
-              <span>
-                {onOpenInventory ? (
-                  <button
-                    type="button"
-                    className="hw-parts-name-btn"
-                    onClick={() => onOpenInventory(unit.id)}
-                  >
-                    {unit.name}
-                  </button>
-                ) : (
-                  <strong>{unit.name}</strong>
-                )}
-                <span className="simple-muted">
-                  {' '}
-                  · {HARDWARE_KIND_LABELS[unit.kind]} · {unitQuantity(unit)} on
-                  hand
+          {inventoryLinked.map((unit) => {
+            const planned = plannedQty[unit.id] ?? 1
+            const drawn = consumed[unit.id] ?? 0
+            return (
+              <li key={unit.id}>
+                <span>
+                  {onOpenInventory ? (
+                    <button
+                      type="button"
+                      className="hw-parts-name-btn"
+                      onClick={() => onOpenInventory(unit.id)}
+                    >
+                      {unit.name}
+                    </button>
+                  ) : (
+                    <strong>{unit.name}</strong>
+                  )}
+                  <span className="simple-muted">
+                    {' '}
+                    · {HARDWARE_KIND_LABELS[unit.kind]} · use {planned}
+                    {drawn > 0 ? ` · drawn ${drawn}` : ''} ·{' '}
+                    {unitQuantity(unit)} on hand
+                  </span>
                 </span>
-              </span>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                disabled={disabled}
-                onClick={() => onRemove(unit.id)}
-              >
-                Remove
-              </button>
-            </li>
-          ))}
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={disabled}
+                  onClick={() => onRemove(unit.id)}
+                >
+                  Remove
+                </button>
+              </li>
+            )
+          })}
         </ul>
       ) : null}
 
@@ -1849,7 +1943,8 @@ function StepUseInventory({
           ) : (
             <p className="simple-muted hw-link-search-hint">
               Type to find stock, then Use — links it to this step and adds it
-              to production materials. Does not change on-hand qty.
+              to production materials. On-hand qty drops when this step is marked
+              Done.
             </p>
           )}
         </div>
@@ -1915,7 +2010,7 @@ function EditStepForm({
         includeHardware
         disabled={disabled}
         legend="Linked hardware & inventory"
-        hint="Optional per-step links. Does not change stock qty."
+        hint="Optional per-step links. Inventory on-hand drops when the step is marked Done."
       />
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent" disabled={disabled}>

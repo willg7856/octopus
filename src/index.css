@@ -2137,6 +2137,11 @@ button {
   animation: rise 0.3s var(--ease);
 }
 
+.toast-error {
+  background: color-mix(in srgb, var(--telem-red) 88%, var(--ink-900));
+  color: #fff;
+}
+
 .confirm-backdrop {
   position: fixed;
   inset: 0;
