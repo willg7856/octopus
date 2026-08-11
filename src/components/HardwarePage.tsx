@@ -4,11 +4,16 @@ import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
 import { SyncStatusBanners } from './SyncStatusBanners'
 import {
+  InventoryLinkPicker,
+  linkedInventoryNames,
+} from './InventoryLinkPicker'
+import {
   HARDWARE_KIND_LABELS,
   HARDWARE_STATUS_LABELS,
   SYSTEM_KINDS,
   TEST_KIND_LABELS,
   TEST_RESULT_LABELS,
+  isInventoryKind,
   isSystemKind,
   newId,
   sortProgress,
@@ -73,6 +78,10 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
 
   const units = useMemo(
     () => sortUnits(lab.units.filter((u) => isSystemKind(u.kind))),
+    [lab.units],
+  )
+  const inventoryUnits = useMemo(
+    () => sortUnits(lab.units.filter((u) => isInventoryKind(u.kind))),
     [lab.units],
   )
   const unitNameById = useMemo(() => {
@@ -320,6 +329,9 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
           .filter((p) => p.vehicleUnitId !== id)
           .map((p) => ({
             ...p,
+            linkedInventoryIds: (p.linkedInventoryIds ?? []).filter(
+              (uid) => uid !== id,
+            ),
             steps: p.steps.map((s) => ({
               ...s,
               linkedUnitIds: (s.linkedUnitIds ?? []).filter((uid) => uid !== id),
@@ -460,6 +472,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                 key="new"
                 submitLabel="Add"
                 parentCandidates={units}
+                inventoryCandidates={inventoryUnits}
                 onCancel={() => {
                   setAdding(false)
                   setMobileMode('list')
@@ -473,6 +486,7 @@ export function HardwarePage({ user }: { user: AuthUser | null }) {
                   initial={selected}
                   submitLabel="Save"
                   parentCandidates={units}
+                  inventoryCandidates={inventoryUnits}
                   onSave={saveUnit}
                   onDelete={() => removeUnit(selected.id)}
                 />
@@ -602,6 +616,7 @@ function fieldsFromUnit(unit?: HardwareUnit) {
     kind: (unit && isSystemKind(unit.kind) ? unit.kind : 'vehicle') as HardwareKind,
     status: (unit?.status ?? 'concept') as HardwareStatus,
     parentVehicleId: unit?.parentVehicleId ?? '',
+    linkedInventoryIds: unit?.linkedInventoryIds ?? [],
     location: unit?.location ?? '',
     hwRev: unit?.hwRev ?? '',
     fwVersion: unit?.fwVersion ?? '',
@@ -615,6 +630,7 @@ function SystemForm({
   initial,
   submitLabel,
   parentCandidates,
+  inventoryCandidates,
   onSave,
   onDelete,
   onCancel,
@@ -622,6 +638,7 @@ function SystemForm({
   initial?: HardwareUnit
   submitLabel: string
   parentCandidates: HardwareUnit[]
+  inventoryCandidates: HardwareUnit[]
   onSave: (unit: Omit<HardwareUnit, 'id' | 'updatedAt'> & { id?: string }) => void
   onDelete?: () => void
   onCancel?: () => void
@@ -635,6 +652,7 @@ function SystemForm({
     kind,
     status,
     parentVehicleId,
+    linkedInventoryIds,
     location,
     hwRev,
     fwVersion,
@@ -655,6 +673,7 @@ function SystemForm({
     initial?.kind,
     initial?.status,
     initial?.parentVehicleId,
+    initial?.linkedInventoryIds,
     initial?.location,
     initial?.hwRev,
     initial?.fwVersion,
@@ -701,6 +720,8 @@ function SystemForm({
       kind,
       status,
       parentVehicleId: parentVehicleId || undefined,
+      linkedInventoryIds:
+        linkedInventoryIds.length > 0 ? linkedInventoryIds : undefined,
       location: location.trim() || undefined,
       quantity: 1,
       hwRev: hwRev.trim() || '—',
@@ -712,6 +733,11 @@ function SystemForm({
     })
     if (!isNew) setEditing(false)
   }
+
+  const partNames = linkedInventoryNames(
+    editing ? linkedInventoryIds : initial?.linkedInventoryIds,
+    inventoryCandidates,
+  )
 
   const showImportantBanner = Boolean(
     (editing ? notesImportant && notes.trim() : initial?.notesImportant && initial?.notes?.trim()),
@@ -874,6 +900,20 @@ function SystemForm({
           />
           Flag notes as important
         </label>
+        {editing ? (
+          <InventoryLinkPicker
+            units={inventoryCandidates}
+            selectedIds={linkedInventoryIds}
+            onChange={(ids) => setField('linkedInventoryIds', ids)}
+            legend="Parts from inventory"
+          />
+        ) : (
+          <p className="simple-muted hw-parts-summary">
+            {partNames.length > 0
+              ? `Uses: ${partNames.join(', ')}`
+              : 'No inventory parts linked.'}
+          </p>
+        )}
       </fieldset>
       <div className="simple-form-actions">
         {editing ? (
@@ -999,7 +1039,10 @@ function HardwareTreeNodes({
           <strong>{unit.name}</strong>
           <span className="simple-muted">
             {unit.serial} · {HARDWARE_KIND_LABELS[unit.kind]}
-            {children.length > 0 ? ` · ${children.length} linked` : ''}
+            {children.length > 0 ? ` · ${children.length} nested` : ''}
+            {(unit.linkedInventoryIds?.length ?? 0) > 0
+              ? ` · ${unit.linkedInventoryIds!.length} parts`
+              : ''}
             {unit.notesImportant && unit.notes?.trim() ? (
               <>
                 {' · '}

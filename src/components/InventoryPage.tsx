@@ -405,7 +405,14 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
     void store.commit(
       (prev) => ({
         ...prev,
-        units: prev.units.filter((u) => u.id !== id),
+        units: prev.units
+          .filter((u) => u.id !== id)
+          .map((u) => ({
+            ...u,
+            linkedInventoryIds: (u.linkedInventoryIds ?? []).filter(
+              (uid) => uid !== id,
+            ),
+          })),
         progress: prev.progress.filter((p) => p.unitId !== id),
         tests: prev.tests.map((t) => ({
           ...t,
@@ -413,6 +420,9 @@ export function InventoryPage({ user }: { user: AuthUser | null }) {
         })),
         processes: prev.processes.map((p) => ({
           ...p,
+          linkedInventoryIds: (p.linkedInventoryIds ?? []).filter(
+            (uid) => uid !== id,
+          ),
           steps: p.steps.map((s) => ({
             ...s,
             linkedUnitIds: (s.linkedUnitIds ?? []).filter((uid) => uid !== id),

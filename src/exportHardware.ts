@@ -51,7 +51,7 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
     `# exported,${new Date().toISOString()}`,
     '',
     '## hardware_units',
-    'id,name,kind,serial,part_number,qty_on_hand,qty_on_order,unit_price_aud,min_qty,hw_rev,fw_version,status,stock_status,order_url,ordered_at,expected_at,program,parent_unit_id,parent_unit_name,location,owner,notes,notes_important,updated_at',
+    'id,name,kind,serial,part_number,qty_on_hand,qty_on_order,unit_price_aud,min_qty,hw_rev,fw_version,status,stock_status,order_url,ordered_at,expected_at,program,parent_unit_id,parent_unit_name,location,owner,notes,notes_important,linked_inventory,updated_at',
     ...units.map((u) =>
       [
         u.id,
@@ -77,6 +77,7 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
         csvEscape(u.owner ?? ''),
         csvEscape(u.notes ?? ''),
         u.notesImportant ? 'yes' : '',
+        csvEscape((u.linkedInventoryIds ?? []).map(unitName).join('|')),
         u.updatedAt,
       ].join(','),
     ),
@@ -119,28 +120,51 @@ function buildCsv({ units, progress, tests, processes = [] }: ExportInput) {
     }),
     '',
     '## vehicle_processes',
-    'process_id,process_name,campaign,vehicle_unit_id,vehicle_name,step_order,step_title,step_status,step_owner,linked_units,blocked_reason,completed_at,completed_by',
-    ...processes.flatMap((proc) =>
-      [...proc.steps]
-        .sort((a, b) => a.order - b.order)
-        .map((step) =>
+    'process_id,process_name,campaign,vehicle_unit_id,vehicle_name,materials,step_order,step_title,step_status,step_owner,linked_units,blocked_reason,completed_at,completed_by',
+    ...processes.flatMap((proc) => {
+      const materials = csvEscape(
+        (proc.linkedInventoryIds ?? []).map(unitName).join('|'),
+      )
+      const sorted = [...proc.steps].sort((a, b) => a.order - b.order)
+      if (sorted.length === 0) {
+        return [
           [
             proc.id,
             csvEscape(proc.name),
             csvEscape(proc.campaign ?? ''),
             proc.vehicleUnitId,
             csvEscape(unitName(proc.vehicleUnitId)),
-            String(step.order),
-            csvEscape(step.title),
-            PROCESS_STEP_STATUS_LABELS[step.status],
-            csvEscape(step.owner ?? ''),
-            csvEscape((step.linkedUnitIds ?? []).map(unitName).join('|')),
-            csvEscape(step.blockedReason ?? ''),
-            step.completedAt ?? '',
-            csvEscape(step.completedBy ?? ''),
+            materials,
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
           ].join(','),
-        ),
-    ),
+        ]
+      }
+      return sorted.map((step) =>
+        [
+          proc.id,
+          csvEscape(proc.name),
+          csvEscape(proc.campaign ?? ''),
+          proc.vehicleUnitId,
+          csvEscape(unitName(proc.vehicleUnitId)),
+          materials,
+          String(step.order),
+          csvEscape(step.title),
+          PROCESS_STEP_STATUS_LABELS[step.status],
+          csvEscape(step.owner ?? ''),
+          csvEscape((step.linkedUnitIds ?? []).map(unitName).join('|')),
+          csvEscape(step.blockedReason ?? ''),
+          step.completedAt ?? '',
+          csvEscape(step.completedBy ?? ''),
+        ].join(','),
+      )
+    }),
   ]
 
   return lines.join('\n')

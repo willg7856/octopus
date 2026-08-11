@@ -4,6 +4,10 @@ import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
 import { SyncStatusBanners } from './SyncStatusBanners'
 import {
+  InventoryLinkPicker,
+  linkedInventoryNames,
+} from './InventoryLinkPicker'
+import {
   HARDWARE_KIND_LABELS,
   PROCESS_STEP_STATUS_LABELS,
   isInventoryKind,
@@ -42,13 +46,13 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     () => units.filter((u) => isSystemKind(u.kind)),
     [units],
   )
+  const inventoryUnits = useMemo(
+    () => units.filter((u) => isInventoryKind(u.kind)),
+    [units],
+  )
   const linkableUnits = useMemo(
-    () =>
-      sortUnits([
-        ...systemUnits,
-        ...units.filter((u) => isInventoryKind(u.kind)),
-      ]),
-    [units, systemUnits],
+    () => sortUnits([...systemUnits, ...inventoryUnits]),
+    [systemUnits, inventoryUnits],
   )
   const processes = useMemo(() => sortProcesses(lab.processes), [lab.processes])
   const unitNameById = useMemo(() => {
@@ -155,6 +159,23 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     }), 'Vehicle linked')
   }
 
+  function setProcessInventory(processId: string, linkedInventoryIds: string[]) {
+    const now = new Date().toISOString()
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) =>
+        p.id === processId
+          ? {
+              ...p,
+              linkedInventoryIds:
+                linkedInventoryIds.length > 0 ? linkedInventoryIds : undefined,
+              updatedAt: now,
+            }
+          : p,
+      ),
+    }), 'Materials updated')
+  }
+
   function addStep(processId: string, title: string) {
     if (!title.trim()) return
     const now = new Date().toISOString()
@@ -169,7 +190,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
           title: title.trim(),
           owner: user?.name,
           status: 'pending',
-          linkedUnitIds: [p.vehicleUnitId],
+          linkedUnitIds: [],
         }
         return { ...p, updatedAt: now, steps: [...p.steps, step] }
       }),
@@ -250,19 +271,33 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
     }, 'Steps reordered')
   }
 
-  function createProduction(input: { name: string; vehicleName?: string }) {
+  function createProduction(input: {
+    name: string
+    vehicleUnitId?: string
+    vehicleName?: string
+    linkedInventoryIds?: string[]
+  }) {
     const now = new Date().toISOString()
     const wanted = (input.vehicleName || input.name)
       .replace(/\s+production\s*$/i, '')
       .trim()
     const processId = newId('proc')
+    const materials =
+      input.linkedInventoryIds && input.linkedInventoryIds.length > 0
+        ? input.linkedInventoryIds
+        : undefined
 
     void store.commit((prev) => {
       let nextUnits = prev.units
-      let vehicle = nextUnits.find(
-        (u) =>
-          u.kind === 'vehicle' && u.name.toLowerCase() === wanted.toLowerCase(),
-      )
+      let vehicle =
+        (input.vehicleUnitId
+          ? nextUnits.find((u) => u.id === input.vehicleUnitId)
+          : undefined) ??
+        nextUnits.find(
+          (u) =>
+            u.kind === 'vehicle' &&
+            u.name.toLowerCase() === wanted.toLowerCase(),
+        )
 
       if (!vehicle) {
         vehicle = {
@@ -285,6 +320,7 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
         id: processId,
         vehicleUnitId: vehicle.id,
         name: input.name.trim(),
+        linkedInventoryIds: materials,
         updatedAt: now,
         steps: [],
       }
@@ -325,6 +361,9 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
       : 0
   const activeStep = steps.find((s) => s.status === 'active')
   const blockedCount = steps.filter((s) => s.status === 'blocked').length
+  const selectedMaterials = selected
+    ? linkedInventoryNames(selected.linkedInventoryIds, units)
+    : []
 
   return (
     <main className="simple-page" aria-label="Vehicle production">
@@ -430,6 +469,8 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
             </button>
             {creating ? (
               <NewProductionForm
+                vehicles={systemUnits}
+                inventory={inventoryUnits}
                 onCreate={createProduction}
                 onCancel={backToList}
               />
@@ -469,22 +510,37 @@ export function VehicleProcessPage({ user }: { user: AuthUser | null }) {
                 </div>
 
                 {editingSteps ? (
-                  <label className="simple-form" style={{ maxWidth: '28rem' }}>
-                    Linked Hardware vehicle
-                    <select
-                      value={selected.vehicleUnitId}
-                      onChange={(e) =>
-                        setVehicleUnit(selected.id, e.target.value)
-                      }
-                    >
-                      {systemUnits.map((unit) => (
-                        <option key={unit.id} value={unit.id}>
-                          {unit.name} ({HARDWARE_KIND_LABELS[unit.kind]})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
+                  <div className="prod-edit-meta">
+                    <label className="simple-form" style={{ maxWidth: '28rem' }}>
+                      Linked Hardware vehicle
+                      <select
+                        value={selected.vehicleUnitId}
+                        onChange={(e) =>
+                          setVehicleUnit(selected.id, e.target.value)
+                        }
+                      >
+                        {systemUnits.map((unit) => (
+                          <option key={unit.id} value={unit.id}>
+                            {unit.name} ({HARDWARE_KIND_LABELS[unit.kind]})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <InventoryLinkPicker
+                      units={inventoryUnits}
+                      selectedIds={selected.linkedInventoryIds ?? []}
+                      onChange={(ids) => setProcessInventory(selected.id, ids)}
+                      legend="Materials from inventory"
+                      hint="Parts and tools for this production overall. Linking does not change stock qty."
+                    />
+                  </div>
+                ) : (
+                  <p className="simple-muted prod-materials-summary">
+                    {selectedMaterials.length > 0
+                      ? `Materials: ${selectedMaterials.join(', ')}`
+                      : 'No inventory materials linked — Edit steps to add some.'}
+                  </p>
+                )}
 
                 {completion && completion.total > 0 ? (
                   <div className="prod-progress" aria-hidden="true">
@@ -722,14 +778,25 @@ function formatWhen(iso: string) {
 }
 
 function NewProductionForm({
+  vehicles,
+  inventory,
   onCreate,
   onCancel,
 }: {
-  onCreate: (input: { name: string; vehicleName?: string }) => void
+  vehicles: HardwareUnit[]
+  inventory: HardwareUnit[]
+  onCreate: (input: {
+    name: string
+    vehicleUnitId?: string
+    vehicleName?: string
+    linkedInventoryIds?: string[]
+  }) => void
   onCancel: () => void
 }) {
   const [name, setName] = useState('')
+  const [vehicleUnitId, setVehicleUnitId] = useState('')
   const [vehicleName, setVehicleName] = useState('')
+  const [linkedInventoryIds, setLinkedInventoryIds] = useState<string[]>([])
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -738,7 +805,9 @@ function NewProductionForm({
       name: name.trim().toLowerCase().endsWith('production')
         ? name.trim()
         : `${name.trim()} production`,
+      vehicleUnitId: vehicleUnitId || undefined,
       vehicleName: vehicleName.trim() || name.trim(),
+      linkedInventoryIds,
     })
   }
 
@@ -746,8 +815,8 @@ function NewProductionForm({
     <form className="simple-form prod-create" onSubmit={handleSubmit}>
       <h3>New vehicle production</h3>
       <p className="simple-muted">
-        Starts blank — add your own steps after creating. Creates a Hardware
-        vehicle if one doesn’t exist yet.
+        Starts blank — add steps after creating. Optionally pick materials from
+        inventory up front.
       </p>
       <label>
         Name
@@ -760,13 +829,36 @@ function NewProductionForm({
         />
       </label>
       <label>
-        Vehicle name
-        <input
-          value={vehicleName}
-          onChange={(e) => setVehicleName(e.target.value)}
-          placeholder="Same as name if blank"
-        />
+        Hardware vehicle
+        <select
+          value={vehicleUnitId}
+          onChange={(e) => setVehicleUnitId(e.target.value)}
+        >
+          <option value="">Create new from name below</option>
+          {vehicles.map((unit) => (
+            <option key={unit.id} value={unit.id}>
+              {unit.name} ({HARDWARE_KIND_LABELS[unit.kind]})
+            </option>
+          ))}
+        </select>
       </label>
+      {vehicleUnitId ? null : (
+        <label>
+          New vehicle name
+          <input
+            value={vehicleName}
+            onChange={(e) => setVehicleName(e.target.value)}
+            placeholder="Same as production name if blank"
+          />
+        </label>
+      )}
+      <InventoryLinkPicker
+        units={inventory}
+        selectedIds={linkedInventoryIds}
+        onChange={setLinkedInventoryIds}
+        legend="Materials from inventory"
+        hint="Optional. Track parts/tools for this production — does not change stock qty."
+      />
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent">
           Create tracker
@@ -802,12 +894,6 @@ function EditStepForm({
     step.linkedUnitIds ?? [],
   )
 
-  function toggleUnit(id: string) {
-    setLinkedUnitIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
-  }
-
   return (
     <form
       className="simple-form prod-edit-step"
@@ -835,32 +921,15 @@ function EditStepForm({
           disabled={disabled}
         />
       </label>
-      <fieldset>
-        <legend>Linked units</legend>
-        <div className="hw-link-units">
-          {units.length === 0 ? (
-            <span className="simple-muted">
-              No hardware or inventory units yet.
-            </span>
-          ) : (
-            units.map((unit) => (
-              <label key={unit.id}>
-                <input
-                  type="checkbox"
-                  checked={linkedUnitIds.includes(unit.id)}
-                  disabled={disabled}
-                  onChange={() => toggleUnit(unit.id)}
-                />
-                {unit.name}
-                <span className="simple-muted">
-                  {HARDWARE_KIND_LABELS[unit.kind]}
-                  {isInventoryKind(unit.kind) ? ' · inventory' : ''}
-                </span>
-              </label>
-            ))
-          )}
-        </div>
-      </fieldset>
+      <InventoryLinkPicker
+        units={units}
+        selectedIds={linkedUnitIds}
+        onChange={setLinkedUnitIds}
+        includeHardware
+        disabled={disabled}
+        legend="Linked hardware & inventory"
+        hint="Optional per-step links. Does not change stock qty."
+      />
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent" disabled={disabled}>
           Save

@@ -229,6 +229,11 @@ export interface HardwareUnit {
    * Field name kept for stored lab compatibility.
    */
   parentVehicleId?: string
+  /**
+   * Hardware: inventory part / tool / consumable ids this unit uses (BOM-style).
+   * Linking does not change stock quantities.
+   */
+  linkedInventoryIds?: string[]
   location?: string
   owner?: string
   notes?: string
@@ -252,7 +257,7 @@ export interface VehicleProcessStep {
   detail?: string
   owner?: string
   status: ProcessStepStatus
-  /** Inventory units this step touches */
+  /** Hardware and/or inventory units this step touches */
   linkedUnitIds?: string[]
   blockedReason?: string
   completedAt?: string
@@ -267,6 +272,11 @@ export interface VehicleProcess {
   name: string
   campaign?: string
   notes?: string
+  /**
+   * Inventory parts / tools / materials for this production overall.
+   * Linking does not change stock quantities.
+   */
+  linkedInventoryIds?: string[]
   steps: VehicleProcessStep[]
   updatedAt: string
 }
