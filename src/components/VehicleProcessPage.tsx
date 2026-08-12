@@ -1202,21 +1202,26 @@ export function VehicleProcessPage({
                   </div>
                 )}
 
+                {completion && completion.total > 0 ? (
+                  <div className="prod-progress" aria-hidden="true">
+                    <div className="prod-progress-bar">
+                      <span style={{ width: `${progressPct}%` }} />
+                    </div>
+                    <span className="prod-progress-label">
+                      {completion.done}/{completion.total} done · {progressPct}%
+                    </span>
+                  </div>
+                ) : null}
+
                 <section
                   className="prod-log-notes"
                   aria-label="General production notes"
                 >
                   <div className="prod-log-notes-head">
-                    <div>
-                      <h4>General production notes</h4>
-                      <p className="simple-muted">
-                        Run-wide floor updates. For step-specific notes, add
-                        them on the step below.
-                      </p>
-                    </div>
+                    <span className="prod-notes-label">General notes</span>
                     <button
                       type="button"
-                      className="btn btn-accent"
+                      className="btn btn-ghost"
                       disabled={!hasLoaded}
                       aria-pressed={addingLogNote}
                       onClick={() => {
@@ -1224,7 +1229,7 @@ export function VehicleProcessPage({
                         setAddingLogNote((v) => !v)
                       }}
                     >
-                      {addingLogNote ? 'Cancel' : 'Add production note'}
+                      {addingLogNote ? 'Cancel' : 'Add note'}
                     </button>
                   </div>
                   {addingLogNote ? (
@@ -1236,20 +1241,20 @@ export function VehicleProcessPage({
                       onCancel={() => setAddingLogNote(false)}
                     />
                   ) : null}
-                  {selectedLogNotes.length === 0 ? (
-                    <p className="simple-muted">
-                      No general notes yet — use this for handoffs and
-                      run-wide callouts.
+                  {selectedLogNotes.length === 0 && !addingLogNote ? (
+                    <p className="simple-muted prod-notes-empty">
+                      Run-wide floor updates. Step-specific notes live on each
+                      step.
                     </p>
-                  ) : (
+                  ) : selectedLogNotes.length > 0 ? (
                     <ul className="prod-log-notes-list">
                       {selectedLogNotes.map((note) => (
                         <li key={note.id}>
                           <div className="prod-log-note-main">
-                            <strong>
+                            <span className="prod-log-note-meta">
                               {formatLogWhen(note.at)}
                               {note.author ? ` · ${note.author}` : ''}
-                            </strong>
+                            </span>
                             <p>{note.text}</p>
                           </div>
                           <button
@@ -1268,19 +1273,8 @@ export function VehicleProcessPage({
                         </li>
                       ))}
                     </ul>
-                  )}
+                  ) : null}
                 </section>
-
-                {completion && completion.total > 0 ? (
-                  <div className="prod-progress" aria-hidden="true">
-                    <div className="prod-progress-bar">
-                      <span style={{ width: `${progressPct}%` }} />
-                    </div>
-                    <span className="prod-progress-label">
-                      {completion.done}/{completion.total} done · {progressPct}%
-                    </span>
-                  </div>
-                ) : null}
 
                 <ol className="simple-step-list">
                   {steps.map((step, index) => {
@@ -1685,28 +1679,26 @@ function AddProductionLogNoteForm({
         setText('')
       }}
     >
-      <label>
-        What happened?
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={
-            placeholder ??
-            'e.g. waited on torque wrench, swapped sensor after short…'
-          }
-          rows={3}
-          autoFocus
-          disabled={disabled}
-          required
-        />
-      </label>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={
+          placeholder ??
+          'e.g. waited on torque wrench, swapped sensor after short…'
+        }
+        rows={2}
+        aria-label="Note text"
+        autoFocus
+        disabled={disabled}
+        required
+      />
       <div className="simple-form-actions">
         <button
           type="submit"
           className="btn btn-accent"
           disabled={disabled || !text.trim()}
         >
-          Save note
+          Save
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel}>
           Cancel
@@ -1734,25 +1726,11 @@ function StepLogNotes({
   onRemove: (noteId: string) => void
 }) {
   const notes = sortProductionLogNotes(step.logNotes ?? [])
-  if (!open && notes.length === 0) {
-    return (
-      <div className="prod-step-notes">
-        <button
-          type="button"
-          className="btn btn-ghost"
-          disabled={disabled}
-          onClick={onToggle}
-        >
-          Add step note
-        </button>
-      </div>
-    )
-  }
 
   return (
     <div className="prod-step-notes" aria-label={`Notes on ${step.title}`}>
       <div className="prod-step-notes-head">
-        <span className="simple-muted">Step notes</span>
+        <span className="prod-notes-label">Step notes</span>
         <button
           type="button"
           className="btn btn-ghost"
@@ -1760,7 +1738,7 @@ function StepLogNotes({
           aria-pressed={open}
           onClick={onToggle}
         >
-          {open ? 'Cancel' : 'Add step note'}
+          {open ? 'Cancel' : 'Add note'}
         </button>
       </div>
       {open ? (
@@ -1772,14 +1750,14 @@ function StepLogNotes({
         />
       ) : null}
       {notes.length > 0 ? (
-        <ul className="prod-log-notes-list prod-step-notes-list">
+        <ul className="prod-log-notes-list">
           {notes.map((note) => (
             <li key={note.id}>
               <div className="prod-log-note-main">
-                <strong>
+                <span className="prod-log-note-meta">
                   {formatLogWhen(note.at)}
                   {note.author ? ` · ${note.author}` : ''}
-                </strong>
+                </span>
                 <p>{note.text}</p>
               </div>
               <button
@@ -1793,6 +1771,8 @@ function StepLogNotes({
             </li>
           ))}
         </ul>
+      ) : !open ? (
+        <p className="simple-muted prod-notes-empty">None yet</p>
       ) : null}
     </div>
   )
