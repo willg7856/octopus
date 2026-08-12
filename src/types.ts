@@ -264,6 +264,15 @@ export type ProcessStepStatus =
   | 'done'
   | 'skipped'
 
+/** Dated note logged during an active production (run-wide or on a step). */
+export interface ProductionLogNote {
+  id: string
+  /** ISO timestamp when the note was added */
+  at: string
+  text: string
+  author?: string
+}
+
 export interface VehicleProcessStep {
   id: string
   order: number
@@ -283,6 +292,10 @@ export interface VehicleProcessStep {
    * Restored if the step leaves Done.
    */
   consumedInventoryQty?: Record<string, number>
+  /**
+   * Chronological floor notes for this step while the production is running.
+   */
+  logNotes?: ProductionLogNote[]
   blockedReason?: string
   completedAt?: string
   completedBy?: string
@@ -328,15 +341,6 @@ export interface VehicleProcess {
   finishedAt?: string
   steps: VehicleProcessStep[]
   updatedAt: string
-}
-
-/** Dated note logged during an active production. */
-export interface ProductionLogNote {
-  id: string
-  /** ISO timestamp when the note was added */
-  at: string
-  text: string
-  author?: string
 }
 
 export interface HardwareProgressNote {

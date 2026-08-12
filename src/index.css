@@ -5375,6 +5375,31 @@ button.simple-list-row {
   line-height: 1.4;
 }
 
+.prod-step-notes {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.prod-step-notes-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.prod-step-notes-list {
+  margin-top: 0.15rem;
+}
+
+.prod-step-notes .btn {
+  justify-self: start;
+  min-height: 2.05rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.82rem;
+}
+
 .hw-parts {
   margin-top: 1.25rem;
   padding-top: 1rem;

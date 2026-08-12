@@ -68,6 +68,7 @@ export function VehicleProcessPage({
   } | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [addingLogNote, setAddingLogNote] = useState(false)
+  const [addingStepNoteId, setAddingStepNoteId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<AttentionFilter>('all')
   const [mobileMode, setMobileMode] = useState<'list' | 'detail'>(() =>
@@ -145,6 +146,7 @@ export function VehicleProcessPage({
     setEditingStepId(null)
     setStepAttach(null)
     setAddingLogNote(false)
+    setAddingStepNoteId(null)
     if (!isCreating) setEditingSteps(false)
     setMobileMode('detail')
   }
@@ -155,6 +157,7 @@ export function VehicleProcessPage({
     setEditingStepId(null)
     setStepAttach(null)
     setAddingLogNote(false)
+    setAddingStepNoteId(null)
     setMobileMode('list')
   }
 
@@ -393,6 +396,34 @@ export function VehicleProcessPage({
     setAddingLogNote(false)
   }
 
+  function addStepLogNote(processId: string, stepId: string, text: string) {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    const now = new Date().toISOString()
+    const entry: ProductionLogNote = {
+      id: newId('pn'),
+      at: now,
+      text: trimmed,
+      author: user?.name,
+    }
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) => {
+        if (p.id !== processId) return p
+        return {
+          ...p,
+          updatedAt: now,
+          steps: p.steps.map((s) =>
+            s.id === stepId
+              ? { ...s, logNotes: [entry, ...(s.logNotes ?? [])] }
+              : s,
+          ),
+        }
+      }),
+    }), 'Step note added')
+    setAddingStepNoteId(null)
+  }
+
   async function removeProductionLogNote(processId: string, noteId: string) {
     const process = lab.processes.find((p) => p.id === processId)
     const note = process?.logNotes?.find((n) => n.id === noteId)
@@ -412,6 +443,38 @@ export function VehicleProcessPage({
         }
       }),
     }), 'Production note deleted')
+  }
+
+  async function removeStepLogNote(
+    processId: string,
+    stepId: string,
+    noteId: string,
+  ) {
+    const process = lab.processes.find((p) => p.id === processId)
+    const step = process?.steps.find((s) => s.id === stepId)
+    const note = step?.logNotes?.find((n) => n.id === noteId)
+    if (!note) return
+    const ok = await confirm('Delete this step note?')
+    if (!ok) return
+    const now = new Date().toISOString()
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) => {
+        if (p.id !== processId) return p
+        return {
+          ...p,
+          updatedAt: now,
+          steps: p.steps.map((s) => {
+            if (s.id !== stepId) return s
+            const next = (s.logNotes ?? []).filter((n) => n.id !== noteId)
+            return {
+              ...s,
+              logNotes: next.length > 0 ? next : undefined,
+            }
+          }),
+        }
+      }),
+    }), 'Step note deleted')
   }
 
   function setProcessHardware(processId: string, linkedHardwareIds: string[]) {
@@ -1141,14 +1204,14 @@ export function VehicleProcessPage({
 
                 <section
                   className="prod-log-notes"
-                  aria-label="Production notes"
+                  aria-label="General production notes"
                 >
                   <div className="prod-log-notes-head">
                     <div>
-                      <h4>Production notes</h4>
+                      <h4>General production notes</h4>
                       <p className="simple-muted">
-                        What happened during the build — separate from planning
-                        notes above.
+                        Run-wide floor updates. For step-specific notes, add
+                        them on the step below.
                       </p>
                     </div>
                     <button
@@ -1156,7 +1219,10 @@ export function VehicleProcessPage({
                       className="btn btn-accent"
                       disabled={!hasLoaded}
                       aria-pressed={addingLogNote}
-                      onClick={() => setAddingLogNote((v) => !v)}
+                      onClick={() => {
+                        setAddingStepNoteId(null)
+                        setAddingLogNote((v) => !v)
+                      }}
                     >
                       {addingLogNote ? 'Cancel' : 'Add production note'}
                     </button>
@@ -1172,8 +1238,8 @@ export function VehicleProcessPage({
                   ) : null}
                   {selectedLogNotes.length === 0 ? (
                     <p className="simple-muted">
-                      No production notes yet — log floor updates as the build
-                      runs.
+                      No general notes yet — use this for handoffs and
+                      run-wide callouts.
                     </p>
                   ) : (
                     <ul className="prod-log-notes-list">
@@ -1447,6 +1513,29 @@ export function VehicleProcessPage({
                               </label>
                             ) : null}
 
+                            <StepLogNotes
+                              step={step}
+                              open={addingStepNoteId === step.id}
+                              disabled={!hasLoaded}
+                              onToggle={() => {
+                                setAddingLogNote(false)
+                                setAddingStepNoteId((cur) =>
+                                  cur === step.id ? null : step.id,
+                                )
+                              }}
+                              onAdd={(text) =>
+                                addStepLogNote(selected.id, step.id, text)
+                              }
+                              onCancel={() => setAddingStepNoteId(null)}
+                              onRemove={(noteId) =>
+                                void removeStepLogNote(
+                                  selected.id,
+                                  step.id,
+                                  noteId,
+                                )
+                              }
+                            />
+
                             {editingSteps ? (
                               <>
                                 <StepIntegrateHardware
@@ -1578,10 +1667,12 @@ function AddProductionLogNoteForm({
   onAdd,
   onCancel,
   disabled,
+  placeholder,
 }: {
   onAdd: (text: string) => void
   onCancel: () => void
   disabled?: boolean
+  placeholder?: string
 }) {
   const [text, setText] = useState('')
   return (
@@ -1599,7 +1690,10 @@ function AddProductionLogNoteForm({
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="e.g. waited on torque wrench, swapped sensor after short…"
+          placeholder={
+            placeholder ??
+            'e.g. waited on torque wrench, swapped sensor after short…'
+          }
           rows={3}
           autoFocus
           disabled={disabled}
@@ -1619,6 +1713,88 @@ function AddProductionLogNoteForm({
         </button>
       </div>
     </form>
+  )
+}
+
+function StepLogNotes({
+  step,
+  open,
+  disabled,
+  onToggle,
+  onAdd,
+  onCancel,
+  onRemove,
+}: {
+  step: VehicleProcessStep
+  open: boolean
+  disabled?: boolean
+  onToggle: () => void
+  onAdd: (text: string) => void
+  onCancel: () => void
+  onRemove: (noteId: string) => void
+}) {
+  const notes = sortProductionLogNotes(step.logNotes ?? [])
+  if (!open && notes.length === 0) {
+    return (
+      <div className="prod-step-notes">
+        <button
+          type="button"
+          className="btn btn-ghost"
+          disabled={disabled}
+          onClick={onToggle}
+        >
+          Add step note
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="prod-step-notes" aria-label={`Notes on ${step.title}`}>
+      <div className="prod-step-notes-head">
+        <span className="simple-muted">Step notes</span>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          disabled={disabled}
+          aria-pressed={open}
+          onClick={onToggle}
+        >
+          {open ? 'Cancel' : 'Add step note'}
+        </button>
+      </div>
+      {open ? (
+        <AddProductionLogNoteForm
+          disabled={disabled}
+          placeholder={`Note about “${step.title}”…`}
+          onAdd={onAdd}
+          onCancel={onCancel}
+        />
+      ) : null}
+      {notes.length > 0 ? (
+        <ul className="prod-log-notes-list prod-step-notes-list">
+          {notes.map((note) => (
+            <li key={note.id}>
+              <div className="prod-log-note-main">
+                <strong>
+                  {formatLogWhen(note.at)}
+                  {note.author ? ` · ${note.author}` : ''}
+                </strong>
+                <p>{note.text}</p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={disabled}
+                onClick={() => onRemove(note.id)}
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   )
 }
 
