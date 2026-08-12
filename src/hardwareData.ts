@@ -398,6 +398,12 @@ export function sortProgress(notes: HardwareProgressNote[]) {
   return [...notes].sort((a, b) => b.date.localeCompare(a.date))
 }
 
+export function sortProductionLogNotes(
+  notes: NonNullable<VehicleProcess['logNotes']>,
+) {
+  return [...notes].sort((a, b) => b.at.localeCompare(a.at))
+}
+
 export function sortProcesses(processes: VehicleProcess[]) {
   return [...processes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }

@@ -295,7 +295,16 @@ export interface VehicleProcess {
   vehicleUnitId: string
   name: string
   campaign?: string
+  /**
+   * Pre-production / planning notes and open decisions
+   * (things not decided yet, setup context, constraints).
+   */
   notes?: string
+  /**
+   * Chronological floor notes while the production is running
+   * (what happened, blockers cleared, callouts during build).
+   */
+  logNotes?: ProductionLogNote[]
   /**
    * Inventory parts / tools / materials for this production overall.
    * Soft planning link — on-hand stock is drawn when a step that uses
@@ -319,6 +328,15 @@ export interface VehicleProcess {
   finishedAt?: string
   steps: VehicleProcessStep[]
   updatedAt: string
+}
+
+/** Dated note logged during an active production. */
+export interface ProductionLogNote {
+  id: string
+  /** ISO timestamp when the note was added */
+  at: string
+  text: string
+  author?: string
 }
 
 export interface HardwareProgressNote {

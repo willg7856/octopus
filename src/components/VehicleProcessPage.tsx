@@ -21,6 +21,7 @@ import {
   restockInventoryForStepUndo,
   sortProcessSteps,
   sortProcesses,
+  sortProductionLogNotes,
   sortUnits,
   stepInventoryQtyMap,
   unitQuantity,
@@ -28,6 +29,7 @@ import {
 import type {
   HardwareUnit,
   ProcessStepStatus,
+  ProductionLogNote,
   VehicleProcess,
   VehicleProcessStep,
 } from '../types'
@@ -65,6 +67,7 @@ export function VehicleProcessPage({
     mode: 'hardware' | 'inventory'
   } | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [addingLogNote, setAddingLogNote] = useState(false)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<AttentionFilter>('all')
   const [mobileMode, setMobileMode] = useState<'list' | 'detail'>(() =>
@@ -141,6 +144,7 @@ export function VehicleProcessPage({
     setSelected(id)
     setEditingStepId(null)
     setStepAttach(null)
+    setAddingLogNote(false)
     if (!isCreating) setEditingSteps(false)
     setMobileMode('detail')
   }
@@ -150,6 +154,7 @@ export function VehicleProcessPage({
     setEditingSteps(false)
     setEditingStepId(null)
     setStepAttach(null)
+    setAddingLogNote(false)
     setMobileMode('list')
   }
 
@@ -344,6 +349,69 @@ export function VehicleProcessPage({
           : p,
       ),
     }), 'Materials updated')
+  }
+
+  function setPlanningNotes(processId: string, notes: string) {
+    const now = new Date().toISOString()
+    const trimmed = notes.trim()
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) =>
+        p.id === processId
+          ? {
+              ...p,
+              notes: trimmed || undefined,
+              updatedAt: now,
+            }
+          : p,
+      ),
+    }), 'Planning notes saved')
+  }
+
+  function addProductionLogNote(processId: string, text: string) {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    const now = new Date().toISOString()
+    const entry: ProductionLogNote = {
+      id: newId('pn'),
+      at: now,
+      text: trimmed,
+      author: user?.name,
+    }
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) =>
+        p.id === processId
+          ? {
+              ...p,
+              logNotes: [entry, ...(p.logNotes ?? [])],
+              updatedAt: now,
+            }
+          : p,
+      ),
+    }), 'Production note added')
+    setAddingLogNote(false)
+  }
+
+  async function removeProductionLogNote(processId: string, noteId: string) {
+    const process = lab.processes.find((p) => p.id === processId)
+    const note = process?.logNotes?.find((n) => n.id === noteId)
+    if (!note) return
+    const ok = await confirm('Delete this production note?')
+    if (!ok) return
+    const now = new Date().toISOString()
+    void store.commit((prev) => ({
+      ...prev,
+      processes: prev.processes.map((p) => {
+        if (p.id !== processId) return p
+        const next = (p.logNotes ?? []).filter((n) => n.id !== noteId)
+        return {
+          ...p,
+          logNotes: next.length > 0 ? next : undefined,
+          updatedAt: now,
+        }
+      }),
+    }), 'Production note deleted')
   }
 
   function setProcessHardware(processId: string, linkedHardwareIds: string[]) {
@@ -615,6 +683,7 @@ export function VehicleProcessPage({
     name: string
     vehicleUnitId?: string
     vehicleName?: string
+    notes?: string
     linkedInventoryQty?: Record<string, number>
     linkedHardwareIds?: string[]
     startedAt?: string
@@ -669,6 +738,7 @@ export function VehicleProcessPage({
         id: processId,
         vehicleUnitId: vehicle.id,
         name: input.name.trim(),
+        notes: input.notes?.trim() || undefined,
         linkedInventoryIds: materials,
         linkedInventoryQty: materialQtySaved,
         linkedHardwareIds: hardwareInUse,
@@ -725,6 +795,9 @@ export function VehicleProcessPage({
     : []
   const selectedHardwareInUse = selected
     ? linkedInventoryNames(selected.linkedHardwareIds, units)
+    : []
+  const selectedLogNotes = selected
+    ? sortProductionLogNotes(selected.logNotes ?? [])
     : []
 
   const filterChips: { id: AttentionFilter; label: string; count?: number }[] =
@@ -1025,6 +1098,25 @@ export function VehicleProcessPage({
                       legend="Materials from inventory"
                       hint="Search to add parts/tools. Add the same item again to increase qty. Stock draws when a step using the item is marked Done."
                     />
+                    <label className="prod-planning-notes-edit">
+                      Planning / open decisions
+                      <textarea
+                        key={`${selected.id}-planning`}
+                        defaultValue={selected.notes ?? ''}
+                        placeholder="Pre-production notes, open decisions, constraints…"
+                        rows={3}
+                        onBlur={(e) => {
+                          const next = e.target.value.trim()
+                          if (next !== (selected.notes ?? '')) {
+                            setPlanningNotes(selected.id, next)
+                          }
+                        }}
+                      />
+                      <span className="simple-muted">
+                        For setup context and things not decided yet — not the
+                        live floor log.
+                      </span>
+                    </label>
                   </div>
                 ) : (
                   <div className="prod-materials-summary">
@@ -1038,8 +1130,80 @@ export function VehicleProcessPage({
                         ? `Materials: ${selectedMaterials.join(', ')}`
                         : 'No inventory materials linked — Edit steps to add some.'}
                     </p>
+                    {selected.notes?.trim() ? (
+                      <div className="prod-planning-notes-view">
+                        <strong>Planning / open decisions</strong>
+                        <p>{selected.notes}</p>
+                      </div>
+                    ) : null}
                   </div>
                 )}
+
+                <section
+                  className="prod-log-notes"
+                  aria-label="Production notes"
+                >
+                  <div className="prod-log-notes-head">
+                    <div>
+                      <h4>Production notes</h4>
+                      <p className="simple-muted">
+                        What happened during the build — separate from planning
+                        notes above.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-accent"
+                      disabled={!hasLoaded}
+                      aria-pressed={addingLogNote}
+                      onClick={() => setAddingLogNote((v) => !v)}
+                    >
+                      {addingLogNote ? 'Cancel' : 'Add production note'}
+                    </button>
+                  </div>
+                  {addingLogNote ? (
+                    <AddProductionLogNoteForm
+                      disabled={!hasLoaded}
+                      onAdd={(text) =>
+                        addProductionLogNote(selected.id, text)
+                      }
+                      onCancel={() => setAddingLogNote(false)}
+                    />
+                  ) : null}
+                  {selectedLogNotes.length === 0 ? (
+                    <p className="simple-muted">
+                      No production notes yet — log floor updates as the build
+                      runs.
+                    </p>
+                  ) : (
+                    <ul className="prod-log-notes-list">
+                      {selectedLogNotes.map((note) => (
+                        <li key={note.id}>
+                          <div className="prod-log-note-main">
+                            <strong>
+                              {formatLogWhen(note.at)}
+                              {note.author ? ` · ${note.author}` : ''}
+                            </strong>
+                            <p>{note.text}</p>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            disabled={!hasLoaded}
+                            onClick={() =>
+                              void removeProductionLogNote(
+                                selected.id,
+                                note.id,
+                              )
+                            }
+                          >
+                            Delete
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
 
                 {completion && completion.total > 0 ? (
                   <div className="prod-progress" aria-hidden="true">
@@ -1397,6 +1561,67 @@ function formatWhen(iso: string) {
   }
 }
 
+function formatLogWhen(iso: string) {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  } catch {
+    return ''
+  }
+}
+
+function AddProductionLogNoteForm({
+  onAdd,
+  onCancel,
+  disabled,
+}: {
+  onAdd: (text: string) => void
+  onCancel: () => void
+  disabled?: boolean
+}) {
+  const [text, setText] = useState('')
+  return (
+    <form
+      className="prod-log-note-form"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!text.trim()) return
+        onAdd(text)
+        setText('')
+      }}
+    >
+      <label>
+        What happened?
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="e.g. waited on torque wrench, swapped sensor after short…"
+          rows={3}
+          autoFocus
+          disabled={disabled}
+          required
+        />
+      </label>
+      <div className="simple-form-actions">
+        <button
+          type="submit"
+          className="btn btn-accent"
+          disabled={disabled || !text.trim()}
+        >
+          Save note
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  )
+}
+
 function NewProductionForm({
   vehicles,
   inventory,
@@ -1409,6 +1634,7 @@ function NewProductionForm({
     name: string
     vehicleUnitId?: string
     vehicleName?: string
+    notes?: string
     linkedInventoryQty?: Record<string, number>
     linkedHardwareIds?: string[]
     startedAt?: string
@@ -1420,6 +1646,7 @@ function NewProductionForm({
   const [name, setName] = useState('')
   const [vehicleUnitId, setVehicleUnitId] = useState('')
   const [vehicleName, setVehicleName] = useState('')
+  const [notes, setNotes] = useState('')
   const [startedAt, setStartedAt] = useState('')
   const [deadlineAt, setDeadlineAt] = useState('')
   const [finishedAt, setFinishedAt] = useState('')
@@ -1437,6 +1664,7 @@ function NewProductionForm({
         : `${name.trim()} production`,
       vehicleUnitId: vehicleUnitId || undefined,
       vehicleName: vehicleName.trim() || name.trim(),
+      notes: notes.trim() || undefined,
       linkedInventoryQty,
       linkedHardwareIds,
       startedAt: startedAt || undefined,
@@ -1486,6 +1714,15 @@ function NewProductionForm({
           />
         </label>
       )}
+      <label>
+        Planning / open decisions
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Pre-production notes, open decisions, constraints…"
+          rows={3}
+        />
+      </label>
       <div className="prod-schedule-fields">
         <label>
           Start date

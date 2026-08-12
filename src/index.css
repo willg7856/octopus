@@ -5258,6 +5258,123 @@ button.simple-list-row {
   margin: 0;
 }
 
+.prod-planning-notes-view {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed color-mix(in srgb, var(--line) 85%, transparent);
+}
+
+.prod-planning-notes-view strong {
+  font-size: 0.85rem;
+}
+
+.prod-planning-notes-view p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.prod-planning-notes-edit {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+}
+
+.prod-planning-notes-edit textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  line-height: 1.35;
+}
+
+.prod-log-notes {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.prod-log-notes h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.prod-log-notes-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.prod-log-notes-head .simple-muted {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+}
+
+.prod-log-note-form {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.prod-log-note-form textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  line-height: 1.35;
+}
+
+.prod-log-notes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.prod-log-notes-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.prod-log-notes-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.prod-log-note-main {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.prod-log-note-main p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
 .hw-parts {
   margin-top: 1.25rem;
   padding-top: 1rem;
