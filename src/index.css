@@ -24,7 +24,7 @@
   --fg-faint: var(--ink-400);
   --bg: var(--paper-100);
   --bg-elev: var(--paper-200);
-  --bg-panel: rgba(250, 250, 247, 0.92);
+  --bg-panel: #fafaf7;
   --bg-panel-solid: #fafaf7;
   --bg-inverse: var(--ink-900);
   --fg-inverse: var(--paper-100);
@@ -35,8 +35,9 @@
   --chart-grid: rgba(11, 13, 15, 0.07);
   --glow-ignition: rgba(255, 90, 31, 0.12);
   --glow-cyan: rgba(45, 194, 217, 0.07);
-  --shadow-panel: 0 1px 0 rgba(11, 13, 15, 0.04);
-  --font-display: 'Syne', 'Avenir Next', sans-serif;
+  --shadow-panel: none;
+  --font-brand: 'Syne', 'Avenir Next', sans-serif;
+  --font-display: 'Public Sans', 'Segoe UI', sans-serif;
   --font-body: 'Public Sans', 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
@@ -63,7 +64,7 @@
   --fg-faint: #7b8590;
   --bg: #0b0d0f;
   --bg-elev: #14181c;
-  --bg-panel: rgba(20, 24, 28, 0.94);
+  --bg-panel: #14181c;
   --bg-panel-solid: #14181c;
   --bg-inverse: #fafaf7;
   --fg-inverse: #0b0d0f;
@@ -74,7 +75,7 @@
   --chart-grid: rgba(250, 250, 247, 0.07);
   --glow-ignition: rgba(255, 90, 31, 0.18);
   --glow-cyan: rgba(45, 194, 217, 0.1);
-  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.03);
+  --shadow-panel: none;
   --accent: var(--ignition);
 }
 
@@ -96,9 +97,7 @@ body {
   margin: 0;
   font-family: var(--font-body);
   color: var(--fg);
-  background:
-    radial-gradient(ellipse 70% 40% at 8% -8%, var(--glow-ignition), transparent 55%),
-    var(--bg);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
 }
@@ -125,23 +124,9 @@ button {
   scrollbar-gutter: stable;
 }
 
-.app::before {
-  content: '';
-  display: block;
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 85% 70% at 50% -5%, #000 15%, transparent 72%);
-  opacity: 0.85;
-}
-
+.app::before,
 .app::after {
-  content: '';
+  content: none;
   display: none;
 }
 
@@ -229,7 +214,7 @@ button {
 
 .brand {
   margin: 0;
-  font-family: var(--font-display);
+  font-family: var(--font-brand);
   font-size: clamp(1.55rem, 1.6vw + 0.7rem, 2.05rem);
   font-weight: 700;
   letter-spacing: -0.045em;
@@ -576,9 +561,7 @@ button {
 
 .panel {
   border: 1px solid var(--line);
-  background: var(--bg-panel);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: blur(12px);
+  background: var(--bg-panel-solid);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -593,7 +576,7 @@ button {
   gap: 0.75rem;
   padding: 0.65rem 0.85rem;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
+  background: var(--bg-elev);
 }
 
 .panel-title {
@@ -669,36 +652,32 @@ button {
   font-family: var(--font-mono);
   font-size: 0.56rem;
   font-weight: 650;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding: 0.14rem 0.38rem;
-  border: 1px solid transparent;
-  border-radius: var(--r);
-  background: var(--hover);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg-muted);
 }
 
 .chip[data-tone='green'] {
   color: var(--telem-green);
-  background: color-mix(in srgb, var(--telem-green) 12%, transparent);
 }
 .chip[data-tone='amber'] {
   color: var(--telem-amber);
-  background: color-mix(in srgb, var(--telem-amber) 14%, transparent);
 }
 .chip[data-tone='red'] {
   color: var(--telem-red);
-  background: color-mix(in srgb, var(--telem-red) 12%, transparent);
 }
 .chip[data-tone='cyan'] {
   color: var(--telem-cyan);
-  background: color-mix(in srgb, var(--telem-cyan) 12%, transparent);
 }
 .chip[data-tone='ink'] {
   color: var(--fg-muted);
 }
 .chip[data-tone='ignition'] {
   color: var(--ignition);
-  background: color-mix(in srgb, var(--ignition) 12%, transparent);
 }
 
 /* Channels */
@@ -894,34 +873,35 @@ button {
 .stage-pill {
   font-family: var(--font-mono);
   font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding: 0.28rem 0.5rem;
-  border: 1px solid var(--line);
-  background: var(--bg-panel-solid);
+  padding: 0.12rem 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
   color: var(--fg-muted);
 }
 
 .stage-pill[data-on='true'] {
-  border-color: color-mix(in srgb, var(--telem-green) 50%, var(--line));
   color: var(--telem-green);
-  background: color-mix(in srgb, var(--telem-green) 8%, var(--bg-panel-solid));
+  border-bottom-color: var(--telem-green);
+  background: transparent;
 }
 
 .stage-pill[data-range='go'] {
-  border-color: color-mix(in srgb, var(--telem-green) 50%, var(--line));
   color: var(--telem-green);
+  border-bottom-color: var(--telem-green);
 }
 
 .stage-pill[data-range='hold'] {
-  border-color: color-mix(in srgb, var(--telem-amber) 50%, var(--line));
   color: var(--telem-amber);
+  border-bottom-color: var(--telem-amber);
 }
 
 .stage-pill[data-range='nogo'] {
-  border-color: color-mix(in srgb, var(--telem-red) 50%, var(--line));
   color: var(--telem-red);
+  border-bottom-color: var(--telem-red);
 }
 
 .stage-fill-grid {
@@ -1789,12 +1769,11 @@ button {
   border: 1px solid var(--line-strong);
   border-radius: var(--r);
   transition: background 0.15s var(--ease), color 0.15s var(--ease),
-    border-color 0.15s var(--ease), opacity 0.15s, transform 0.15s var(--ease);
+    border-color 0.15s var(--ease), opacity 0.15s;
 }
 
 .btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  opacity: 1;
+  opacity: 0.92;
 }
 
 .btn-primary {
@@ -1839,9 +1818,7 @@ button {
 
 .downlink {
   border: 1px solid var(--line);
-  background: var(--bg-panel);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: blur(12px);
+  background: var(--bg-panel-solid);
   min-width: 0;
   overflow: hidden;
   display: flex;
@@ -2602,22 +2579,12 @@ button {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse 70% 45% at 18% -5%, var(--glow-ignition), transparent 55%),
-    var(--bg);
+  background: var(--bg);
 }
 
 .auth-screen::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 10%, transparent 70%);
+  content: none;
+  display: none;
 }
 
 .auth-loading {
@@ -2642,9 +2609,7 @@ button {
   z-index: 1;
   width: min(100%, 26rem);
   border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg-panel-solid) 92%, transparent);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow-panel);
+  background: var(--bg-panel-solid);
   padding: 1.75rem 1.5rem 1.35rem;
   border-radius: var(--r-lg);
   border-top: 3px solid var(--ignition);
@@ -2652,6 +2617,7 @@ button {
 }
 
 .auth-brand {
+  font-family: var(--font-brand);
   font-size: clamp(2.4rem, 7vw, 3rem);
   margin: 0.2rem 0 0.55rem;
   letter-spacing: -0.045em;
@@ -4416,9 +4382,10 @@ button.simple-list-row {
 .status-badge {
   flex-shrink: 0;
   align-self: center;
-  padding: 0.28rem 0.55rem;
-  border: 1px solid var(--line);
-  border-radius: var(--r);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 560;
@@ -4431,35 +4398,27 @@ button.simple-list-row {
 .status-badge[data-kind='stock'][data-status='in-stock'],
 .status-badge[data-kind='hardware'][data-status='flight-ready'],
 .status-badge[data-kind='hardware'][data-status='completed'] {
-  border-color: color-mix(in srgb, var(--telem-green) 45%, var(--line));
   color: var(--telem-green);
-  background: color-mix(in srgb, var(--telem-green) 10%, transparent);
 }
 
 .status-badge[data-kind='stock'][data-status='low'],
 .status-badge[data-kind='hardware'][data-status='checkout'],
 .status-badge[data-kind='hardware'][data-status='assembly'] {
-  border-color: color-mix(in srgb, var(--telem-amber) 50%, var(--line));
   color: var(--telem-amber);
-  background: color-mix(in srgb, var(--telem-amber) 12%, transparent);
 }
 
 .status-badge[data-kind='stock'][data-status='on-order'],
 .status-badge[data-kind='stock'][data-status='receiving'],
 .status-badge[data-kind='stock'][data-status='incoming'],
 .status-badge[data-kind='hardware'][data-status='fab'] {
-  border-color: color-mix(in srgb, var(--telem-cyan) 45%, var(--line));
   color: var(--telem-cyan);
-  background: color-mix(in srgb, var(--telem-cyan) 10%, transparent);
 }
 
 .status-badge[data-kind='stock'][data-status='quarantine'],
 .status-badge[data-kind='hardware'][data-status='failed'],
 .status-badge[data-kind='hardware'][data-status='destroyed'],
 .status-badge[data-kind='stock'][data-status='destroyed'] {
-  border-color: color-mix(in srgb, var(--telem-red) 45%, var(--line));
   color: var(--telem-red);
-  background: color-mix(in srgb, var(--telem-red) 10%, transparent);
 }
 
 .status-badge[data-kind='stock'][data-status='reserved'],
@@ -4469,27 +4428,19 @@ button.simple-list-row {
 .status-badge[data-kind='hardware'][data-status='design'],
 .status-badge[data-kind='process'][data-status='pending'],
 .status-badge[data-kind='process'][data-status='skipped'] {
-  border-color: var(--line-strong);
   color: var(--fg-muted);
-  background: color-mix(in srgb, var(--fg-muted) 6%, transparent);
 }
 
 .status-badge[data-kind='process'][data-status='active'] {
-  border-color: color-mix(in srgb, var(--telem-cyan) 45%, var(--line));
   color: var(--telem-cyan);
-  background: color-mix(in srgb, var(--telem-cyan) 10%, transparent);
 }
 
 .status-badge[data-kind='process'][data-status='done'] {
-  border-color: color-mix(in srgb, var(--telem-green) 45%, var(--line));
   color: var(--telem-green);
-  background: color-mix(in srgb, var(--telem-green) 10%, transparent);
 }
 
 .status-badge[data-kind='process'][data-status='blocked'] {
-  border-color: color-mix(in srgb, var(--telem-red) 45%, var(--line));
   color: var(--telem-red);
-  background: color-mix(in srgb, var(--telem-red) 10%, transparent);
 }
 
 .simple-list-row[data-selected='true'] {
@@ -5058,10 +5009,10 @@ button.simple-list-row {
 .attention-pill {
   display: inline-flex;
   align-items: center;
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--r);
-  border: 1px solid color-mix(in srgb, var(--ignition) 40%, var(--line));
-  background: color-mix(in srgb, var(--ignition) 10%, transparent);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   color: var(--ignition);
   font-family: var(--font-mono);
   font-size: 0.68rem;
