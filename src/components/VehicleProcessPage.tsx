@@ -67,6 +67,10 @@ export function VehicleProcessPage({
     mode: 'hardware' | 'inventory'
   } | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [stepActionError, setStepActionError] = useState<{
+    stepId: string
+    message: string
+  } | null>(null)
   const [addingLogNote, setAddingLogNote] = useState(false)
   const [addingStepNoteId, setAddingStepNoteId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -147,6 +151,7 @@ export function VehicleProcessPage({
     setStepAttach(null)
     setAddingLogNote(false)
     setAddingStepNoteId(null)
+    setStepActionError(null)
     if (!isCreating) setEditingSteps(false)
     setMobileMode('detail')
   }
@@ -158,15 +163,11 @@ export function VehicleProcessPage({
     setStepAttach(null)
     setAddingLogNote(false)
     setAddingStepNoteId(null)
+    setStepActionError(null)
     setMobileMode('list')
   }
 
-  function openLinkedUnit(unit: HardwareUnit) {
-    if (isSystemKind(unit.kind)) onOpenHardware?.(unit.id)
-    else onOpenInventory?.(unit.id)
-  }
-
-  function updateStep(
+  async function updateStep(
     processId: string,
     stepId: string,
     status: ProcessStepStatus,
@@ -187,6 +188,18 @@ export function VehicleProcessPage({
       : willRestock
         ? 'Returned to stock'
         : ''
+
+    if (willDraw) {
+      const lines = Object.entries(plannedDraw).map(([id, qty]) => {
+        const unit = lab.units.find((u) => u.id === id)
+        return `${qty}× ${unit?.name ?? 'item'}`
+      })
+      const ok = await confirm(
+        `Mark “${step.title}” done and draw from inventory?\n${lines.join('\n')}`,
+        { confirmLabel: 'Mark done' },
+      )
+      if (!ok) return
+    }
 
     const now = new Date().toISOString()
     let drawError: string | null = null
@@ -296,8 +309,13 @@ export function VehicleProcessPage({
         }),
       }
     }, toastMsg).then(() => {
-      if (drawError) setActionError(drawError)
-      else setActionError(null)
+      if (drawError) {
+        setStepActionError({ stepId, message: drawError })
+        setActionError(drawError)
+      } else {
+        setStepActionError((cur) => (cur?.stepId === stepId ? null : cur))
+        setActionError(null)
+      }
     })
   }
 
@@ -862,6 +880,22 @@ export function VehicleProcessPage({
   const selectedLogNotes = selected
     ? sortProductionLogNotes(selected.logNotes ?? [])
     : []
+  const materialIdsOnSteps = useMemo(() => {
+    if (!selected) return new Set<string>()
+    const ids = new Set<string>()
+    for (const step of selected.steps) {
+      for (const id of Object.keys(stepInventoryQtyMap(step, units))) {
+        ids.add(id)
+      }
+    }
+    return ids
+  }, [selected, units])
+  const unassignedMaterialNames = useMemo(() => {
+    const ids = Object.keys(selectedMaterialQty).filter(
+      (id) => !materialIdsOnSteps.has(id),
+    )
+    return linkedInventoryNames(ids, units, selectedMaterialQty)
+  }, [selectedMaterialQty, materialIdsOnSteps, units])
 
   const filterChips: { id: AttentionFilter; label: string; count?: number }[] =
     [
@@ -1159,7 +1193,7 @@ export function VehicleProcessPage({
                         setProcessInventoryQty(selected.id, qty)
                       }
                       legend="Materials from inventory"
-                      hint="Search to add parts/tools. Add the same item again to increase qty. Stock draws when a step using the item is marked Done."
+                      hint="Planning totals for this production. Use inventory on a step to assign draw qty — stock leaves on-hand when that step is marked Done."
                     />
                     <label className="prod-planning-notes-edit">
                       Planning / open decisions
@@ -1193,6 +1227,12 @@ export function VehicleProcessPage({
                         ? `Materials: ${selectedMaterials.join(', ')}`
                         : 'No inventory materials linked — Edit steps to add some.'}
                     </p>
+                    {unassignedMaterialNames.length > 0 ? (
+                      <p className="prod-materials-warn" role="status">
+                        Not on a step yet: {unassignedMaterialNames.join(', ')}.
+                        Use inventory on a step so Done can draw stock.
+                      </p>
+                    ) : null}
                     {selected.notes?.trim() ? (
                       <div className="prod-planning-notes-view">
                         <strong>Planning / open decisions</strong>
@@ -1287,6 +1327,14 @@ export function VehicleProcessPage({
                     const linked = (step.linkedUnitIds ?? [])
                       .map((id) => units.find((u) => u.id === id))
                       .filter(Boolean) as HardwareUnit[]
+                    const linkedHardware = linked.filter((u) =>
+                      isSystemKind(u.kind),
+                    )
+                    const linkedInventory = linked.filter((u) =>
+                      isInventoryKind(u.kind),
+                    )
+                    const stepPlannedQty = stepInventoryQtyMap(step, units)
+                    const stepConsumed = step.consumedInventoryQty ?? {}
                     return (
                       <li
                         key={step.id}
@@ -1317,17 +1365,19 @@ export function VehicleProcessPage({
                                     {step.detail}
                                   </span>
                                 ) : null}
-                                {linked.length > 0 && !editingSteps ? (
+                                {linkedHardware.length > 0 && !editingSteps ? (
                                   <span className="simple-muted">
                                     Linked:{' '}
-                                    {linked.map((u, i) => (
+                                    {linkedHardware.map((u, i) => (
                                       <span key={u.id}>
                                         {i > 0 ? ', ' : ''}
-                                        {onOpenHardware || onOpenInventory ? (
+                                        {onOpenHardware ? (
                                           <button
                                             type="button"
                                             className="hw-parts-name-btn"
-                                            onClick={() => openLinkedUnit(u)}
+                                            onClick={() =>
+                                              onOpenHardware(u.id)
+                                            }
                                           >
                                             {u.name}
                                           </button>
@@ -1337,6 +1387,38 @@ export function VehicleProcessPage({
                                         ({HARDWARE_KIND_LABELS[u.kind]})
                                       </span>
                                     ))}
+                                  </span>
+                                ) : null}
+                                {linkedInventory.length > 0 &&
+                                !editingSteps ? (
+                                  <span className="simple-muted prod-step-inventory-view">
+                                    Inventory:{' '}
+                                    {linkedInventory.map((u, i) => {
+                                      const planned = stepPlannedQty[u.id] ?? 1
+                                      const drawn = stepConsumed[u.id] ?? 0
+                                      return (
+                                        <span key={u.id}>
+                                          {i > 0 ? ', ' : ''}
+                                          {onOpenInventory ? (
+                                            <button
+                                              type="button"
+                                              className="hw-parts-name-btn"
+                                              onClick={() =>
+                                                onOpenInventory(u.id)
+                                              }
+                                            >
+                                              {u.name}
+                                            </button>
+                                          ) : (
+                                            u.name
+                                          )}
+                                          {` · use ${planned}`}
+                                          {drawn > 0
+                                            ? ` · drawn ${drawn}`
+                                            : ''}
+                                        </span>
+                                      )
+                                    })}
                                   </span>
                                 ) : null}
                                 {step.status === 'done' && step.completedBy ? (
@@ -1490,6 +1572,15 @@ export function VehicleProcessPage({
                                 </button>
                               ))}
                             </div>
+
+                            {stepActionError?.stepId === step.id ? (
+                              <p
+                                className="prod-step-action-error"
+                                role="alert"
+                              >
+                                {stepActionError.message}
+                              </p>
+                            ) : null}
 
                             {step.status === 'blocked' ? (
                               <label className="prod-block-reason">
@@ -1732,10 +1823,24 @@ function StepLogNotes({
 }) {
   const notes = sortProductionLogNotes(step.logNotes ?? [])
 
+  if (notes.length === 0 && !open) {
+    return (
+      <div className="prod-step-notes-collapsed">
+        <button
+          type="button"
+          className="btn btn-ghost prod-step-note-add"
+          disabled={disabled}
+          onClick={onToggle}
+        >
+          Add note
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div
       className="prod-step-notes"
-      data-empty={notes.length === 0 && !open ? 'true' : undefined}
       aria-label={`Notes on step ${step.order}: ${step.title}`}
     >
       <div className="prod-step-notes-head">
