@@ -36,9 +36,9 @@
   --glow-ignition: rgba(255, 90, 31, 0.12);
   --glow-cyan: rgba(45, 194, 217, 0.07);
   --shadow-panel: 0 1px 0 rgba(11, 13, 15, 0.04);
-  --font-display: 'JetBrains Mono', ui-monospace, monospace;
-  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --font-display: 'Syne', 'Avenir Next', sans-serif;
+  --font-body: 'Public Sans', 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --r: 4px;
   --r-lg: 6px;
@@ -230,10 +230,10 @@ button {
 .brand {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(1.45rem, 1.5vw + 0.55rem, 1.9rem);
+  font-size: clamp(1.55rem, 1.6vw + 0.7rem, 2.05rem);
   font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
   color: var(--fg);
 }
 
@@ -1781,20 +1781,20 @@ button {
 }
 
 .btn {
-  padding: 0.5rem 0.75rem;
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  padding: 0.55rem 0.85rem;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
   border: 1px solid var(--line-strong);
   border-radius: var(--r);
   transition: background 0.15s var(--ease), color 0.15s var(--ease),
-    border-color 0.15s var(--ease), opacity 0.15s;
+    border-color 0.15s var(--ease), opacity 0.15s, transform 0.15s var(--ease);
 }
 
 .btn:hover:not(:disabled) {
-  transform: none;
-  opacity: 0.92;
+  transform: translateY(-1px);
+  opacity: 1;
 }
 
 .btn-primary {
