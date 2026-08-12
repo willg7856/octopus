@@ -1218,7 +1218,13 @@ export function VehicleProcessPage({
                   aria-label="General production notes"
                 >
                   <div className="prod-log-notes-head">
-                    <span className="prod-notes-label">General notes</span>
+                    <span className="prod-notes-label">
+                      Whole production
+                      <span className="prod-step-notes-scope">
+                        {' '}
+                        · not tied to a step
+                      </span>
+                    </span>
                     <button
                       type="button"
                       className="btn btn-ghost"
@@ -1243,8 +1249,7 @@ export function VehicleProcessPage({
                   ) : null}
                   {selectedLogNotes.length === 0 && !addingLogNote ? (
                     <p className="simple-muted prod-notes-empty">
-                      Run-wide floor updates. Step-specific notes live on each
-                      step.
+                      Run-wide updates. Notes about one step go under that step.
                     </p>
                   ) : selectedLogNotes.length > 0 ? (
                     <ul className="prod-log-notes-list">
@@ -1728,9 +1733,16 @@ function StepLogNotes({
   const notes = sortProductionLogNotes(step.logNotes ?? [])
 
   return (
-    <div className="prod-step-notes" aria-label={`Notes on ${step.title}`}>
+    <div
+      className="prod-step-notes"
+      data-empty={notes.length === 0 && !open ? 'true' : undefined}
+      aria-label={`Notes on step ${step.order}: ${step.title}`}
+    >
       <div className="prod-step-notes-head">
-        <span className="prod-notes-label">Step notes</span>
+        <span className="prod-notes-label">
+          On step {step.order}
+          <span className="prod-step-notes-scope"> · this step only</span>
+        </span>
         <button
           type="button"
           className="btn btn-ghost"
@@ -1744,7 +1756,7 @@ function StepLogNotes({
       {open ? (
         <AddProductionLogNoteForm
           disabled={disabled}
-          placeholder={`Note about “${step.title}”…`}
+          placeholder={`Note for step ${step.order}: ${step.title}…`}
           onAdd={onAdd}
           onCancel={onCancel}
         />
@@ -1771,8 +1783,6 @@ function StepLogNotes({
             </li>
           ))}
         </ul>
-      ) : !open ? (
-        <p className="simple-muted prod-notes-empty">None yet</p>
       ) : null}
     </div>
   )

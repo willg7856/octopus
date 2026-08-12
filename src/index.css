@@ -5312,6 +5312,13 @@ button.simple-list-row {
   color: var(--fg-muted);
 }
 
+.prod-step-notes-scope {
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg-faint, var(--fg-muted));
+}
+
 .prod-notes-empty {
   margin: 0;
   font-size: 0.82rem;
@@ -5399,10 +5406,20 @@ button.simple-list-row {
 
 .prod-step-notes {
   display: grid;
-  gap: 0.3rem;
-  margin-top: 0.45rem;
-  padding-top: 0.45rem;
-  border-top: 1px dashed color-mix(in srgb, var(--line) 80%, transparent);
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+  margin-left: 0.15rem;
+  padding: 0.55rem 0.65rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
+}
+
+.prod-step-notes[data-empty='true'] {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--line) 70%, transparent);
+  border-left-color: color-mix(in srgb, var(--line) 90%, transparent);
 }
 
 .prod-step-notes-head {
@@ -5411,6 +5428,14 @@ button.simple-list-row {
   align-items: center;
   justify-content: space-between;
   gap: 0.35rem;
+}
+
+.prod-step-notes .prod-log-notes-list li {
+  border-top-color: color-mix(in srgb, var(--line) 65%, transparent);
+}
+
+.prod-step-notes .prod-log-note-form textarea {
+  background: color-mix(in srgb, var(--surface) 80%, var(--bg));
 }
 
 .hw-parts {
