@@ -5435,9 +5435,9 @@ button.simple-list-row {
   margin: 0.35rem 0 0;
   padding: 0.4rem 0.55rem;
   border-radius: var(--r);
-  border: 1px solid color-mix(in srgb, var(--danger, #b42318) 35%, var(--line));
-  background: color-mix(in srgb, var(--danger, #b42318) 8%, transparent);
-  color: var(--danger, #b42318);
+  border: 1px solid color-mix(in srgb, var(--telem-red) 35%, var(--line));
+  background: color-mix(in srgb, var(--telem-red) 8%, transparent);
+  color: var(--telem-red);
   font-size: 0.85rem;
   line-height: 1.35;
 }
