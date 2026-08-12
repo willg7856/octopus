@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
+import { EmptyState } from './EmptyState'
 import { FloorGlance, buildFloorGlanceItems } from './FloorGlance'
 import { SyncBar } from './SyncBar'
 import { SyncStatusBanners } from './SyncStatusBanners'
@@ -1220,9 +1221,9 @@ export function VehicleProcessPage({
       ) : null}
 
       {sync === 'loading' || (sync === 'error' && !hasLoaded) ? (
-        <p className="simple-muted">
+        <p className={sync === 'loading' ? 'simple-loading' : 'simple-muted'}>
           {sync === 'loading'
-            ? 'Loading…'
+            ? 'Loading shared lab…'
             : 'Could not load shared lab. Retry above — do not add productions until it recovers.'}
         </p>
       ) : (
@@ -1315,10 +1316,18 @@ export function VehicleProcessPage({
                 )
               })}
               {filtered.length === 0 ? (
-                <li className="simple-muted">
-                  {query.trim() || filter !== 'all'
-                    ? 'No productions match that filter.'
-                    : 'No production trackers yet — add one to start.'}
+                <li className="simple-empty-li">
+                  {query.trim() || filter !== 'all' ? (
+                    <EmptyState
+                      title="No matching productions"
+                      detail="Try clearing filters or search."
+                    />
+                  ) : (
+                    <EmptyState
+                      title="No productions yet"
+                      detail="Create a tracker to run build and checkout steps."
+                    />
+                  )}
                 </li>
               ) : null}
             </ul>
@@ -1968,9 +1977,10 @@ export function VehicleProcessPage({
                 ) : null}
               </section>
             ) : (
-              <p className="simple-muted">
-                Select a production or create a new one.
-              </p>
+              <EmptyState
+                title="Select a production"
+                detail="Pick a tracker from the list, or create a new one."
+              />
             )}
           </section>
         </div>

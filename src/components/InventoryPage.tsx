@@ -34,6 +34,7 @@ import type {
   StockStatus,
 } from '../types'
 import { useLabStore } from '../useLabStore'
+import { EmptyState } from './EmptyState'
 import { SyncStatusBanners } from './SyncStatusBanners'
 
 const KIND_OPTIONS = INVENTORY_KINDS.map(
@@ -679,9 +680,9 @@ export function InventoryPage({
       <SyncStatusBanners store={store} />
 
       {sync === 'loading' || (sync === 'error' && !hasLoaded) ? (
-        <p className="simple-muted">
+        <p className={sync === 'loading' ? 'simple-loading' : 'simple-muted'}>
           {sync === 'loading'
-            ? 'Loading…'
+            ? 'Loading shared lab…'
             : 'Could not load shared lab. Retry above — do not add items until it recovers.'}
         </p>
       ) : (
@@ -992,13 +993,21 @@ export function InventoryPage({
                 )
               })}
               {filtered.length === 0 ? (
-                <li className="simple-muted">
+                <li className="simple-empty-li">
                   {query.trim() ||
                   filter !== 'all' ||
                   kindFilter !== 'all' ||
-                  programFilter !== 'all'
-                    ? 'No stock matches that filter.'
-                    : 'No stock yet — add parts, consumables, tools, or electronics.'}
+                  programFilter !== 'all' ? (
+                    <EmptyState
+                      title="No matching stock"
+                      detail="Try clearing filters or search."
+                    />
+                  ) : (
+                    <EmptyState
+                      title="No stock yet"
+                      detail="Add parts, consumables, tools, or electronics to start the shelf."
+                    />
+                  )}
                 </li>
               ) : null}
             </ul>
@@ -1088,7 +1097,10 @@ export function InventoryPage({
                 </section>
               </>
             ) : (
-              <p className="simple-muted">Select an item or add one.</p>
+              <EmptyState
+                title="Select stock"
+                detail="Pick an item from the list, or add one to the shelf."
+              />
             )}
           </section>
         </div>
