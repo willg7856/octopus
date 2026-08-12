@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
+import { EmptyState } from './EmptyState'
 import { SyncStatusBanners } from './SyncStatusBanners'
 import { HardwarePartsPanel } from './HardwarePartsPanel'
 import {
@@ -505,9 +506,9 @@ export function HardwarePage({
       <SyncStatusBanners store={store} />
 
       {sync === 'loading' || (sync === 'error' && !hasLoaded) ? (
-        <p className="simple-muted">
+        <p className={sync === 'loading' ? 'simple-loading' : 'simple-muted'}>
           {sync === 'loading'
-            ? 'Loading…'
+            ? 'Loading shared lab…'
             : 'Could not load shared lab. Retry above — do not add units until it recovers.'}
         </p>
       ) : (
@@ -586,10 +587,18 @@ export function HardwarePage({
                 />
               ))}
               {listTree.length === 0 ? (
-                <li className="simple-muted">
-                  {query.trim() || statusFilter !== 'all'
-                    ? 'No units match that filter.'
-                    : 'No vehicles or subsystems yet — add one to start.'}
+                <li className="simple-empty-li">
+                  {query.trim() || statusFilter !== 'all' ? (
+                    <EmptyState
+                      title="No matching hardware"
+                      detail="Try clearing filters or search."
+                    />
+                  ) : (
+                    <EmptyState
+                      title="No hardware yet"
+                      detail="Add a vehicle or subsystem to start the tree."
+                    />
+                  )}
                 </li>
               ) : null}
             </ul>
@@ -775,7 +784,10 @@ export function HardwarePage({
                 </section>
               </>
             ) : (
-              <p className="simple-muted">Select a unit or add one.</p>
+              <EmptyState
+                title="Select hardware"
+                detail="Pick a unit from the tree, or add a vehicle / subsystem."
+              />
             )}
           </section>
         </div>
