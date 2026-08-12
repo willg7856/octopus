@@ -5416,10 +5416,37 @@ button.simple-list-row {
   background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
 }
 
-.prod-step-notes[data-empty='true'] {
-  background: transparent;
-  border-color: color-mix(in srgb, var(--line) 70%, transparent);
-  border-left-color: color-mix(in srgb, var(--line) 90%, transparent);
+.prod-step-notes-collapsed {
+  margin-top: 0.1rem;
+  margin-left: 0.15rem;
+}
+
+.prod-step-note-add {
+  padding-inline: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+}
+
+.prod-step-inventory-view {
+  display: block;
+}
+
+.prod-step-action-error {
+  margin: 0.35rem 0 0;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--r);
+  border: 1px solid color-mix(in srgb, var(--telem-red) 35%, var(--line));
+  background: color-mix(in srgb, var(--telem-red) 8%, transparent);
+  color: var(--telem-red);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.prod-materials-warn {
+  margin: 0;
+  font-size: 0.85rem;
+  color: color-mix(in srgb, var(--accent) 70%, var(--fg-muted));
+  line-height: 1.35;
 }
 
 .prod-step-notes-head {

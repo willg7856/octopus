@@ -101,12 +101,31 @@ export function HardwarePartsPanel({
     setQty(id, String(next))
   }
 
-  function saveUnits(nextUnits: HardwareUnit[], message: string) {
-    setError(null)
-    void store.commit(
-      (prev: HardwareLabState) => ({ ...prev, units: nextUnits }),
-      message,
-    )
+  function commitUnits(
+    apply: (units: HardwareUnit[]) => {
+      units: HardwareUnit[]
+      error?: string
+    },
+    message: string,
+    onSuccess?: () => void,
+  ) {
+    let applyError: string | undefined
+    void store
+      .commit((prev: HardwareLabState) => {
+        const result = apply(prev.units)
+        if (result.error) {
+          applyError = result.error
+          return prev
+        }
+        return { ...prev, units: result.units }
+      }, message)
+      .then(() => {
+        if (applyError) setError(applyError)
+        else {
+          setError(null)
+          onSuccess?.()
+        }
+      })
   }
 
   function installPart(inventoryId: string) {
@@ -125,23 +144,19 @@ export function HardwarePartsPanel({
       onHand,
     )
     // Always pass an explicit qty so installs draw (never whole-line reserve).
-    const result = installInventoryOnHardware(
-      allUnits,
-      hardware.id,
-      inventoryId,
-      qty,
+    commitUnits(
+      (units) =>
+        installInventoryOnHardware(units, hardware.id, inventoryId, qty),
+      qty > 1 ? `Installed ${qty}` : 'Installed',
+      () => {
+        setQuery('')
+        setQtyById((prev) => {
+          const next = { ...prev }
+          delete next[inventoryId]
+          return next
+        })
+      },
     )
-    if (result.error) {
-      setError(result.error)
-      return
-    }
-    saveUnits(result.units, qty > 1 ? `Installed ${qty}` : 'Installed')
-    setQuery('')
-    setQtyById((prev) => {
-      const next = { ...prev }
-      delete next[inventoryId]
-      return next
-    })
   }
 
   function returnPartQty(inventoryId: string) {
@@ -153,25 +168,18 @@ export function HardwarePartsPanel({
       Math.max(1, parseQty(qtyById[inventoryId], 1)),
       maxReturn,
     )
-    const result = returnInventoryQtyFromHardware(
-      allUnits,
-      hardware.id,
-      inventoryId,
-      qty,
-    )
-    if (result.error) {
-      setError(result.error)
-      return
-    }
-    saveUnits(
-      result.units,
+    commitUnits(
+      (units) =>
+        returnInventoryQtyFromHardware(units, hardware.id, inventoryId, qty),
       reservedHere || qty >= drawn ? 'Returned to stock' : `Returned ${qty}`,
+      () => {
+        setQtyById((prev) => {
+          const next = { ...prev }
+          delete next[inventoryId]
+          return next
+        })
+      },
     )
-    setQtyById((prev) => {
-      const next = { ...prev }
-      delete next[inventoryId]
-      return next
-    })
   }
 
   async function destroyPartQty(inventoryId: string) {
@@ -194,39 +202,45 @@ export function HardwarePartsPanel({
     })
     if (!answered.ok) return
     const now = new Date().toISOString()
-    const result = destroyInventoryQtyFromHardware(
-      allUnits,
-      hardware.id,
-      inventoryId,
-      qty,
-      now,
-    )
-    if (result.error) {
-      setError(result.error)
-      return
-    }
-    const note: HardwareProgressNote = {
-      id: newId('pg'),
-      unitId: inventoryId,
-      date: now.slice(0, 10),
-      status: 'destroyed',
-      note: `Destroyed ${qty} on ${hardware.name} · ${answered.note}`,
-      author: userName,
-    }
-    setError(null)
-    void store.commit(
-      (prev: HardwareLabState) => ({
-        ...prev,
-        units: result.units,
-        progress: [note, ...prev.progress],
-      }),
-      qty > 1 ? `Destroyed ${qty}` : 'Destroyed',
-    )
-    setQtyById((prev) => {
-      const next = { ...prev }
-      delete next[inventoryId]
-      return next
-    })
+    let applyError: string | undefined
+    void store
+      .commit((prev: HardwareLabState) => {
+        const result = destroyInventoryQtyFromHardware(
+          prev.units,
+          hardware.id,
+          inventoryId,
+          qty,
+          now,
+        )
+        if (result.error) {
+          applyError = result.error
+          return prev
+        }
+        const note: HardwareProgressNote = {
+          id: newId('pg'),
+          unitId: inventoryId,
+          date: now.slice(0, 10),
+          status: 'destroyed',
+          note: `Destroyed ${qty} on ${hardware.name} · ${answered.note}`,
+          author: userName,
+        }
+        return {
+          ...prev,
+          units: result.units,
+          progress: [note, ...prev.progress],
+        }
+      }, qty > 1 ? `Destroyed ${qty}` : 'Destroyed')
+      .then(() => {
+        if (applyError) setError(applyError)
+        else {
+          setError(null)
+          setQtyById((prev) => {
+            const next = { ...prev }
+            delete next[inventoryId]
+            return next
+          })
+        }
+      })
   }
 
   async function returnAll(inventoryId: string) {
@@ -235,8 +249,10 @@ export function HardwarePartsPanel({
       `Return “${part?.name ?? 'this part'}” to stock and remove it from this unit?`,
     )
     if (!ok) return
-    saveUnits(
-      unlinkInventoryFromHardware(allUnits, hardware.id, inventoryId),
+    commitUnits(
+      (units) => ({
+        units: unlinkInventoryFromHardware(units, hardware.id, inventoryId),
+      }),
       'Returned to stock',
     )
   }
