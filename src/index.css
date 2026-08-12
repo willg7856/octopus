@@ -5477,9 +5477,8 @@ button.simple-list-row {
   padding-top: 0.15rem;
 }
 
-.floor-glance-row[data-kind='blocked'] .floor-glance-kind,
-.floor-glance-row[data-kind='overdue'] .floor-glance-kind {
-  color: var(--telem-red);
+.floor-glance-row[data-kind='attention'] .floor-glance-kind {
+  color: var(--ignition);
 }
 
 .floor-glance-main {

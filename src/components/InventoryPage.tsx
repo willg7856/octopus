@@ -58,25 +58,10 @@ type AttentionFilter =
 type InventoryKind = 'part' | 'consumable' | 'tool' | 'electronics' | 'other'
 type KindFilter = 'all' | InventoryKind
 
-const ATTENTION_STATUSES: StockStatus[] = [
-  'low',
-  'on-order',
-  'reserved',
-  'quarantine',
-  'depleted',
-  'destroyed',
-]
-
 function matchesAttention(unit: HardwareUnit, filter: AttentionFilter) {
   const status = stockStatusOf(unit)
   if (filter === 'all') return true
-  if (filter === 'attention') {
-    return (
-      ATTENTION_STATUSES.includes(status) ||
-      isOrderOverdue(unit) ||
-      unitNeedsAttention(unit)
-    )
-  }
+  if (filter === 'attention') return unitNeedsAttention(unit)
   if (filter === 'overdue') return isOrderOverdue(unit)
   return status === filter
 }
@@ -133,13 +118,7 @@ export function InventoryPage({
       if (!matchesKind(unit, kindFilter)) continue
       const status = stockStatusOf(unit)
       const overdueOrder = isOrderOverdue(unit)
-      if (
-        ATTENTION_STATUSES.includes(status) ||
-        overdueOrder ||
-        unitNeedsAttention(unit)
-      ) {
-        attention += 1
-      }
+      if (unitNeedsAttention(unit)) attention += 1
       if (status === 'low') low += 1
       if (status === 'on-order') onOrder += 1
       if (status === 'reserved') reserved += 1
@@ -308,7 +287,6 @@ export function InventoryPage({
       (u) => ({
         ...u,
         needsAttention: next || undefined,
-        notesImportant: next ? u.notesImportant : undefined,
         updatedAt: new Date().toISOString(),
       }),
       next ? 'Needs attention' : 'Attention cleared',
