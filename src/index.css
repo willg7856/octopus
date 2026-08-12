@@ -5037,6 +5037,41 @@ button.simple-list-row {
   color: var(--telem-amber, #c47a12);
 }
 
+.attention-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  margin: 0 0 0.85rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+}
+
+.attention-toggle[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--ignition) 45%, var(--line));
+  color: var(--ignition);
+  background: color-mix(in srgb, var(--ignition) 10%, var(--bg-panel-solid));
+  box-shadow: inset 0 -2px 0 var(--ignition);
+  font-weight: 700;
+}
+
+.attention-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--r);
+  border: 1px solid color-mix(in srgb, var(--ignition) 40%, var(--line));
+  background: color-mix(in srgb, var(--ignition) 10%, transparent);
+  color: var(--ignition);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .hw-notes-important {
   display: flex;
   align-items: center;

@@ -551,6 +551,12 @@ export function unitOnOrderQty(unit: Pick<HardwareUnit, 'onOrderQty'>) {
     : 0
 }
 
+/** Manual attention flag, or legacy important notes. */
+export function unitNeedsAttention(unit: HardwareUnit) {
+  if (unit.needsAttention) return true
+  return Boolean(unit.notesImportant && unit.notes?.trim())
+}
+
 /** True when an outstanding order is past its expected delivery date. */
 export function isOrderOverdue(
   unit: Pick<HardwareUnit, 'expectedAt' | 'onOrderQty' | 'stockStatus' | 'status'>,

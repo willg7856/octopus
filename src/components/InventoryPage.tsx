@@ -24,6 +24,7 @@ import {
   unitOnOrderQty,
   unitPriceOf,
   unitQuantity,
+  unitNeedsAttention,
   unitReservedQty,
   unlinkInventoryFromHardware,
 } from '../hardwareData'
@@ -35,6 +36,7 @@ import type {
 } from '../types'
 import { useLabStore } from '../useLabStore'
 import { EmptyState } from './EmptyState'
+import { NeedsAttentionButton } from './NeedsAttentionButton'
 import { SyncStatusBanners } from './SyncStatusBanners'
 
 const KIND_OPTIONS = INVENTORY_KINDS.map(
@@ -69,7 +71,11 @@ function matchesAttention(unit: HardwareUnit, filter: AttentionFilter) {
   const status = stockStatusOf(unit)
   if (filter === 'all') return true
   if (filter === 'attention') {
-    return ATTENTION_STATUSES.includes(status) || isOrderOverdue(unit)
+    return (
+      ATTENTION_STATUSES.includes(status) ||
+      isOrderOverdue(unit) ||
+      unitNeedsAttention(unit)
+    )
   }
   if (filter === 'overdue') return isOrderOverdue(unit)
   return status === filter
@@ -127,7 +133,13 @@ export function InventoryPage({
       if (!matchesKind(unit, kindFilter)) continue
       const status = stockStatusOf(unit)
       const overdueOrder = isOrderOverdue(unit)
-      if (ATTENTION_STATUSES.includes(status) || overdueOrder) attention += 1
+      if (
+        ATTENTION_STATUSES.includes(status) ||
+        overdueOrder ||
+        unitNeedsAttention(unit)
+      ) {
+        attention += 1
+      }
       if (status === 'low') low += 1
       if (status === 'on-order') onOrder += 1
       if (status === 'reserved') reserved += 1
@@ -288,6 +300,20 @@ export function InventoryPage({
           : prev.progress,
       }
     }, message)
+  }
+
+  function setNeedsAttention(id: string, next: boolean) {
+    patchUnit(
+      id,
+      (u) => ({
+        ...u,
+        needsAttention: next || undefined,
+        notesImportant: next ? u.notesImportant : undefined,
+        updatedAt: new Date().toISOString(),
+      }),
+      next ? 'Needs attention' : 'Attention cleared',
+      next ? 'Marked needs attention' : 'Cleared attention flag',
+    )
   }
 
   function adjustQty(id: string, delta: number) {
@@ -875,6 +901,14 @@ export function InventoryPage({
                             {host ? ` · on ${host.name}` : ''}
                             {unit.location ? ` · ${unit.location}` : ''}
                             {destroyCause ? ` · ${destroyCause}` : ''}
+                            {unitNeedsAttention(unit) ? (
+                              <>
+                                {' · '}
+                                <span className="hw-notes-flag">
+                                  Needs attention
+                                </span>
+                              </>
+                            ) : null}
                             {unit.expectedAt ? (
                               <>
                                 {' · '}
@@ -1037,6 +1071,22 @@ export function InventoryPage({
               />
             ) : selected ? (
               <>
+                <div className="attention-bar">
+                  <NeedsAttentionButton
+                    unit={selected}
+                    disabled={!hasLoaded}
+                    onToggle={(next) => setNeedsAttention(selected.id, next)}
+                  />
+                  {unitNeedsAttention(selected) ? (
+                    <span className="attention-pill" role="status">
+                      Flagged
+                    </span>
+                  ) : (
+                    <span className="simple-muted">
+                      Flag for Needs attention filter and Production glance.
+                    </span>
+                  )}
+                </div>
                 <UnitForm
                   key={selected.id}
                   initial={selected}
