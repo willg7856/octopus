@@ -120,7 +120,7 @@ const LEGACY_STATUS_TO_STOCK: Partial<Record<HardwareStatus, StockStatus>> = {
   fab: 'receiving',
   concept: 'incoming',
   failed: 'quarantine',
-  destroyed: 'depleted',
+  destroyed: 'destroyed',
   retired: 'depleted',
 }
 
@@ -136,6 +136,20 @@ const STOCK_TO_HARDWARE_STATUS: Record<StockStatus, HardwareStatus> = {
   destroyed: 'destroyed',
 }
 
+/** Reverse map for inventory history notes that store mirrored hardware statuses. */
+const HARDWARE_STATUS_TO_STOCK: Partial<Record<HardwareStatus, StockStatus>> = {
+  'flight-ready': 'in-stock',
+  checkout: 'low',
+  assembly: 'on-order',
+  design: 'reserved',
+  fab: 'receiving',
+  concept: 'incoming',
+  failed: 'quarantine',
+  retired: 'depleted',
+  destroyed: 'destroyed',
+  completed: 'in-stock',
+}
+
 export function stockStatusOf(unit: HardwareUnit): StockStatus {
   if (unit.stockStatus && STOCK_STATUS_ORDER.includes(unit.stockStatus)) {
     return unit.stockStatus
@@ -145,6 +159,15 @@ export function stockStatusOf(unit: HardwareUnit): StockStatus {
 
 export function stockStatusLabel(status: StockStatus) {
   return STOCK_STATUS_LABELS[status]
+}
+
+/** Label inventory progress notes using stock language, not build status. */
+export function inventoryHistoryStatusLabel(status: HardwareStatus) {
+  const stock =
+    HARDWARE_STATUS_TO_STOCK[status] ??
+    LEGACY_STATUS_TO_STOCK[status] ??
+    'in-stock'
+  return STOCK_STATUS_LABELS[stock]
 }
 
 export function hardwareStatusForStock(stockStatus: StockStatus): HardwareStatus {

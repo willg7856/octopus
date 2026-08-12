@@ -4,7 +4,6 @@ import { useConfirm } from './ConfirmDialog'
 import { SyncBar } from './SyncBar'
 import {
   HARDWARE_KIND_LABELS,
-  HARDWARE_STATUS_LABELS,
   INVENTORY_KINDS,
   STOCK_STATUS_LABELS,
   STOCK_STATUS_ORDER,
@@ -13,6 +12,7 @@ import {
   destroyInventoryStock,
   formatMoney,
   hardwareStatusForStock,
+  inventoryHistoryStatusLabel,
   isInventoryKind,
   isOrderOverdue,
   newId,
@@ -1064,7 +1064,7 @@ export function InventoryPage({
                         <li key={note.id}>
                           <strong>
                             {note.date} ·{' '}
-                            {HARDWARE_STATUS_LABELS[note.status] ?? note.status}
+                            {inventoryHistoryStatusLabel(note.status)}
                           </strong>
                           <span className="simple-muted">
                             {note.note}
