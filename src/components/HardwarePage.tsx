@@ -355,6 +355,7 @@ export function HardwarePage({
   }
 
   async function removeUnit(id: string) {
+    if (!user?.canManageAccounts) return
     const unit = lab.units.find((u) => u.id === id)
     if (!unit) return
     const linkedProductions = lab.processes.filter((p) => p.vehicleUnitId === id)
@@ -436,6 +437,7 @@ export function HardwarePage({
   }
 
   async function markDestroyed(id: string) {
+    if (!user?.canManageAccounts) return
     const unit = lab.units.find((u) => u.id === id)
     if (!unit || unit.status === 'destroyed') return
     const answered = await confirmNote({
@@ -649,9 +651,13 @@ export function HardwarePage({
                   submitLabel="Save"
                   parentCandidates={units}
                   onSave={saveUnit}
-                  onDelete={() => removeUnit(selected.id)}
+                  onDelete={
+                    user?.canManageAccounts
+                      ? () => removeUnit(selected.id)
+                      : undefined
+                  }
                   onMarkDestroyed={
-                    selected.status === 'destroyed'
+                    selected.status === 'destroyed' || !user?.canManageAccounts
                       ? undefined
                       : () => markDestroyed(selected.id)
                   }
@@ -663,13 +669,14 @@ export function HardwarePage({
                   store={store}
                   disabled={!hasLoaded}
                   userName={user?.name}
+                  canDestroy={Boolean(user?.canManageAccounts)}
                   onOpenInventory={onOpenInventory}
                 />
                 <section className="hw-history" aria-label="Progress history">
                   <h4>Progress</h4>
                   {unitProgress.length === 0 ? (
                     <p className="simple-muted">
-                      No notes yet — status changes are logged here.
+                      Status changes, integrates, and parts movements log here.
                     </p>
                   ) : (
                     <ul className="hw-history-list">

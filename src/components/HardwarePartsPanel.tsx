@@ -8,6 +8,8 @@ import {
   newId,
   returnInventoryQtyFromHardware,
   sortUnits,
+  stockMovementNote,
+  unitAvailableQty,
   unitQuantity,
   unlinkInventoryFromHardware,
   type HardwareLabState,
@@ -22,6 +24,7 @@ type HardwarePartsPanelProps = {
   store: LabStore
   disabled?: boolean
   userName?: string
+  canDestroy?: boolean
   onOpenInventory?: (inventoryId: string) => void
 }
 
@@ -37,6 +40,7 @@ export function HardwarePartsPanel({
   store,
   disabled,
   userName,
+  canDestroy = false,
   onOpenInventory,
 }: HardwarePartsPanelProps) {
   const { confirm, confirmNote, dialog: confirmDialog } = useConfirm()
@@ -78,10 +82,10 @@ export function HardwarePartsPanel({
         if (u.installedOnUnitId && u.installedOnUnitId !== hardware.id) {
           // show busy items so the operator can see why Install is disabled
         }
-        const onHand = unitQuantity(u)
+        const available = unitAvailableQty(u)
         // Already on this unit but still has stock — allow installing more.
-        if (partIds.has(u.id) && onHand <= 0) return false
-        if (!q) return onHand > 0 || Boolean(u.installedOnUnitId)
+        if (partIds.has(u.id) && available <= 0) return false
+        if (!q) return available > 0 || Boolean(u.installedOnUnitId)
         return [u.name, u.serial, u.partNumber, HARDWARE_KIND_LABELS[u.kind]]
           .filter(Boolean)
           .join(' ')
@@ -108,6 +112,11 @@ export function HardwarePartsPanel({
     },
     message: string,
     onSuccess?: () => void,
+    movementNote?: {
+      unitId: string
+      text: string
+      status?: HardwareProgressNote['status']
+    },
   ) {
     let applyError: string | undefined
     void store
@@ -117,7 +126,18 @@ export function HardwarePartsPanel({
           applyError = result.error
           return prev
         }
-        return { ...prev, units: result.units }
+        const progress = movementNote
+          ? [
+              stockMovementNote(
+                movementNote.unitId,
+                movementNote.text,
+                movementNote.status ?? 'assembly',
+                userName,
+              ),
+              ...prev.progress,
+            ]
+          : prev.progress
+        return { ...prev, units: result.units, progress }
       }, message)
       .then(() => {
         if (applyError) setError(applyError)
@@ -130,18 +150,22 @@ export function HardwarePartsPanel({
 
   function installPart(inventoryId: string) {
     const item = allUnits.find((u) => u.id === inventoryId)
-    const onHand = item ? unitQuantity(item) : 0
+    const available = item ? unitAvailableQty(item) : 0
     if (item?.installedOnUnitId === hardware.id) {
       setError('Return qty first, then add from stock')
       return
     }
-    if (onHand <= 0) {
-      setError('Nothing on hand to install')
+    if (available <= 0) {
+      setError(
+        item && unitQuantity(item) > 0
+          ? 'All on-hand stock is reserved for production'
+          : 'Nothing on hand to install',
+      )
       return
     }
     const qty = Math.min(
       Math.max(1, parseQty(qtyById[inventoryId], 1)),
-      onHand,
+      available,
     )
     // Always pass an explicit qty so installs draw (never whole-line reserve).
     commitUnits(
@@ -155,6 +179,10 @@ export function HardwarePartsPanel({
           delete next[inventoryId]
           return next
         })
+      },
+      {
+        unitId: inventoryId,
+        text: `Installed ${qty} on ${hardware.name}`,
       },
     )
   }
@@ -179,10 +207,18 @@ export function HardwarePartsPanel({
           return next
         })
       },
+      {
+        unitId: inventoryId,
+        text: `Returned ${qty} from ${hardware.name}`,
+      },
     )
   }
 
   async function destroyPartQty(inventoryId: string) {
+    if (!canDestroy) {
+      setError('Only admins can destroy parts')
+      return
+    }
     const part = allUnits.find((u) => u.id === inventoryId)
     const drawn = hardware.linkedInventoryDraws?.[inventoryId] ?? 0
     const reservedHere = part?.installedOnUnitId === hardware.id
@@ -286,8 +322,9 @@ export function HardwarePartsPanel({
               ? allUnits.find((u) => u.id === part.installedOnUnitId)
               : null
             const onHand = unitQuantity(part)
+            const available = unitAvailableQty(part)
             const usingCount = installedHere ? onHand : drawn
-            const qtyMax = Math.max(1, Math.max(usingCount, onHand))
+            const qtyMax = Math.max(1, Math.max(usingCount, available))
             const qtyVal = String(
               Math.min(parseQty(qtyById[part.id], 1), qtyMax),
             )
@@ -306,7 +343,8 @@ export function HardwarePartsPanel({
                     <strong>{part.name}</strong>
                   )}
                   <span className="simple-muted">
-                    {HARDWARE_KIND_LABELS[part.kind]} · {onHand} on hand
+                    {HARDWARE_KIND_LABELS[part.kind]} · {available} avail /{' '}
+                    {onHand} on hand
                     {installedHere
                       ? ` · using ${usingCount} (reserved)`
                       : drawn > 0
@@ -350,12 +388,12 @@ export function HardwarePartsPanel({
                       <button
                         type="button"
                         className="btn btn-accent"
-                        disabled={disabled || installedHere || onHand <= 0}
+                        disabled={disabled || installedHere || available <= 0}
                         title={
                           installedHere
                             ? 'Return qty first, then add from stock'
-                            : onHand <= 0
-                              ? 'Nothing left on hand to add'
+                            : available <= 0
+                              ? 'Nothing available to add'
                               : undefined
                         }
                         onClick={() => installPart(part.id)}
@@ -370,23 +408,25 @@ export function HardwarePartsPanel({
                       >
                         Return
                       </button>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        disabled={disabled}
-                        onClick={() => void destroyPartQty(part.id)}
-                      >
-                        Destroy
-                      </button>
+                      {canDestroy ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          disabled={disabled}
+                          onClick={() => void destroyPartQty(part.id)}
+                        >
+                          Destroy
+                        </button>
+                      ) : null}
                     </>
                   ) : (
                     <>
-                      {!installedElsewhere && onHand > 0 ? (
+                      {!installedElsewhere && available > 0 ? (
                         <>
                           <QtyStepper
                             id={part.id}
                             value={qtyVal}
-                            max={Math.max(1, onHand)}
+                            max={Math.max(1, available)}
                             disabled={disabled}
                             onChange={setQty}
                             onBump={bumpQty}

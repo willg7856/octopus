@@ -34,8 +34,10 @@ export function SyncStatusBanners({ store }: { store: LabStore }) {
       ) : null}
       {conflict ? (
         <p className="simple-conflict" role="alert">
-          Someone else saved first. Review the live data
-          {canRetryConflict ? ', then retry your edit.' : ', then re-apply your edit.'}
+          Someone else saved first. Live data was refreshed
+          {canRetryConflict
+            ? ' — retry applies your edit on top of it.'
+            : ' — re-apply your edit after reviewing.'}
           {canRetryConflict ? (
             <>
               {' '}
