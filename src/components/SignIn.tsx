@@ -84,6 +84,11 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
           <button type="submit" className="btn btn-accent auth-submit" disabled={pending}>
             {pending ? 'Signing in…' : 'Sign in'}
           </button>
+
+          <p className="auth-footnote">
+            Use your personal password, or the shared team password if you
+            don’t have one yet.
+          </p>
         </form>
       </div>
     </div>

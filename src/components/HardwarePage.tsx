@@ -539,7 +539,7 @@ export function HardwarePage({
         <p className={sync === 'loading' ? 'simple-loading' : 'simple-muted'}>
           {sync === 'loading'
             ? 'Loading shared lab…'
-            : 'Could not load shared lab. Retry above — do not add units until it recovers.'}
+            : 'Could not load shared lab. Use Retry — do not add units until it recovers.'}
         </p>
       ) : (
         <div className="simple-split" data-mode={mobileMode}>

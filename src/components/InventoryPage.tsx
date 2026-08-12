@@ -567,20 +567,6 @@ export function InventoryPage({
     }, 'Marked destroyed')
   }
 
-  const destroyCauseByUnit = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const note of lab.progress) {
-      if (note.status !== 'destroyed') continue
-      if (map.has(note.unitId)) continue
-      const cause = note.note
-        .replace(/^Destroyed \d+ on .+ · /, '')
-        .replace(/^Marked destroyed · /, '')
-        .trim()
-      if (cause) map.set(note.unitId, cause)
-    }
-    return map
-  }, [lab.progress])
-
   const filterChips: { id: AttentionFilter; label: string; count?: number }[] = [
     { id: 'all', label: 'All status' },
     {
@@ -629,8 +615,22 @@ export function InventoryPage({
             <h2>Inventory</h2>
             {sync !== 'loading' ? (
               <p className="inv-total-count" aria-live="polite">
-                <strong>{inventoryTotals.items}</strong>
-                {inventoryTotals.items === 1 ? ' item' : ' items'}
+                {filtered.length !== inventoryTotals.items ? (
+                  <>
+                    <strong>{filtered.length}</strong>
+                    {' shown'}
+                    <span className="inv-total-sep" aria-hidden="true">
+                      ·
+                    </span>
+                    <strong>{inventoryTotals.items}</strong>
+                    {' total'}
+                  </>
+                ) : (
+                  <>
+                    <strong>{inventoryTotals.items}</strong>
+                    {inventoryTotals.items === 1 ? ' item' : ' items'}
+                  </>
+                )}
                 <span className="inv-total-sep" aria-hidden="true">
                   ·
                 </span>
@@ -687,7 +687,7 @@ export function InventoryPage({
         <p className={sync === 'loading' ? 'simple-loading' : 'simple-muted'}>
           {sync === 'loading'
             ? 'Loading shared lab…'
-            : 'Could not load shared lab. Retry above — do not add items until it recovers.'}
+            : 'Could not load shared lab. Use Retry — do not add items until it recovers.'}
         </p>
       ) : (
         <div className="simple-split" data-mode={mobileMode}>
@@ -834,14 +834,12 @@ export function InventoryPage({
               {filtered.map((unit) => {
                 const status = stockStatusOf(unit)
                 const onOrder = unitOnOrderQty(unit)
-                const price = unitPriceOf(unit)
                 const overdue = isOrderOverdue(unit)
                 const reserved =
                   Boolean(unit.installedOnUnitId) || status === 'reserved'
                 const host = unit.installedOnUnitId
                   ? lab.units.find((u) => u.id === unit.installedOnUnitId)
                   : null
-                const destroyCause = destroyCauseByUnit.get(unit.id)
                 const canReceive =
                   !reserved &&
                   (onOrder > 0 ||
@@ -868,17 +866,16 @@ export function InventoryPage({
                             {HARDWARE_KIND_LABELS[unit.kind]}
                             {unit.program?.trim()
                               ? ` · ${unit.program.trim()}`
-                              : ''}{' '}
-                            · on hand {unitQuantity(unit)}
-                            {unitReservedQty(unit) > 0
-                              ? ` · reserved ${unitReservedQty(unit)}`
                               : ''}
-                            {onOrder > 0 ? ` · on order ${onOrder}` : ''}
-                            {price != null ? ` · ${formatMoney(price)}/ea` : ''}
-                            {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
-                            {host ? ` · on ${host.name}` : ''}
-                            {unit.location ? ` · ${unit.location}` : ''}
-                            {destroyCause ? ` · ${destroyCause}` : ''}
+                            {` · ${unitQuantity(unit)} on hand`}
+                            {unitReservedQty(unit) > 0
+                              ? ` · ${unitReservedQty(unit)} reserved`
+                              : ''}
+                            {host
+                              ? ` · on ${host.name}`
+                              : unit.location
+                                ? ` · ${unit.location}`
+                                : ''}
                             {unitNeedsAttention(unit) ? (
                               <>
                                 {' · '}
@@ -899,17 +896,13 @@ export function InventoryPage({
                                   {formatOrderDate(unit.expectedAt)}
                                 </span>
                               </>
-                            ) : unit.orderedAt ? (
-                              ` · ordered ${formatOrderDate(unit.orderedAt)}`
-                            ) : (
-                              ''
-                            )}
+                            ) : null}
                           </span>
                         </span>
                         <span
                           className="status-badge"
                           data-kind="stock"
-                          data-status={overdue ? 'quarantine' : status}
+                          data-status={overdue ? 'overdue' : status}
                         >
                           {overdue ? 'Overdue' : stockStatusLabel(status)}
                         </span>

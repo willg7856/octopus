@@ -192,7 +192,14 @@ export function TeamPage({ user: _user }: { user: AuthUser | null }) {
 
       {error ? (
         <p className="simple-error" role="alert">
-          {error}
+          {error}{' '}
+          <button
+            type="button"
+            className="btn btn-ghost simple-inline-action"
+            onClick={() => void reload()}
+          >
+            Retry
+          </button>
         </p>
       ) : null}
 
@@ -218,7 +225,7 @@ export function TeamPage({ user: _user }: { user: AuthUser | null }) {
       <section className="team-panel" aria-label="Allowed accounts">
         <h3>Allowed accounts</h3>
         {loading ? (
-          <p className="simple-muted">Loading…</p>
+          <p className="simple-loading">Loading accounts…</p>
         ) : (
           <>
             {access.openAccess ? (

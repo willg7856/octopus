@@ -14,10 +14,11 @@
   --ignition: #ff5a1f;
   --ignition-hover: #e64613;
   --ignition-soft: #ffe4d7;
-  --telem-amber: #ffc400;
-  --telem-green: #18a957;
-  --telem-red: #e33636;
-  --telem-cyan: #2dc2d9;
+  /* Darker in light mode so status text stays readable on paper */
+  --telem-amber: #9a6b00;
+  --telem-green: #0f7a3e;
+  --telem-red: #c42323;
+  --telem-cyan: #0e7a8a;
   --accent: var(--ignition);
   --fg: var(--ink-900);
   --fg-muted: var(--ink-500);
@@ -59,6 +60,10 @@
   --ignition: #ff5a1f;
   --ignition-hover: #ff7a47;
   --ignition-soft: #3a1d12;
+  --telem-amber: #ffc400;
+  --telem-green: #18a957;
+  --telem-red: #e33636;
+  --telem-cyan: #2dc2d9;
   --fg: #fafaf7;
   --fg-muted: #9aa3ad;
   --fg-faint: #7b8590;
@@ -108,6 +113,11 @@ button {
   cursor: pointer;
   border: none;
   background: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ignition);
+  outline-offset: 2px;
 }
 
 .app {
@@ -241,7 +251,7 @@ button {
   padding: 0.2rem;
   border: 1px solid var(--line);
   border-radius: calc(var(--r) + 2px);
-  background: color-mix(in srgb, var(--bg-panel-solid) 75%, transparent);
+  background: var(--bg-elev);
 }
 
 .view-nav-btn {
@@ -262,7 +272,6 @@ button {
 .view-nav-btn:hover {
   background: var(--hover);
   color: var(--fg);
-  transform: none;
 }
 
 .view-nav-btn[aria-pressed='true'] {
@@ -333,7 +342,6 @@ button {
   background: var(--hover);
   color: var(--fg);
   border-color: var(--line-strong);
-  transform: none;
 }
 
 .theme-toggle-icon {
@@ -1795,7 +1803,7 @@ button {
 .btn-accent {
   background: var(--ignition);
   border-color: var(--ignition);
-  color: #fff;
+  color: #0b0d0f;
 }
 
 .btn-accent:hover:not(:disabled) {
@@ -1811,7 +1819,6 @@ button {
 .btn:disabled {
   opacity: 0.38;
   cursor: not-allowed;
-  transform: none;
 }
 
 /* Telemetry stream */
@@ -2680,11 +2687,13 @@ button {
 }
 
 .auth-footnote {
-  margin: 1.1rem 0 0;
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  letter-spacing: 0.04em;
-  color: var(--fg-faint);
+  margin: 0.85rem 0 0;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg-muted);
 }
 
 .meta-user {
@@ -4230,10 +4239,9 @@ button {
   display: grid;
   gap: 0.3rem;
   margin: 0.75rem 0 0.25rem;
-  padding: 1rem 0.9rem;
-  border: 1px dashed color-mix(in srgb, var(--line) 90%, var(--ignition));
-  border-radius: var(--r);
-  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
+  padding: 0.35rem 0;
+  border: none;
+  background: transparent;
 }
 
 .simple-empty strong {
@@ -4262,7 +4270,7 @@ button {
   padding: 0.85rem 0.9rem;
   border: 1px solid var(--line);
   border-radius: var(--r);
-  background: color-mix(in srgb, var(--bg-panel-solid) 80%, transparent);
+  background: var(--bg-elev);
   color: var(--fg-muted);
   font-size: 0.9rem;
 }
@@ -4296,9 +4304,8 @@ button {
 .simple-detail {
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  background: color-mix(in srgb, var(--bg-panel-solid) 86%, transparent);
+  background: var(--bg-panel-solid);
   padding: 0.85rem 0.9rem 1rem;
-  box-shadow: var(--shadow-panel);
 }
 
 .simple-search,
@@ -4402,6 +4409,7 @@ button.simple-list-row {
 }
 
 .status-badge[data-kind='stock'][data-status='low'],
+.status-badge[data-kind='stock'][data-status='overdue'],
 .status-badge[data-kind='hardware'][data-status='checkout'],
 .status-badge[data-kind='hardware'][data-status='assembly'] {
   color: var(--telem-amber);
@@ -4490,7 +4498,7 @@ button.simple-list-row {
 
 .inv-eta-overdue {
   font-weight: 600;
-  color: var(--telem-amber, #c47a12);
+  color: var(--telem-amber);
 }
 
 .simple-inline-action {
@@ -4520,11 +4528,9 @@ button.simple-list-row {
     border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
 
-.inv-filter-chip:hover,
-.inv-filter-chip:focus-visible {
+.inv-filter-chip:hover {
   background: var(--hover);
   color: var(--fg);
-  outline: none;
 }
 
 .inv-filter-chip[aria-pressed='true'] {
@@ -4575,10 +4581,8 @@ button.simple-list-row {
   cursor: pointer;
 }
 
-.inv-qty-btn:hover:not(:disabled),
-.inv-qty-btn:focus-visible:not(:disabled) {
+.inv-qty-btn:hover:not(:disabled) {
   background: var(--hover);
-  outline: none;
 }
 
 .inv-qty-btn:disabled {
@@ -4887,10 +4891,8 @@ button.simple-list-row {
   cursor: pointer;
 }
 
-.simple-more-item:hover,
-.simple-more-item:focus-visible {
+.simple-more-item:hover {
   background: var(--hover);
-  outline: none;
 }
 
 .simple-more-item:disabled {
@@ -4983,7 +4985,7 @@ button.simple-list-row {
 
 .hw-notes-flag {
   font-weight: 600;
-  color: var(--telem-amber, #c47a12);
+  color: var(--telem-amber);
 }
 
 .attention-bar {
@@ -4995,7 +4997,7 @@ button.simple-list-row {
   padding: 0.55rem 0.65rem;
   border: 1px solid var(--line);
   border-radius: var(--r);
-  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+  background: var(--bg-elev);
 }
 
 .attention-toggle[aria-pressed='true'] {
@@ -5371,8 +5373,7 @@ button.simple-list-row {
   padding: 0.85rem 0.95rem;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  background: color-mix(in srgb, var(--bg-panel-solid) 86%, transparent);
-  box-shadow: var(--shadow-panel);
+  background: var(--bg-panel-solid);
   animation: rise 0.45s var(--ease) 0.08s both;
 }
 
@@ -5902,11 +5903,9 @@ button.simple-list-row {
     transform 0.15s var(--ease);
 }
 
-.prod-btn:hover,
-.prod-btn:focus-visible {
+.prod-btn:hover {
   background: var(--hover);
   border-color: var(--fg-muted);
-  outline: none;
 }
 
 .prod-btn[aria-pressed='true'] {
@@ -6287,7 +6286,7 @@ button.simple-list-row {
   padding: 0.2rem;
   border: 1px solid var(--line);
   border-radius: calc(var(--r) + 2px);
-  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+  background: var(--bg-elev);
 }
 
 .prod-status-btn {
@@ -6314,11 +6313,9 @@ button.simple-list-row {
   cursor: default;
 }
 
-.prod-status-btn:hover,
-.prod-status-btn:focus-visible {
+.prod-status-btn:hover {
   background: var(--hover);
   color: var(--fg);
-  outline: none;
 }
 
 .prod-status-btn-quiet {
@@ -6497,7 +6494,6 @@ button.simple-list-row {
 
   .status-badge {
     font-size: 0.72rem;
-    padding: 0.3rem 0.55rem;
   }
 
   .prod-status-btn {

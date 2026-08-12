@@ -5,7 +5,6 @@ export function SyncStatusBanners({ store }: { store: LabStore }) {
   const {
     sync,
     syncError,
-    hasLoaded,
     conflict,
     canRetryConflict,
     refresh,
@@ -17,19 +16,14 @@ export function SyncStatusBanners({ store }: { store: LabStore }) {
     <>
       {sync === 'error' && syncError ? (
         <p className="simple-error" role="alert">
-          {syncError}
-          {hasLoaded ? (
-            <>
-              {' '}
-              <button
-                type="button"
-                className="btn btn-ghost simple-inline-action"
-                onClick={() => void refresh({ quiet: true })}
-              >
-                Retry
-              </button>
-            </>
-          ) : null}
+          {syncError}{' '}
+          <button
+            type="button"
+            className="btn btn-ghost simple-inline-action"
+            onClick={() => void refresh({ quiet: true })}
+          >
+            Retry
+          </button>
         </p>
       ) : null}
       {conflict ? (

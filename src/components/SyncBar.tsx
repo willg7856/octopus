@@ -16,7 +16,6 @@ type SyncBarProps = {
 export function SyncBar({
   sync,
   saving,
-  conflict,
   updatedAt,
   updatedBy,
   lab,
@@ -38,11 +37,6 @@ export function SyncBar({
         <span className="simple-sync simple-sync-error">Offline</span>
       ) : null}
       {updated ? <span className="simple-sync-meta">{updated}</span> : null}
-      {conflict ? (
-        <span className="simple-conflict" role="status">
-          Conflict
-        </span>
-      ) : null}
       <button
         type="button"
         className="btn btn-ghost simple-sync-refresh"
