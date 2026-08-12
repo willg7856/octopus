@@ -551,10 +551,9 @@ export function unitOnOrderQty(unit: Pick<HardwareUnit, 'onOrderQty'>) {
     : 0
 }
 
-/** Manual attention flag, or legacy important notes. */
+/** Manual floor flag only (Needs attention button). */
 export function unitNeedsAttention(unit: HardwareUnit) {
-  if (unit.needsAttention) return true
-  return Boolean(unit.notesImportant && unit.notes?.trim())
+  return Boolean(unit.needsAttention)
 }
 
 /** True when an outstanding order is past its expected delivery date. */

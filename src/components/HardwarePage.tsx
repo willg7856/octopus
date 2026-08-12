@@ -204,9 +204,7 @@ export function HardwarePage({
     void store.commit((prev) => {
       const current = prev.units.find((u) => u.id === id)
       if (!current || !isSystemKind(current.kind)) return prev
-      if (Boolean(current.needsAttention) === next && !current.notesImportant) {
-        return prev
-      }
+      if (Boolean(current.needsAttention) === next) return prev
       const note: HardwareProgressNote = {
         id: newId('pg'),
         unitId: id,
@@ -222,9 +220,6 @@ export function HardwarePage({
             ? {
                 ...u,
                 needsAttention: next || undefined,
-                // Clearing the button also clears the legacy notes flag path
-                // so the unit leaves the attention list immediately.
-                notesImportant: next ? u.notesImportant : undefined,
                 updatedAt: now,
               }
             : u,
