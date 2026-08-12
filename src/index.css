@@ -1,80 +1,80 @@
 :root,
 [data-theme='light'] {
-  /* Range-shed console: cool fog, charcoal ink, ignition signal */
-  --ink-900: #12151a;
-  --ink-800: #1c2229;
-  --ink-700: #2a323c;
-  --ink-600: #3d4652;
-  --ink-500: #5b6572;
-  --ink-400: #8a94a1;
-  --ink-300: #c5ccd4;
-  --paper-100: #eef1f4;
-  --paper-200: #e4e9ee;
-  --paper-300: #d5dce4;
-  --ignition: #e85a1c;
-  --ignition-hover: #cf4a12;
-  --ignition-soft: #ffe8dc;
-  --telem-amber: #e6a700;
-  --telem-green: #1a9f5c;
-  --telem-red: #d92d2d;
-  --telem-cyan: #1aa8bc;
+  /* Match beyondstagezero.com brand tokens */
+  --ink-900: #0b0d0f;
+  --ink-800: #14181c;
+  --ink-700: #1e242b;
+  --ink-600: #2a323b;
+  --ink-500: #4a535d;
+  --ink-400: #7b8590;
+  --ink-300: #b8bfc7;
+  --paper-100: #fafaf7;
+  --paper-200: #f1f1ec;
+  --paper-300: #e4e4dd;
+  --ignition: #ff5a1f;
+  --ignition-hover: #e64613;
+  --ignition-soft: #ffe4d7;
+  --telem-amber: #ffc400;
+  --telem-green: #18a957;
+  --telem-red: #e33636;
+  --telem-cyan: #2dc2d9;
   --accent: var(--ignition);
   --fg: var(--ink-900);
   --fg-muted: var(--ink-500);
   --fg-faint: var(--ink-400);
   --bg: var(--paper-100);
-  --bg-elev: #f7f9fb;
-  --bg-panel: rgba(247, 249, 251, 0.88);
-  --bg-panel-solid: #f7f9fb;
+  --bg-elev: var(--paper-200);
+  --bg-panel: rgba(250, 250, 247, 0.92);
+  --bg-panel-solid: #fafaf7;
   --bg-inverse: var(--ink-900);
-  --fg-inverse: #f7f9fb;
-  --line: rgba(18, 21, 26, 0.11);
-  --line-strong: rgba(18, 21, 26, 0.2);
-  --hover: rgba(18, 21, 26, 0.04);
-  --grid-line: rgba(18, 21, 26, 0.045);
-  --chart-grid: rgba(18, 21, 26, 0.08);
-  --glow-ignition: rgba(232, 90, 28, 0.14);
-  --glow-cyan: rgba(26, 168, 188, 0.1);
-  --shadow-panel: 0 1px 0 rgba(18, 21, 26, 0.04), 0 10px 28px rgba(18, 21, 26, 0.04);
-  --font-display: 'Syne', 'Avenir Next', sans-serif;
-  --font-body: 'Public Sans', 'Segoe UI', sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --fg-inverse: var(--paper-100);
+  --line: rgba(11, 13, 15, 0.12);
+  --line-strong: rgba(11, 13, 15, 0.2);
+  --hover: rgba(11, 13, 15, 0.035);
+  --grid-line: rgba(11, 13, 15, 0.04);
+  --chart-grid: rgba(11, 13, 15, 0.07);
+  --glow-ignition: rgba(255, 90, 31, 0.12);
+  --glow-cyan: rgba(45, 194, 217, 0.07);
+  --shadow-panel: 0 1px 0 rgba(11, 13, 15, 0.04);
+  --font-display: 'JetBrains Mono', ui-monospace, monospace;
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --r: 6px;
-  --r-lg: 12px;
+  --r: 4px;
+  --r-lg: 6px;
 }
 
 [data-theme='dark'] {
-  --ink-900: #f4f6f8;
-  --ink-800: #e2e6eb;
-  --ink-700: #c5ccd4;
-  --ink-600: #8a94a1;
+  --ink-900: #fafaf7;
+  --ink-800: #e4e4dd;
+  --ink-700: #b8bfc7;
+  --ink-600: #7b8590;
   --ink-500: #9aa3ad;
-  --ink-400: #6f7884;
-  --ink-300: #2a323c;
-  --paper-100: #0e1216;
-  --paper-200: #151a20;
-  --paper-300: #1c232b;
-  --ignition: #ff6a2e;
-  --ignition-hover: #ff7f4d;
+  --ink-400: #7b8590;
+  --ink-300: #2a323b;
+  --paper-100: #0b0d0f;
+  --paper-200: #14181c;
+  --paper-300: #1e242b;
+  --ignition: #ff5a1f;
+  --ignition-hover: #ff7a47;
   --ignition-soft: #3a1d12;
-  --fg: #f4f6f8;
+  --fg: #fafaf7;
   --fg-muted: #9aa3ad;
-  --fg-faint: #6f7884;
-  --bg: #0e1216;
-  --bg-elev: #151a20;
-  --bg-panel: rgba(21, 26, 32, 0.92);
-  --bg-panel-solid: #151a20;
-  --bg-inverse: #f4f6f8;
-  --fg-inverse: #0e1216;
-  --line: rgba(244, 246, 248, 0.1);
-  --line-strong: rgba(244, 246, 248, 0.18);
-  --hover: rgba(244, 246, 248, 0.05);
-  --grid-line: rgba(244, 246, 248, 0.04);
-  --chart-grid: rgba(244, 246, 248, 0.07);
-  --glow-ignition: rgba(255, 106, 46, 0.16);
-  --glow-cyan: rgba(26, 168, 188, 0.12);
-  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.03), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --fg-faint: #7b8590;
+  --bg: #0b0d0f;
+  --bg-elev: #14181c;
+  --bg-panel: rgba(20, 24, 28, 0.94);
+  --bg-panel-solid: #14181c;
+  --bg-inverse: #fafaf7;
+  --fg-inverse: #0b0d0f;
+  --line: rgba(250, 250, 247, 0.1);
+  --line-strong: rgba(250, 250, 247, 0.18);
+  --hover: rgba(250, 250, 247, 0.05);
+  --grid-line: rgba(250, 250, 247, 0.04);
+  --chart-grid: rgba(250, 250, 247, 0.07);
+  --glow-ignition: rgba(255, 90, 31, 0.18);
+  --glow-cyan: rgba(45, 194, 217, 0.1);
+  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.03);
   --accent: var(--ignition);
 }
 
@@ -97,11 +97,10 @@ body {
   font-family: var(--font-body);
   color: var(--fg);
   background:
-    radial-gradient(ellipse 90% 55% at 12% -10%, var(--glow-ignition), transparent 55%),
-    radial-gradient(ellipse 70% 45% at 92% 0%, var(--glow-cyan), transparent 50%),
+    radial-gradient(ellipse 70% 40% at 8% -8%, var(--glow-ignition), transparent 55%),
     var(--bg);
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.25s var(--ease), color 0.25s var(--ease);
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
 }
 
 button {
@@ -231,10 +230,10 @@ button {
 .brand {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(1.55rem, 1.6vw + 0.7rem, 2.05rem);
+  font-size: clamp(1.45rem, 1.5vw + 0.55rem, 1.9rem);
   font-weight: 700;
-  letter-spacing: -0.045em;
-  line-height: 0.95;
+  letter-spacing: -0.04em;
+  line-height: 1;
   color: var(--fg);
 }
 
@@ -1782,20 +1781,20 @@ button {
 }
 
 .btn {
-  padding: 0.55rem 0.85rem;
-  font-family: var(--font-body);
-  font-size: 0.82rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   border: 1px solid var(--line-strong);
   border-radius: var(--r);
   transition: background 0.15s var(--ease), color 0.15s var(--ease),
-    border-color 0.15s var(--ease), opacity 0.15s, transform 0.15s var(--ease);
+    border-color 0.15s var(--ease), opacity 0.15s;
 }
 
 .btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  opacity: 1;
+  transform: none;
+  opacity: 0.92;
 }
 
 .btn-primary {
@@ -2604,8 +2603,7 @@ button {
   isolation: isolate;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 80% 50% at 20% -5%, var(--glow-ignition), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 90% 10%, var(--glow-cyan), transparent 50%),
+    radial-gradient(ellipse 70% 45% at 18% -5%, var(--glow-ignition), transparent 55%),
     var(--bg);
 }
 
@@ -2654,9 +2652,9 @@ button {
 }
 
 .auth-brand {
-  font-size: clamp(2.6rem, 8vw, 3.35rem);
+  font-size: clamp(2.4rem, 7vw, 3rem);
   margin: 0.2rem 0 0.55rem;
-  letter-spacing: -0.05em;
+  letter-spacing: -0.045em;
 }
 
 .auth-copy {
@@ -4211,10 +4209,10 @@ button {
 .simple-head h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(1.45rem, 1.5vw + 0.7rem, 1.85rem);
+  font-size: clamp(1.25rem, 1.2vw + 0.7rem, 1.55rem);
   font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1.05;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
 }
 
 .simple-title-row {
