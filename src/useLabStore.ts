@@ -221,79 +221,92 @@ function useLabStoreState(onAuthRequired?: () => void): LabStore {
 
   const commit = useCallback(async (next: LabUpdater, message: string) => {
     const run = async () => {
-      const previous = labRef.current
-      const resolved =
-        typeof next === 'function' ? next(previous) : next
+      const attemptSave = async (
+        updater: LabUpdater,
+        autoRetried: boolean,
+      ): Promise<boolean> => {
+        const previous = labRef.current
+        const resolved =
+          typeof updater === 'function' ? updater(previous) : updater
 
-      // Updater decided nothing changed — avoid a save flicker.
-      if (resolved === previous) return true
+        // Updater decided nothing changed — avoid a save flicker.
+        if (resolved === previous) return true
 
-      if (syncRef.current === 'local') {
-        saveHardwareLab(resolved)
+        if (syncRef.current === 'local') {
+          saveHardwareLab(resolved)
+          labRef.current = resolved
+          setLab(resolved)
+          dismissConflict()
+          flash(message)
+          return true
+        }
+
+        // Block edits until we've successfully loaded at least once
+        if (!hasLoadedRef.current || syncRef.current === 'loading') {
+          flash('Lab is still loading — try again in a moment')
+          return false
+        }
+
+        // Optimistic UI so status / timeline buttons respond immediately.
         labRef.current = resolved
         setLab(resolved)
-        dismissConflict()
+
+        pendingCount.current += 1
+        savingRef.current = true
+        setSaving(true)
+        setConflict(false)
+        setCanRetryConflict(false)
+        const expected = revisionRef.current
+        const result = await saveSharedHardwareLab(resolved, expected)
+        pendingCount.current = Math.max(0, pendingCount.current - 1)
+        if (pendingCount.current === 0) {
+          savingRef.current = false
+          setSaving(false)
+        }
+
+        if ('authRequired' in result && result.authRequired) {
+          labRef.current = previous
+          setLab(previous)
+          handleAuthRequired()
+          flash(result.error)
+          return false
+        }
+
+        if ('conflict' in result && result.conflict) {
+          applyShared(result.lab)
+          // Functional edits: auto-retry once against the fresh shared lab so
+          // two people touching different tabs often succeed without a click.
+          if (typeof updater === 'function' && !autoRetried) {
+            flash('Someone else saved first — retrying your edit…')
+            return attemptSave(updater, true)
+          }
+          pendingUpdaterRef.current = updater
+          setConflict(true)
+          setCanRetryConflict(typeof updater === 'function')
+          flash(
+            typeof updater === 'function'
+              ? 'Someone else saved first — review, then retry your edit.'
+              : 'Someone else saved first — your edit was not applied. Re-apply after reviewing.',
+          )
+          return false
+        }
+
+        if (!result.ok) {
+          labRef.current = previous
+          setLab(previous)
+          flash(result.error)
+          return false
+        }
+
+        applyShared(result.lab)
+        pendingUpdaterRef.current = null
+        setConflict(false)
+        setCanRetryConflict(false)
         flash(message)
         return true
       }
 
-      // Block edits until we've successfully loaded at least once
-      if (!hasLoadedRef.current || syncRef.current === 'loading') {
-        flash('Lab is still loading — try again in a moment')
-        return false
-      }
-
-      // Optimistic UI so status / timeline buttons respond immediately.
-      labRef.current = resolved
-      setLab(resolved)
-
-      pendingCount.current += 1
-      savingRef.current = true
-      setSaving(true)
-      setConflict(false)
-      setCanRetryConflict(false)
-      const expected = revisionRef.current
-      const result = await saveSharedHardwareLab(resolved, expected)
-      pendingCount.current = Math.max(0, pendingCount.current - 1)
-      if (pendingCount.current === 0) {
-        savingRef.current = false
-        setSaving(false)
-      }
-
-      if ('authRequired' in result && result.authRequired) {
-        labRef.current = previous
-        setLab(previous)
-        handleAuthRequired()
-        flash(result.error)
-        return false
-      }
-
-      if ('conflict' in result && result.conflict) {
-        applyShared(result.lab)
-        pendingUpdaterRef.current = next
-        setConflict(true)
-        setCanRetryConflict(typeof next === 'function')
-        flash(
-          typeof next === 'function'
-            ? 'Someone else saved first — review, then retry your edit.'
-            : 'Someone else saved first — your edit was not applied. Re-apply after reviewing.',
-        )
-        return false
-      }
-
-      if (!result.ok) {
-        labRef.current = previous
-        setLab(previous)
-        flash(result.error)
-        return false
-      }
-
-      applyShared(result.lab)
-      pendingUpdaterRef.current = null
-      setConflict(false)
-      setCanRetryConflict(false)
-      flash(message)
-      return true
+      return attemptSave(next, false)
     }
 
     const queued = commitChain.current.then(run, run)

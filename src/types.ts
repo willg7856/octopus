@@ -1,155 +1,3 @@
-export type LinkStatus = 'nominal' | 'degraded' | 'lost' | 'standby'
-export type OpMode = 'static-fire' | 'launch' | 'idle'
-export type ChannelKind = 'pad' | 'vehicle' | 'shed'
-export type RangeState = 'go' | 'hold' | 'nogo'
-
-/** Until real feeds are wired, Live/Cameras run in demo mode. */
-export type DataMode = 'demo' | 'live'
-
-export interface ChecklistItem {
-  id: string
-  label: string
-  /** When true, state is derived in App (not manually toggled). */
-  auto: boolean
-}
-
-export interface LinkHop {
-  id: string
-  label: string
-  detail: string
-}
-
-export interface Channel {
-  id: string
-  name: string
-  kind: ChannelKind
-  status: LinkStatus
-  rateHz: number
-  latencyMs: number
-  lastPacket: string
-  dropPct: number
-  packetAgeMs: number
-  recording: boolean
-  /** Who owns this path when something is wrong. */
-  owner?: string
-}
-
-export interface TelemetryPoint {
-  t: number
-  thrust: number
-  pressure: number
-  temp: number
-}
-
-export interface VehicleSample {
-  t: number
-  altitude: number
-  velocity: number
-  accel: number
-  batteryV: number
-  gpsSats: number
-}
-
-export interface EventItem {
-  id: string
-  time: string
-  level: 'info' | 'ok' | 'warn' | 'crit'
-  source: string
-  message: string
-}
-
-export interface Operation {
-  id: string
-  label: string
-  mode: OpMode
-  vehicle: string
-  site: string
-  status: string
-  window: string
-}
-
-export type CameraGroupId = 'pad' | 'shed' | 'vehicle'
-
-export interface CameraGroup {
-  id: CameraGroupId
-  label: string
-  blurb: string
-}
-
-export interface CameraFeed {
-  id: string
-  group: CameraGroupId
-  name: string
-  spot: string
-  status: LinkStatus
-  latencyMs: number
-  /** HLS / WebRTC / MJPEG / vendor page URL when available. */
-  streamUrl?: string
-  /** Still frame URL when available. */
-  snapshotUrl?: string
-  owner?: string
-  lastFrameAt?: string
-}
-
-export type ResourceCategory =
-  | 'cad'
-  | 'drive'
-  | 'planning'
-  | 'ops'
-  | 'web'
-
-export interface ResourceLink {
-  id: string
-  category: ResourceCategory
-  title: string
-  description: string
-  /**
-   * Put the real URL here.
-   * Leave empty or use '#' until you have it — UI will show “Needs link”.
-   */
-  href: string
-  external?: boolean
-  needsLink?: boolean
-}
-
-export interface Contact {
-  id: string
-  name: string
-  role: string
-  email: string
-  phone?: string
-  /** Slack handle, Discord, etc. */
-  chat?: string
-  notes?: string
-  /** Higher = contact first in an incident. */
-  escalateOrder?: number
-}
-
-export type MilestoneStatus = 'done' | 'active' | 'upcoming' | 'blocked'
-
-export interface Milestone {
-  id: string
-  date: string
-  title: string
-  detail: string
-  status: MilestoneStatus
-}
-
-/** Dated calendar-style items for Home / Timeline. */
-export interface UpcomingEvent {
-  id: string
-  date: string
-  title: string
-  detail: string
-}
-
-export interface Notice {
-  id: string
-  level: 'info' | 'warn' | 'crit'
-  title: string
-  body: string
-}
-
 /**
  * Unit kinds across both catalogs:
  * - System (vehicles & subsystems): vehicle, subsystem, motor, avionics, pad, ground
@@ -204,6 +52,11 @@ export interface HardwareUnit {
   partNumber?: string
   /** Count on hand (default 1 for unique assets) */
   quantity?: number
+  /**
+   * Inventory: qty held for production steps (Use inventory) but not yet drawn.
+   * Available = on-hand − reserved. Released or converted on Done / remove.
+   */
+  reservedQty?: number
   /** Inventory: quantity still outstanding on order (not yet received). */
   onOrderQty?: number
   /** Hardware revision / drawing rev, e.g. B1M · rev A */
@@ -284,7 +137,7 @@ export interface VehicleProcessStep {
   linkedUnitIds?: string[]
   /**
    * Planned inventory qty on this step (from Use inventory).
-   * Soft until the step is marked done, then drawn from on-hand.
+   * Reserved from available stock until the step is marked Done, then drawn.
    */
   linkedInventoryQty?: Record<string, number>
   /**
@@ -320,19 +173,19 @@ export interface VehicleProcess {
   logNotes?: ProductionLogNote[]
   /**
    * Inventory parts / tools / materials for this production overall.
-   * Soft planning link — on-hand stock is drawn when a step that uses
-   * the item is marked Done (see step `consumedInventoryQty`).
+   * Soft planning link — on-hand stock is reserved when a step uses the
+   * item (Use inventory) and drawn when that step is marked Done.
    * Prefer `linkedInventoryQty` when quantities matter; ids stay in sync.
    */
   linkedInventoryIds?: string[]
   /**
    * Qty of each inventory material for this production (unitId → count).
-   * Soft planning link until a using step is marked Done.
+   * Soft planning until a using step reserves/draws it.
    */
   linkedInventoryQty?: Record<string, number>
   /**
    * Hardware vehicles / subsystems used on this production overall.
-   * Soft link only — does not change Hardware status or inventory.
+   * Soft link only until Integrate advances hardware status.
    */
   linkedHardwareIds?: string[]
   /** Schedule dates (YYYY-MM-DD). Soft planning fields only. */

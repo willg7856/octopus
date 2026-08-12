@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import { useConfirm } from './ConfirmDialog'
+import { FloorGlance, buildFloorGlanceItems } from './FloorGlance'
 import { SyncBar } from './SyncBar'
 import { SyncStatusBanners } from './SyncStatusBanners'
 import {
@@ -11,6 +12,9 @@ import {
 import {
   HARDWARE_KIND_LABELS,
   PROCESS_STEP_STATUS_LABELS,
+  advanceHardwareUnits,
+  buildStandardProductionSteps,
+  cloneStepsFromProcess,
   drawInventoryForStepDone,
   formatProcessDate,
   isInventoryKind,
@@ -18,12 +22,17 @@ import {
   isSystemKind,
   newId,
   processCompletion,
+  processOverallStatus,
+  releaseInventoryReservation,
+  reserveInventoryStock,
   restockInventoryForStepUndo,
   sortProcessSteps,
   sortProcesses,
   sortProductionLogNotes,
   sortUnits,
   stepInventoryQtyMap,
+  stockMovementNote,
+  unitAvailableQty,
   unitQuantity,
 } from '../hardwareData'
 import type {
@@ -108,7 +117,7 @@ export function VehicleProcessPage({
     let blocked = 0
     let incomplete = 0
     for (const p of processes) {
-      const glance = processGlanceStatus(p)
+      const glance = processOverallStatus(p)
       if (glance === 'active') active += 1
       if (glance === 'blocked') blocked += 1
       if (glance !== 'done') incomplete += 1
@@ -119,7 +128,7 @@ export function VehicleProcessPage({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return processes.filter((p) => {
-      const glance = processGlanceStatus(p)
+      const glance = processOverallStatus(p)
       if (filter === 'active' && glance !== 'active') return false
       if (filter === 'blocked' && glance !== 'blocked') return false
       if (filter === 'incomplete' && glance === 'done') return false
@@ -257,56 +266,137 @@ export function VehicleProcessPage({
             Object.keys(drawn.consumed).length > 0
               ? drawn.consumed
               : undefined
+          if (drawn.notes.length > 0) {
+            progress = [
+              ...drawn.notes.map((n) =>
+                stockMovementNote(
+                  n.unitId,
+                  `Drew ${n.qty} for ${processNow.name} · ${stepNow.title}`,
+                  'assembly',
+                  user?.name,
+                  now,
+                ),
+              ),
+              ...progress,
+            ]
+          }
         }
       } else if (leavingDoneNow && stepNow.consumedInventoryQty) {
         nextUnits = restockInventoryForStepUndo(
           prev.units,
           stepNow.consumedInventoryQty,
           now,
+          true,
         )
         consumedInventoryQty = undefined
+        const restockNotes = Object.entries(stepNow.consumedInventoryQty).map(
+          ([id, qty]) =>
+            stockMovementNote(
+              id,
+              `Restocked ${qty} (undid Done on ${processNow.name} · ${stepNow.title})`,
+              'assembly',
+              user?.name,
+              now,
+            ),
+        )
+        progress = [...restockNotes, ...progress]
+      }
+
+      // Drive hardware status from production progress.
+      if (status === 'active') {
+        nextUnits = advanceHardwareUnits(
+          nextUnits,
+          [processNow.vehicleUnitId],
+          'assembly',
+          now,
+        )
+      }
+      if (enteringDoneNow) {
+        const linkedHw = (stepNow.linkedUnitIds ?? []).filter((id) => {
+          const u = nextUnits.find((x) => x.id === id)
+          return u && isSystemKind(u.kind)
+        })
+        nextUnits = advanceHardwareUnits(
+          nextUnits,
+          [...linkedHw, processNow.vehicleUnitId],
+          'checkout',
+          now,
+        )
+      }
+
+      const nextProcesses = prev.processes.map((p) => {
+        if (p.id !== processId) return p
+        return {
+          ...p,
+          updatedAt: now,
+          steps: p.steps.map((s) => {
+            if (s.id === stepId) {
+              const done = status === 'done' || status === 'skipped'
+              return {
+                ...s,
+                status,
+                completedAt: done ? s.completedAt || now : undefined,
+                completedBy: done ? s.completedBy || user?.name : undefined,
+                blockedReason:
+                  status === 'blocked'
+                    ? (blockedReason ?? s.blockedReason)
+                    : undefined,
+                consumedInventoryQty: enteringDoneNow
+                  ? consumedInventoryQty
+                  : leavingDoneNow
+                    ? undefined
+                    : s.consumedInventoryQty,
+              }
+            }
+            // Timeline: only one active step at a time on a production.
+            if (
+              status === 'active' &&
+              s.status === 'active' &&
+              s.id !== stepId
+            ) {
+              return { ...s, status: 'pending' as const }
+            }
+            return s
+          }),
+        }
+      })
+
+      const updatedProcess = nextProcesses.find((p) => p.id === processId)
+      if (
+        updatedProcess &&
+        processOverallStatus(updatedProcess) === 'done'
+      ) {
+        const hwIds = new Set<string>([
+          updatedProcess.vehicleUnitId,
+          ...(updatedProcess.linkedHardwareIds ?? []),
+        ])
+        for (const s of updatedProcess.steps) {
+          for (const id of s.linkedUnitIds ?? []) hwIds.add(id)
+        }
+        nextUnits = advanceHardwareUnits(
+          nextUnits,
+          hwIds,
+          'flight-ready',
+          now,
+        )
+        if (!updatedProcess.finishedAt) {
+          const today = now.slice(0, 10)
+          for (let i = 0; i < nextProcesses.length; i++) {
+            if (nextProcesses[i].id === processId) {
+              nextProcesses[i] = {
+                ...nextProcesses[i],
+                finishedAt: today,
+              }
+            }
+          }
+        }
       }
 
       return {
         ...prev,
         units: nextUnits,
         progress,
-        processes: prev.processes.map((p) => {
-          if (p.id !== processId) return p
-          return {
-            ...p,
-            updatedAt: now,
-            steps: p.steps.map((s) => {
-              if (s.id === stepId) {
-                const done = status === 'done' || status === 'skipped'
-                return {
-                  ...s,
-                  status,
-                  completedAt: done ? s.completedAt || now : undefined,
-                  completedBy: done ? s.completedBy || user?.name : undefined,
-                  blockedReason:
-                    status === 'blocked'
-                      ? (blockedReason ?? s.blockedReason)
-                      : undefined,
-                  consumedInventoryQty: enteringDoneNow
-                    ? consumedInventoryQty
-                    : leavingDoneNow
-                      ? undefined
-                      : s.consumedInventoryQty,
-                }
-              }
-              // Timeline: only one active step at a time on a production.
-              if (
-                status === 'active' &&
-                s.status === 'active' &&
-                s.id !== stepId
-              ) {
-                return { ...s, status: 'pending' as const }
-              }
-              return s
-            }),
-          }
-        }),
+        processes: nextProcesses,
       }
     }, toastMsg).then(() => {
       if (drawError) {
@@ -561,7 +651,12 @@ export function VehicleProcessPage({
   function editStep(
     processId: string,
     stepId: string,
-    patch: { title: string; detail?: string; linkedUnitIds: string[] },
+    patch: {
+      title: string
+      detail?: string
+      owner?: string
+      linkedUnitIds: string[]
+    },
   ) {
     if (!patch.title.trim()) return
     const now = new Date().toISOString()
@@ -578,6 +673,7 @@ export function VehicleProcessPage({
                   ...s,
                   title: patch.title.trim(),
                   detail: patch.detail?.trim() || undefined,
+                  owner: patch.owner?.trim() || undefined,
                   linkedUnitIds: patch.linkedUnitIds,
                 }
               : s,
@@ -615,6 +711,13 @@ export function VehicleProcessPage({
         )
       }
 
+      nextUnits = advanceHardwareUnits(
+        nextUnits,
+        [hardwareId, process.vehicleUnitId],
+        'assembly',
+        now,
+      )
+
       const inUse = new Set(process.linkedHardwareIds ?? [])
       inUse.add(hardwareId)
 
@@ -640,7 +743,7 @@ export function VehicleProcessPage({
     setStepAttach(null)
   }
 
-  /** Soft-link inventory on a step and bump production materials qty. */
+  /** Reserve inventory on a step and bump production materials qty. */
   function useInventoryOnStep(
     processId: string,
     stepId: string,
@@ -649,40 +752,72 @@ export function VehicleProcessPage({
   ) {
     const qty = Math.max(1, Math.floor(Number(addQty)) || 1)
     const now = new Date().toISOString()
-    void store.commit((prev) => {
-      const process = prev.processes.find((p) => p.id === processId)
-      const item = prev.units.find((u) => u.id === inventoryId)
-      if (!process || !item || !isInventoryKind(item.kind)) return prev
+    let reserveError: string | null = null
+    void store
+      .commit((prev) => {
+        const process = prev.processes.find((p) => p.id === processId)
+        const item = prev.units.find((u) => u.id === inventoryId)
+        if (!process || !item || !isInventoryKind(item.kind)) return prev
 
-      return {
-        ...prev,
-        processes: prev.processes.map((p) => {
-          if (p.id !== processId) return p
-          const materials = materialsQtyMap(p)
-          materials[inventoryId] = (materials[inventoryId] ?? 0) + qty
-          const materialIds = Object.keys(materials)
-          return {
-            ...p,
-            linkedInventoryIds: materialIds,
-            linkedInventoryQty: materials,
-            updatedAt: now,
-            steps: p.steps.map((s) => {
-              if (s.id !== stepId) return s
-              const linked = s.linkedUnitIds ?? []
-              const stepQty = { ...(s.linkedInventoryQty ?? {}) }
-              stepQty[inventoryId] = (stepQty[inventoryId] ?? 0) + qty
-              return {
-                ...s,
-                linkedUnitIds: linked.includes(inventoryId)
-                  ? linked
-                  : [...linked, inventoryId],
-                linkedInventoryQty: stepQty,
-              }
-            }),
-          }
-        }),
-      }
-    }, 'Inventory linked on step')
+        const reserved = reserveInventoryStock(
+          prev.units,
+          inventoryId,
+          qty,
+          now,
+        )
+        if (reserved.error) {
+          reserveError = reserved.error
+          return prev
+        }
+
+        const note = stockMovementNote(
+          inventoryId,
+          `Reserved ${qty} for ${process.name}`,
+          'design',
+          user?.name,
+          now,
+        )
+
+        return {
+          ...prev,
+          units: reserved.units,
+          progress: [note, ...prev.progress],
+          processes: prev.processes.map((p) => {
+            if (p.id !== processId) return p
+            const materials = materialsQtyMap(p)
+            materials[inventoryId] = (materials[inventoryId] ?? 0) + qty
+            const materialIds = Object.keys(materials)
+            return {
+              ...p,
+              linkedInventoryIds: materialIds,
+              linkedInventoryQty: materials,
+              updatedAt: now,
+              steps: p.steps.map((s) => {
+                if (s.id !== stepId) return s
+                const linked = s.linkedUnitIds ?? []
+                const stepQty = { ...(s.linkedInventoryQty ?? {}) }
+                stepQty[inventoryId] = (stepQty[inventoryId] ?? 0) + qty
+                return {
+                  ...s,
+                  linkedUnitIds: linked.includes(inventoryId)
+                    ? linked
+                    : [...linked, inventoryId],
+                  linkedInventoryQty: stepQty,
+                }
+              }),
+            }
+          }),
+        }
+      }, 'Inventory reserved on step')
+      .then(() => {
+        if (reserveError) {
+          setStepActionError({ stepId, message: reserveError })
+          setActionError(reserveError)
+        } else {
+          setStepActionError((cur) => (cur?.stepId === stepId ? null : cur))
+          setActionError(null)
+        }
+      })
   }
 
   function removeUnitFromStep(
@@ -691,29 +826,62 @@ export function VehicleProcessPage({
     unitId: string,
   ) {
     const now = new Date().toISOString()
-    void store.commit((prev) => ({
-      ...prev,
-      processes: prev.processes.map((p) => {
-        if (p.id !== processId) return p
-        return {
-          ...p,
-          updatedAt: now,
-          steps: p.steps.map((s) => {
-            if (s.id !== stepId) return s
-            const nextQty = { ...(s.linkedInventoryQty ?? {}) }
-            delete nextQty[unitId]
-            return {
-              ...s,
-              linkedUnitIds: (s.linkedUnitIds ?? []).filter(
-                (id) => id !== unitId,
-              ),
-              linkedInventoryQty:
-                Object.keys(nextQty).length > 0 ? nextQty : undefined,
-            }
-          }),
-        }
-      }),
-    }), 'Removed from step')
+    void store.commit((prev) => {
+      const process = prev.processes.find((p) => p.id === processId)
+      const step = process?.steps.find((s) => s.id === stepId)
+      if (!process || !step) return prev
+
+      const planned = step.linkedInventoryQty?.[unitId] ?? 0
+      const consumed = step.consumedInventoryQty?.[unitId] ?? 0
+      const releaseQty = Math.max(0, planned - consumed)
+      let nextUnits = prev.units
+      let progress = prev.progress
+      const item = prev.units.find((u) => u.id === unitId)
+      if (item && isInventoryKind(item.kind) && releaseQty > 0) {
+        nextUnits = releaseInventoryReservation(
+          prev.units,
+          unitId,
+          releaseQty,
+          now,
+        )
+        progress = [
+          stockMovementNote(
+            unitId,
+            `Released ${releaseQty} reserve from ${process.name}`,
+            'design',
+            user?.name,
+            now,
+          ),
+          ...progress,
+        ]
+      }
+
+      return {
+        ...prev,
+        units: nextUnits,
+        progress,
+        processes: prev.processes.map((p) => {
+          if (p.id !== processId) return p
+          return {
+            ...p,
+            updatedAt: now,
+            steps: p.steps.map((s) => {
+              if (s.id !== stepId) return s
+              const nextQty = { ...(s.linkedInventoryQty ?? {}) }
+              delete nextQty[unitId]
+              return {
+                ...s,
+                linkedUnitIds: (s.linkedUnitIds ?? []).filter(
+                  (id) => id !== unitId,
+                ),
+                linkedInventoryQty:
+                  Object.keys(nextQty).length > 0 ? nextQty : undefined,
+              }
+            }),
+          }
+        }),
+      }
+    }, 'Removed from step')
   }
 
   async function deleteStep(processId: string, stepId: string) {
@@ -723,16 +891,51 @@ export function VehicleProcessPage({
     const ok = await confirm(`Delete step “${step.title}”?`)
     if (!ok) return
     const now = new Date().toISOString()
-    void store.commit((prev) => ({
-      ...prev,
-      processes: prev.processes.map((p) => {
-        if (p.id !== processId) return p
-        const remaining = sortProcessSteps(
-          p.steps.filter((s) => s.id !== stepId),
-        ).map((s, i) => ({ ...s, order: i + 1 }))
-        return { ...p, updatedAt: now, steps: remaining }
-      }),
-    }), 'Step deleted')
+    void store.commit((prev) => {
+      const current = prev.processes.find((p) => p.id === processId)
+      const stepNow = current?.steps.find((s) => s.id === stepId)
+      if (!current || !stepNow) return prev
+
+      let nextUnits = prev.units
+      let progress = prev.progress
+      if (stepNow.status !== 'done') {
+        const planned = stepInventoryQtyMap(stepNow, nextUnits)
+        for (const [id, qty] of Object.entries(planned)) {
+          const consumed = stepNow.consumedInventoryQty?.[id] ?? 0
+          const releaseQty = Math.max(0, qty - consumed)
+          if (releaseQty <= 0) continue
+          nextUnits = releaseInventoryReservation(
+            nextUnits,
+            id,
+            releaseQty,
+            now,
+          )
+          progress = [
+            stockMovementNote(
+              id,
+              `Released ${releaseQty} (deleted step ${stepNow.title})`,
+              'design',
+              user?.name,
+              now,
+            ),
+            ...progress,
+          ]
+        }
+      }
+
+      return {
+        ...prev,
+        units: nextUnits,
+        progress,
+        processes: prev.processes.map((p) => {
+          if (p.id !== processId) return p
+          const remaining = sortProcessSteps(
+            p.steps.filter((s) => s.id !== stepId),
+          ).map((s, i) => ({ ...s, order: i + 1 }))
+          return { ...p, updatedAt: now, steps: remaining }
+        }),
+      }
+    }, 'Step deleted')
     if (editingStepId === stepId) setEditingStepId(null)
   }
 
@@ -765,11 +968,13 @@ export function VehicleProcessPage({
     vehicleUnitId?: string
     vehicleName?: string
     notes?: string
+    campaign?: string
     linkedInventoryQty?: Record<string, number>
     linkedHardwareIds?: string[]
     startedAt?: string
     deadlineAt?: string
     finishedAt?: string
+    stepSource?: 'blank' | 'standard' | string
   }) {
     const now = new Date().toISOString()
     const wanted = (input.vehicleName || input.name)
@@ -815,10 +1020,21 @@ export function VehicleProcessPage({
         nextUnits = [...prev.units, vehicle]
       }
 
+      let steps: VehicleProcessStep[] = []
+      if (input.stepSource === 'standard') {
+        steps = buildStandardProductionSteps(vehicle.id)
+      } else if (input.stepSource && input.stepSource !== 'blank') {
+        const source = prev.processes.find((p) => p.id === input.stepSource)
+        if (source) {
+          steps = cloneStepsFromProcess(source, nextUnits, vehicle.id)
+        }
+      }
+
       const process: VehicleProcess = {
         id: processId,
         vehicleUnitId: vehicle.id,
         name: input.name.trim(),
+        campaign: input.campaign?.trim() || undefined,
         notes: input.notes?.trim() || undefined,
         linkedInventoryIds: materials,
         linkedInventoryQty: materialQtySaved,
@@ -827,7 +1043,7 @@ export function VehicleProcessPage({
         deadlineAt: input.deadlineAt || undefined,
         finishedAt: input.finishedAt || undefined,
         updatedAt: now,
-        steps: [],
+        steps,
       }
 
       return {
@@ -843,13 +1059,51 @@ export function VehicleProcessPage({
   async function removeProduction(processId: string) {
     const process = lab.processes.find((p) => p.id === processId)
     if (!process) return
+    if (!user?.canManageAccounts) {
+      setActionError('Only admins can delete production trackers')
+      return
+    }
     const ok = await confirm(`Remove “${process.name}” tracker?`)
     if (!ok) return
+    const now = new Date().toISOString()
     void store.commit(
-      (prev) => ({
-        ...prev,
-        processes: prev.processes.filter((p) => p.id !== processId),
-      }),
+      (prev) => {
+        const current = prev.processes.find((p) => p.id === processId)
+        if (!current) return prev
+        let nextUnits = prev.units
+        let progress = prev.progress
+        for (const step of current.steps) {
+          if (step.status === 'done') continue
+          const planned = stepInventoryQtyMap(step, nextUnits)
+          for (const [id, qty] of Object.entries(planned)) {
+            const consumed = step.consumedInventoryQty?.[id] ?? 0
+            const releaseQty = Math.max(0, qty - consumed)
+            if (releaseQty <= 0) continue
+            nextUnits = releaseInventoryReservation(
+              nextUnits,
+              id,
+              releaseQty,
+              now,
+            )
+            progress = [
+              stockMovementNote(
+                id,
+                `Released ${releaseQty} (deleted ${current.name})`,
+                'design',
+                user?.name,
+                now,
+              ),
+              ...progress,
+            ]
+          }
+        }
+        return {
+          ...prev,
+          units: nextUnits,
+          progress,
+          processes: prev.processes.filter((p) => p.id !== processId),
+        }
+      },
       'Removed',
     )
     setSelected(null)
@@ -896,6 +1150,18 @@ export function VehicleProcessPage({
     )
     return linkedInventoryNames(ids, units, selectedMaterialQty)
   }, [selectedMaterialQty, materialIdsOnSteps, units])
+
+  const floorGlanceItems = useMemo(
+    () =>
+      buildFloorGlanceItems({
+        processes: lab.processes,
+        units,
+        onOpenProduction: (id) => openDetail(id),
+        onOpenInventory,
+        onOpenHardware,
+      }),
+    [lab.processes, units, onOpenInventory, onOpenHardware],
+  )
 
   const filterChips: { id: AttentionFilter; label: string; count?: number }[] =
     [
@@ -949,6 +1215,10 @@ export function VehicleProcessPage({
 
       <SyncStatusBanners store={store} />
 
+      {sync !== 'loading' && hasLoaded ? (
+        <FloorGlance items={floorGlanceItems} />
+      ) : null}
+
       {sync === 'loading' || (sync === 'error' && !hasLoaded) ? (
         <p className="simple-muted">
           {sync === 'loading'
@@ -988,7 +1258,7 @@ export function VehicleProcessPage({
             <ul className="simple-list">
               {filtered.map((process) => {
                 const { done, total } = processCompletion(process)
-                const glance = processGlanceStatus(process)
+                const glance = processOverallStatus(process)
                 const vehicleName =
                   unitNameById.get(process.vehicleUnitId) ?? 'Vehicle'
                 const overdue = isProductionDeadlineOverdue(process)
@@ -1066,6 +1336,7 @@ export function VehicleProcessPage({
               <NewProductionForm
                 vehicles={systemUnits}
                 inventory={inventoryUnits}
+                processes={lab.processes}
                 onCreate={createProduction}
                 onCancel={backToList}
               />
@@ -1103,7 +1374,7 @@ export function VehicleProcessPage({
                     >
                       {editingSteps ? 'Done editing' : 'Edit steps'}
                     </button>
-                    {editingSteps ? (
+                    {editingSteps && user?.canManageAccounts ? (
                       <button
                         type="button"
                         className="btn btn-ghost"
@@ -1193,7 +1464,7 @@ export function VehicleProcessPage({
                         setProcessInventoryQty(selected.id, qty)
                       }
                       legend="Materials from inventory"
-                      hint="Planning totals for this production. Use inventory on a step to assign draw qty — stock leaves on-hand when that step is marked Done."
+                      hint="Planning totals for this production. Use inventory on a step to reserve available stock — on-hand drops when that step is marked Done."
                     />
                     <label className="prod-planning-notes-edit">
                       Planning / open decisions
@@ -1230,7 +1501,7 @@ export function VehicleProcessPage({
                     {unassignedMaterialNames.length > 0 ? (
                       <p className="prod-materials-warn" role="status">
                         Not on a step yet: {unassignedMaterialNames.join(', ')}.
-                        Use inventory on a step so Done can draw stock.
+                        Use inventory on a step so stock is reserved and Done can draw it.
                       </p>
                     ) : null}
                     {selected.notes?.trim() ? (
@@ -1363,6 +1634,11 @@ export function VehicleProcessPage({
                                 {step.detail ? (
                                   <span className="simple-muted">
                                     {step.detail}
+                                  </span>
+                                ) : null}
+                                {step.owner ? (
+                                  <span className="prod-step-meta">
+                                    Owner · {step.owner}
                                   </span>
                                 ) : null}
                                 {linkedHardware.length > 0 && !editingSteps ? (
@@ -1719,16 +1995,6 @@ function shortName(name: string) {
   return name.replace(/\s+production\s*$/i, '').trim() || name
 }
 
-function processGlanceStatus(process: VehicleProcess): ProcessStepStatus {
-  const steps = process.steps
-  if (steps.some((s) => s.status === 'blocked')) return 'blocked'
-  if (steps.some((s) => s.status === 'active')) return 'active'
-  if (steps.length > 0 && steps.every((s) => s.status === 'done' || s.status === 'skipped')) {
-    return 'done'
-  }
-  return 'pending'
-}
-
 function formatWhen(iso: string) {
   try {
     return new Date(iso).toLocaleDateString(undefined, {
@@ -1896,31 +2162,39 @@ function StepLogNotes({
 function NewProductionForm({
   vehicles,
   inventory,
+  processes,
   onCreate,
   onCancel,
 }: {
   vehicles: HardwareUnit[]
   inventory: HardwareUnit[]
+  processes: VehicleProcess[]
   onCreate: (input: {
     name: string
     vehicleUnitId?: string
     vehicleName?: string
     notes?: string
+    campaign?: string
     linkedInventoryQty?: Record<string, number>
     linkedHardwareIds?: string[]
     startedAt?: string
     deadlineAt?: string
     finishedAt?: string
+    stepSource?: 'blank' | 'standard' | string
   }) => void
   onCancel: () => void
 }) {
   const [name, setName] = useState('')
   const [vehicleUnitId, setVehicleUnitId] = useState('')
   const [vehicleName, setVehicleName] = useState('')
+  const [campaign, setCampaign] = useState('')
   const [notes, setNotes] = useState('')
   const [startedAt, setStartedAt] = useState('')
   const [deadlineAt, setDeadlineAt] = useState('')
   const [finishedAt, setFinishedAt] = useState('')
+  const [stepSource, setStepSource] = useState<'blank' | 'standard' | string>(
+    'standard',
+  )
   const [linkedInventoryQty, setLinkedInventoryQty] = useState<
     Record<string, number>
   >({})
@@ -1935,21 +2209,25 @@ function NewProductionForm({
         : `${name.trim()} production`,
       vehicleUnitId: vehicleUnitId || undefined,
       vehicleName: vehicleName.trim() || name.trim(),
+      campaign: campaign.trim() || undefined,
       notes: notes.trim() || undefined,
       linkedInventoryQty,
       linkedHardwareIds,
       startedAt: startedAt || undefined,
       deadlineAt: deadlineAt || undefined,
       finishedAt: finishedAt || undefined,
+      stepSource,
     })
   }
+
+  const cloneOptions = sortProcesses(processes).filter((p) => p.steps.length > 0)
 
   return (
     <form className="simple-form prod-create" onSubmit={handleSubmit}>
       <h3>New vehicle production</h3>
       <p className="simple-muted">
-        Starts blank — add steps after creating. Optionally set schedule and
-        link hardware/materials up front.
+        Start from standard checkout steps, clone an existing tracker, or begin
+        blank. Materials stay planning-only until you Use inventory on a step.
       </p>
       <label>
         Name
@@ -1960,6 +2238,29 @@ function NewProductionForm({
           required
           autoFocus
         />
+      </label>
+      <label>
+        Campaign
+        <input
+          value={campaign}
+          onChange={(e) => setCampaign(e.target.value)}
+          placeholder="B1M"
+        />
+      </label>
+      <label>
+        Steps
+        <select
+          value={stepSource}
+          onChange={(e) => setStepSource(e.target.value)}
+        >
+          <option value="standard">Standard checkout (7 steps)</option>
+          <option value="blank">Blank — add steps later</option>
+          {cloneOptions.map((p) => (
+            <option key={p.id} value={p.id}>
+              Clone steps from {p.name}
+            </option>
+          ))}
+        </select>
       </label>
       <label>
         Hardware vehicle
@@ -2281,8 +2582,8 @@ function StepUseInventory({
                   <span className="simple-muted">
                     {' '}
                     · {HARDWARE_KIND_LABELS[unit.kind]} · use {planned}
-                    {drawn > 0 ? ` · drawn ${drawn}` : ''} ·{' '}
-                    {unitQuantity(unit)} on hand
+                    {drawn > 0 ? ` · drawn ${drawn}` : ' · reserved'} ·{' '}
+                    {unitAvailableQty(unit)} avail / {unitQuantity(unit)} on hand
                   </span>
                 </span>
                 <button
@@ -2325,7 +2626,7 @@ function StepUseInventory({
                         <strong>{unit.name}</strong>
                         <span className="simple-muted">
                           {HARDWARE_KIND_LABELS[unit.kind]}
-                          {` · ${unitQuantity(unit)} on hand`}
+                          {` · ${unitAvailableQty(unit)} avail`}
                           {onStep ? ' · on step' : ''}
                         </span>
                       </span>
@@ -2347,9 +2648,9 @@ function StepUseInventory({
             </ul>
           ) : (
             <p className="simple-muted hw-link-search-hint">
-              Type to find stock, then Use — links it to this step and adds it
-              to production materials. On-hand qty drops when this step is marked
-              Done.
+              Type to find stock, then Use — reserves available qty for this
+              step and adds it to production materials. On-hand drops when this
+              step is marked Done.
             </p>
           )}
         </div>
@@ -2370,6 +2671,7 @@ function EditStepForm({
   onSave: (patch: {
     title: string
     detail?: string
+    owner?: string
     linkedUnitIds: string[]
   }) => void
   onCancel: () => void
@@ -2377,6 +2679,7 @@ function EditStepForm({
 }) {
   const [title, setTitle] = useState(step.title)
   const [detail, setDetail] = useState(step.detail ?? '')
+  const [owner, setOwner] = useState(step.owner ?? '')
   const [linkedUnitIds, setLinkedUnitIds] = useState<string[]>(
     step.linkedUnitIds ?? [],
   )
@@ -2386,7 +2689,7 @@ function EditStepForm({
       className="simple-form prod-edit-step"
       onSubmit={(e) => {
         e.preventDefault()
-        onSave({ title, detail, linkedUnitIds })
+        onSave({ title, detail, owner, linkedUnitIds })
       }}
     >
       <label>
@@ -2396,6 +2699,15 @@ function EditStepForm({
           onChange={(e) => setTitle(e.target.value)}
           required
           autoFocus
+          disabled={disabled}
+        />
+      </label>
+      <label>
+        Owner
+        <input
+          value={owner}
+          onChange={(e) => setOwner(e.target.value)}
+          placeholder="Who owns this step"
           disabled={disabled}
         />
       </label>
@@ -2415,7 +2727,7 @@ function EditStepForm({
         includeHardware
         disabled={disabled}
         legend="Linked hardware & inventory"
-        hint="Optional per-step links. Inventory on-hand drops when the step is marked Done."
+        hint="Optional per-step links. Use inventory reserves available stock; Done draws it."
       />
       <div className="simple-form-actions">
         <button type="submit" className="btn btn-accent" disabled={disabled}>

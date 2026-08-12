@@ -278,10 +278,17 @@ const LEGACY_INVENTORY_KINDS = new Set(['flight-hardware', 'test-hardware'])
 /** Map removed inventory kinds onto part; preserve other fields. */
 export function normalizeHardwareUnit(unit: HardwareUnit): HardwareUnit {
   const kind = unit.kind as string
-  if (LEGACY_INVENTORY_KINDS.has(kind)) {
-    return { ...unit, kind: 'part' }
+  let next: HardwareUnit = LEGACY_INVENTORY_KINDS.has(kind)
+    ? { ...unit, kind: 'part' }
+    : { ...unit }
+  if (typeof next.reservedQty === 'number') {
+    const reserved = Math.max(0, Math.floor(next.reservedQty))
+    next =
+      reserved > 0
+        ? { ...next, reservedQty: reserved }
+        : { ...next, reservedQty: undefined }
   }
-  return unit
+  return next
 }
 
 function normalizeDateField(raw: unknown): string | undefined {
@@ -514,16 +521,25 @@ export function hardwareProductionUsageDetail(usage: HardwareProductionUsage) {
   return bits.join(' · ')
 }
 
-/** @deprecated Use hardwareProductionListLabel / hardwareProductionUsageDetail */
-export function hardwareProductionUsageLabel(usage: HardwareProductionUsage) {
-  const detail = hardwareProductionUsageDetail(usage)
-  return detail ? `${usage.shortName} · ${detail}` : usage.shortName
-}
-
 export function unitQuantity(unit: HardwareUnit) {
   return typeof unit.quantity === 'number' && Number.isFinite(unit.quantity)
     ? unit.quantity
     : 1
+}
+
+/** Qty held for production steps (not yet drawn). */
+export function unitReservedQty(unit: Pick<HardwareUnit, 'reservedQty'>) {
+  return typeof unit.reservedQty === 'number' &&
+    Number.isFinite(unit.reservedQty) &&
+    unit.reservedQty > 0
+    ? Math.floor(unit.reservedQty)
+    : 0
+}
+
+/** On-hand minus production holds (and 0 when installed/reserved on hardware). */
+export function unitAvailableQty(unit: HardwareUnit) {
+  if (unit.installedOnUnitId) return 0
+  return Math.max(0, unitQuantity(unit) - unitReservedQty(unit))
 }
 
 /** Outstanding on-order quantity for inventory (0 if unset). */
@@ -609,21 +625,34 @@ export function installInventoryOnHardware(
   }
 
   const live = working.find((u) => u.id === inventoryId)!
-  const onHand = unitQuantity(live)
-  if (onHand <= 0) {
-    return { units: working, error: 'Nothing on hand to install' }
+  const available = unitAvailableQty(live)
+  if (available <= 0) {
+    return {
+      units: working,
+      error:
+        unitReservedQty(live) > 0
+          ? 'All on-hand stock is reserved for production'
+          : 'Nothing on hand to install',
+    }
   }
 
   const qty = drawQty == null ? 1 : Math.floor(drawQty)
   if (!Number.isFinite(qty) || qty <= 0) {
     return { units: working, error: 'Enter a quantity to install' }
   }
-  if (qty > onHand) {
-    return { units: working, error: `Only ${onHand} on hand` }
+  if (qty > available) {
+    return {
+      units: working,
+      error:
+        unitReservedQty(live) > 0
+          ? `Only ${available} available (${unitReservedQty(live)} reserved for production)`
+          : `Only ${available} on hand`,
+    }
   }
 
+  const onHand = unitQuantity(live)
   // Explicit qty always draws. Legacy no-qty + single on-hand still reserves.
-  const reserveWhole = drawQty == null && onHand <= 1
+  const reserveWhole = drawQty == null && onHand <= 1 && unitReservedQty(live) <= 0
 
   const next = working.map((u) => {
     if (u.id === hardwareId) {
@@ -1123,6 +1152,7 @@ export function stepInventoryQtyMap(
 /**
  * Decrease on-hand inventory qty (production step Done).
  * Refuses items reserved/installed on hardware.
+ * Also releases matching production `reservedQty` holds.
  */
 export function drawInventoryStock(
   units: HardwareUnit[],
@@ -1156,6 +1186,7 @@ export function drawInventoryStock(
     }
   }
   const remaining = onHand - qty
+  const nextReserved = Math.max(0, unitReservedQty(item) - qty)
   const stockStatus = applyInventoryStockRules(
     stockStatusOf(item),
     remaining,
@@ -1167,6 +1198,7 @@ export function drawInventoryStock(
         ? {
             ...u,
             quantity: remaining,
+            reservedQty: nextReserved > 0 ? nextReserved : undefined,
             stockStatus,
             status: hardwareStatusForStock(stockStatus),
             updatedAt: now,
@@ -1174,6 +1206,71 @@ export function drawInventoryStock(
         : u,
     ),
   }
+}
+
+/** Hold on-hand stock for a production step (does not reduce quantity yet). */
+export function reserveInventoryStock(
+  units: HardwareUnit[],
+  inventoryId: string,
+  reserveQty: number,
+  now = new Date().toISOString(),
+): { units: HardwareUnit[]; error?: string } {
+  const item = units.find((u) => u.id === inventoryId)
+  if (!item || !isInventoryKind(item.kind)) {
+    return { units, error: 'Inventory item not found' }
+  }
+  if (item.installedOnUnitId) {
+    const other = units.find((u) => u.id === item.installedOnUnitId)
+    return {
+      units,
+      error: `${item.name} is reserved on ${other?.name ?? 'another unit'} — return it first`,
+    }
+  }
+  const qty = Math.floor(Number(reserveQty))
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return { units, error: 'Enter a quantity to reserve' }
+  }
+  const available = unitAvailableQty(item)
+  if (qty > available) {
+    return {
+      units,
+      error:
+        available <= 0
+          ? `Nothing available for ${item.name}`
+          : `Only ${available} available for ${item.name}`,
+    }
+  }
+  const nextReserved = unitReservedQty(item) + qty
+  return {
+    units: units.map((u) =>
+      u.id === inventoryId
+        ? { ...u, reservedQty: nextReserved, updatedAt: now }
+        : u,
+    ),
+  }
+}
+
+/** Release a production hold without changing on-hand quantity. */
+export function releaseInventoryReservation(
+  units: HardwareUnit[],
+  inventoryId: string,
+  releaseQty: number,
+  now = new Date().toISOString(),
+): HardwareUnit[] {
+  const item = units.find((u) => u.id === inventoryId)
+  if (!item || !isInventoryKind(item.kind)) return units
+  const qty = Math.floor(Number(releaseQty))
+  if (!Number.isFinite(qty) || qty <= 0) return units
+  const nextReserved = Math.max(0, unitReservedQty(item) - qty)
+  return units.map((u) =>
+    u.id === inventoryId
+      ? {
+          ...u,
+          reservedQty: nextReserved > 0 ? nextReserved : undefined,
+          updatedAt: now,
+        }
+      : u,
+  )
 }
 
 /** Restore on-hand inventory qty (undo production step Done). */
@@ -1224,28 +1321,36 @@ export function drawInventoryForStepDone(
 ): {
   units: HardwareUnit[]
   consumed: Record<string, number>
+  notes: { unitId: string; qty: number; name: string }[]
   error?: string
 } {
   const planned = stepInventoryQtyMap(step, units)
   const already = step.consumedInventoryQty ?? {}
   let next = units
   const consumed: Record<string, number> = { ...already }
+  const notes: { unitId: string; qty: number; name: string }[] = []
   for (const [id, raw] of Object.entries(planned)) {
     const need = Math.max(0, raw - (already[id] ?? 0))
     if (need <= 0) continue
+    const before = next.find((u) => u.id === id)
     const result = drawInventoryStock(next, id, need, now)
-    if (result.error) return { units, consumed: already, error: result.error }
+    if (result.error) return { units, consumed: already, notes: [], error: result.error }
     next = result.units
     consumed[id] = (consumed[id] ?? 0) + need
+    notes.push({ unitId: id, qty: need, name: before?.name ?? id })
   }
-  return { units: next, consumed }
+  return { units: next, consumed, notes }
 }
 
-/** Restock inventory previously drawn when a step leaves Done. */
+/**
+ * Restock inventory previously drawn when a step leaves Done,
+ * and re-hold the qty for the still-linked step plan.
+ */
 export function restockInventoryForStepUndo(
   units: HardwareUnit[],
   consumed: Record<string, number> | undefined,
   now = new Date().toISOString(),
+  reReserve = true,
 ): HardwareUnit[] {
   if (!consumed) return units
   let next = units
@@ -1253,6 +1358,132 @@ export function restockInventoryForStepUndo(
     const qty = Math.floor(Number(raw))
     if (!id || !Number.isFinite(qty) || qty <= 0) continue
     next = restockInventory(next, id, qty, now).units
+    if (reReserve) {
+      const reserved = reserveInventoryStock(next, id, qty, now)
+      if (!reserved.error) next = reserved.units
+    }
   }
   return next
+}
+
+/** Build-pipeline order for advancing hardware status (not retired/failed/destroyed). */
+const HARDWARE_BUILD_RANK: Partial<Record<HardwareStatus, number>> = {
+  concept: 0,
+  design: 1,
+  fab: 2,
+  assembly: 3,
+  checkout: 4,
+  'flight-ready': 5,
+  completed: 5,
+}
+
+/** Advance hardware along the build pipeline only (never backwards / into failed). */
+export function advanceHardwareStatus(
+  unit: HardwareUnit,
+  target: HardwareStatus,
+  now = new Date().toISOString(),
+): HardwareUnit {
+  if (!isSystemKind(unit.kind)) return unit
+  if (
+    unit.status === 'retired' ||
+    unit.status === 'failed' ||
+    unit.status === 'destroyed'
+  ) {
+    return unit
+  }
+  const currentRank = HARDWARE_BUILD_RANK[unit.status]
+  const targetRank = HARDWARE_BUILD_RANK[target]
+  if (currentRank == null || targetRank == null) return unit
+  if (targetRank <= currentRank) return unit
+  // Prefer completed for non-flight kinds when targeting flight-ready.
+  let nextStatus = target
+  if (
+    target === 'flight-ready' &&
+    (unit.kind === 'pad' || unit.kind === 'ground')
+  ) {
+    nextStatus = 'completed'
+  }
+  return { ...unit, status: nextStatus, updatedAt: now }
+}
+
+export function advanceHardwareUnits(
+  units: HardwareUnit[],
+  unitIds: Iterable<string>,
+  target: HardwareStatus,
+  now = new Date().toISOString(),
+): HardwareUnit[] {
+  const ids = new Set(unitIds)
+  if (ids.size === 0) return units
+  return units.map((u) =>
+    ids.has(u.id) ? advanceHardwareStatus(u, target, now) : u,
+  )
+}
+
+/** Standard checkout step titles for new productions. */
+export const STANDARD_PRODUCTION_STEP_TITLES = [
+  'Airframe / structure',
+  'Propulsion install',
+  'Avionics integrate & flash',
+  'GSE / ground systems',
+  'Checkout & functional tests',
+  'Pad / range readiness',
+  'Flight readiness review',
+] as const
+
+export function buildStandardProductionSteps(
+  vehicleUnitId?: string,
+): VehicleProcessStep[] {
+  return STANDARD_PRODUCTION_STEP_TITLES.map((title, i) => ({
+    id: newId('ps'),
+    order: i + 1,
+    title,
+    status: 'pending' as const,
+    linkedUnitIds: vehicleUnitId ? [vehicleUnitId] : [],
+  }))
+}
+
+/** Clone steps from another process, keeping hardware links that still exist. */
+export function cloneStepsFromProcess(
+  source: VehicleProcess,
+  units: HardwareUnit[],
+  vehicleUnitId?: string,
+): VehicleProcessStep[] {
+  const systemIds = new Set(
+    units.filter((u) => isSystemKind(u.kind)).map((u) => u.id),
+  )
+  return sortProcessSteps(source.steps).map((step, index) => {
+    const hardwareLinks = (step.linkedUnitIds ?? []).filter((id) =>
+      systemIds.has(id),
+    )
+    const linked =
+      vehicleUnitId && !hardwareLinks.includes(vehicleUnitId)
+        ? [...hardwareLinks, vehicleUnitId]
+        : hardwareLinks
+    return {
+      id: newId('ps'),
+      order: index + 1,
+      title: step.title,
+      detail: step.detail,
+      owner: step.owner,
+      status: 'pending' as const,
+      linkedUnitIds: linked.length > 0 ? linked : undefined,
+    }
+  })
+}
+
+export function stockMovementNote(
+  unitId: string,
+  text: string,
+  status: HardwareStatus,
+  author?: string,
+  now = new Date().toISOString(),
+): HardwareProgressNote {
+  return {
+    id: newId('pg'),
+    unitId,
+    date: now.slice(0, 10),
+    status,
+    note: text,
+    author,
+  }
 }

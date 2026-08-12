@@ -5254,6 +5254,88 @@ button.simple-list-row {
   font-size: 0.88rem;
 }
 
+.floor-glance {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+}
+
+.floor-glance-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.floor-glance-head h3 {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.floor-glance-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.floor-glance-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+  text-align: left;
+  padding: 0.4rem 0.45rem;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.floor-glance-row:hover {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--bg-panel-solid) 80%, transparent);
+}
+
+.floor-glance-kind {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  padding-top: 0.15rem;
+}
+
+.floor-glance-row[data-kind='blocked'] .floor-glance-kind,
+.floor-glance-row[data-kind='overdue'] .floor-glance-kind {
+  color: var(--telem-red);
+}
+
+.floor-glance-main {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.floor-glance-main strong {
+  font-size: 0.9rem;
+}
+
+.floor-glance-main .simple-muted {
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .prod-materials-summary > p {
   margin: 0;
 }

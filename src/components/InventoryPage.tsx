@@ -24,6 +24,7 @@ import {
   unitOnOrderQty,
   unitPriceOf,
   unitQuantity,
+  unitReservedQty,
   unlinkInventoryFromHardware,
 } from '../hardwareData'
 import type {
@@ -479,6 +480,7 @@ export function InventoryPage({
   }
 
   async function removeUnit(id: string) {
+    if (!user?.canManageAccounts) return
     const unit = lab.units.find((u) => u.id === id)
     if (!unit) return
     const ok = await confirm(`Remove “${unit.name}” from inventory?`)
@@ -529,6 +531,7 @@ export function InventoryPage({
   }
 
   async function markInventoryDestroyed(id: string) {
+    if (!user?.canManageAccounts) return
     const unit = lab.units.find((u) => u.id === id)
     if (!unit || stockStatusOf(unit) === 'destroyed') return
     const answered = await confirmNote({
@@ -862,6 +865,9 @@ export function InventoryPage({
                               ? ` · ${unit.program.trim()}`
                               : ''}{' '}
                             · on hand {unitQuantity(unit)}
+                            {unitReservedQty(unit) > 0
+                              ? ` · reserved ${unitReservedQty(unit)}`
+                              : ''}
                             {onOrder > 0 ? ` · on order ${onOrder}` : ''}
                             {price != null ? ` · ${formatMoney(price)}/ea` : ''}
                             {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
@@ -1045,18 +1051,23 @@ export function InventoryPage({
                       : undefined
                   }
                   onMarkDestroyed={
-                    stockStatusOf(selected) === 'destroyed'
+                    stockStatusOf(selected) === 'destroyed' ||
+                    !user?.canManageAccounts
                       ? undefined
                       : () => void markInventoryDestroyed(selected.id)
                   }
                   onSave={saveUnit}
-                  onDelete={() => removeUnit(selected.id)}
+                  onDelete={
+                    user?.canManageAccounts
+                      ? () => removeUnit(selected.id)
+                      : undefined
+                  }
                 />
                 <section className="hw-history" aria-label="Quantity history">
                   <h4>History</h4>
                   {selectedProgress.length === 0 ? (
                     <p className="simple-muted">
-                      No notes yet — receive and qty changes are logged here.
+                      Stock movements — receive, reserve, draw, install, destroy.
                     </p>
                   ) : (
                     <ul className="hw-history-list">
