@@ -106,6 +106,11 @@ export interface HardwareUnit {
   notes?: string
   /** When true, notes are surfaced on the list and detail top. */
   notesImportant?: boolean
+  /**
+   * Manual floor flag — show in Needs attention filters / glance.
+   * Independent of notes text.
+   */
+  needsAttention?: boolean
   updatedAt: string
 }
 

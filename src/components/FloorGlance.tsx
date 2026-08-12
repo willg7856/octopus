@@ -4,6 +4,7 @@ import {
   processOverallStatus,
   sortProcesses,
   stockStatusOf,
+  unitNeedsAttention,
   unitQuantity,
 } from '../hardwareData'
 import type { HardwareUnit, VehicleProcess } from '../types'
@@ -90,12 +91,14 @@ export function buildFloorGlanceItems({
         detail: `Order overdue · ETA ${unit.expectedAt}`,
         onOpen: () => onOpenInventory?.(unit.id),
       })
-    } else if (unit.notesImportant && unit.notes?.trim()) {
+    } else if (unitNeedsAttention(unit)) {
       items.push({
         id: `note-${unit.id}`,
         kind: 'important',
         label: unit.name,
-        detail: unit.notes.trim().slice(0, 80),
+        detail: unit.notes?.trim()
+          ? unit.notes.trim().slice(0, 80)
+          : 'Marked needs attention',
         onOpen: () => {
           if (isInventory) onOpenInventory?.(unit.id)
           else onOpenHardware?.(unit.id)
