@@ -39,8 +39,9 @@ export function Header({
           type="button"
           className="brand-mark"
           onClick={() => onViewChange('inventory')}
-          aria-label="Octopus inventory"
+          aria-label="Octopus home"
         >
+          <span className="brand-kicker">Beyond Stage Zero</span>
           <span className="brand">
             Octopus<em>.</em>
           </span>
