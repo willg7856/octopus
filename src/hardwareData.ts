@@ -71,6 +71,7 @@ export const HARDWARE_STATUS_LABELS: Record<HardwareStatus, string> = {
   retired: 'Retired',
   failed: 'Failed',
   destroyed: 'Destroyed',
+  'to-order': 'To order',
 }
 
 export const HARDWARE_STATUS_ORDER: HardwareStatus[] = [
@@ -90,6 +91,7 @@ export const HARDWARE_STATUS_ORDER: HardwareStatus[] = [
 export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
   'in-stock': 'In stock',
   low: 'Low stock',
+  'to-order': 'To order',
   'on-order': 'On order',
   reserved: 'Reserved',
   receiving: 'Receiving',
@@ -102,6 +104,7 @@ export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
 export const STOCK_STATUS_ORDER: StockStatus[] = [
   'in-stock',
   'low',
+  'to-order',
   'on-order',
   'reserved',
   'receiving',
@@ -122,11 +125,13 @@ const LEGACY_STATUS_TO_STOCK: Partial<Record<HardwareStatus, StockStatus>> = {
   failed: 'quarantine',
   destroyed: 'destroyed',
   retired: 'depleted',
+  'to-order': 'to-order',
 }
 
 const STOCK_TO_HARDWARE_STATUS: Record<StockStatus, HardwareStatus> = {
   'in-stock': 'flight-ready',
   low: 'checkout',
+  'to-order': 'to-order',
   'on-order': 'assembly',
   reserved: 'design',
   receiving: 'fab',
@@ -140,6 +145,7 @@ const STOCK_TO_HARDWARE_STATUS: Record<StockStatus, HardwareStatus> = {
 const HARDWARE_STATUS_TO_STOCK: Partial<Record<HardwareStatus, StockStatus>> = {
   'flight-ready': 'in-stock',
   checkout: 'low',
+  'to-order': 'to-order',
   assembly: 'on-order',
   design: 'reserved',
   fab: 'receiving',
@@ -176,6 +182,7 @@ export function hardwareStatusForStock(stockStatus: StockStatus): HardwareStatus
 
 /** Statuses the user is managing manually — do not auto-override with minQty rules. */
 const STOCK_MANUAL_STATUSES: StockStatus[] = [
+  'to-order',
   'on-order',
   'reserved',
   'receiving',
@@ -549,34 +556,6 @@ export function unitOnOrderQty(unit: Pick<HardwareUnit, 'onOrderQty'>) {
     unit.onOrderQty > 0
     ? unit.onOrderQty
     : 0
-}
-
-/**
- * Qty still needed to bring available + on-order up to min (or 1 if depleted
- * with no min). 0 when already covered, reserved, quarantined, or destroyed.
- */
-export function unitToOrderQty(unit: HardwareUnit) {
-  if (!isInventoryKind(unit.kind)) return 0
-  const status = stockStatusOf(unit)
-  if (
-    status === 'destroyed' ||
-    status === 'quarantine' ||
-    Boolean(unit.installedOnUnitId)
-  ) {
-    return 0
-  }
-  const available = unitAvailableQty(unit)
-  const onOrder = unitOnOrderQty(unit)
-  const min =
-    typeof unit.minQty === 'number' &&
-    Number.isFinite(unit.minQty) &&
-    unit.minQty >= 0
-      ? Math.floor(unit.minQty)
-      : undefined
-  if (min != null) return Math.max(0, min - available - onOrder)
-  if ((status === 'depleted' || available <= 0) && onOrder === 0) return 1
-  if (status === 'low' && onOrder === 0) return 1
-  return 0
 }
 
 /** Manual floor flag only (Needs attention button). */

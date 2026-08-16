@@ -9,6 +9,7 @@ import { HardwarePartsPanel } from './HardwarePartsPanel'
 import {
   HARDWARE_KIND_LABELS,
   HARDWARE_STATUS_LABELS,
+  HARDWARE_STATUS_ORDER,
   SYSTEM_KINDS,
   TEST_KIND_LABELS,
   TEST_RESULT_LABELS,
@@ -39,10 +40,9 @@ import { useLabStore } from '../useLabStore'
 const KIND_OPTIONS = SYSTEM_KINDS.map(
   (kind) => [kind, HARDWARE_KIND_LABELS[kind]] as const,
 )
-const STATUS_OPTIONS = Object.entries(HARDWARE_STATUS_LABELS) as [
-  HardwareStatus,
-  string,
-][]
+const STATUS_OPTIONS = HARDWARE_STATUS_ORDER.map(
+  (status) => [status, HARDWARE_STATUS_LABELS[status]] as const,
+)
 const TEST_KIND_OPTIONS = Object.entries(TEST_KIND_LABELS) as [TestKind, string][]
 const TEST_RESULT_OPTIONS = Object.entries(TEST_RESULT_LABELS) as [
   TestResult,

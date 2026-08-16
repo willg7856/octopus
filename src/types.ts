@@ -29,11 +29,14 @@ export type HardwareStatus =
   | 'retired'
   | 'failed'
   | 'destroyed'
+  /** Inventory-only mirror for stock status `to-order`. */
+  | 'to-order'
 
 /** Stock-room status for inventory items (separate from hardware build status). */
 export type StockStatus =
   | 'in-stock'
   | 'low'
+  | 'to-order'
   | 'on-order'
   | 'reserved'
   | 'receiving'
