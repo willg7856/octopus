@@ -26,6 +26,8 @@ import {
   unitQuantity,
   unitNeedsAttention,
   unitReservedQty,
+  unitToOrderQty,
+  unitAvailableQty,
   unlinkInventoryFromHardware,
 } from '../hardwareData'
 import type {
@@ -50,6 +52,7 @@ type AttentionFilter =
   | 'all'
   | 'attention'
   | 'low'
+  | 'to-order'
   | 'on-order'
   | 'reserved'
   | 'overdue'
@@ -62,6 +65,7 @@ function matchesAttention(unit: HardwareUnit, filter: AttentionFilter) {
   const status = stockStatusOf(unit)
   if (filter === 'all') return true
   if (filter === 'attention') return unitNeedsAttention(unit)
+  if (filter === 'to-order') return unitToOrderQty(unit) > 0
   if (filter === 'overdue') return isOrderOverdue(unit)
   return status === filter
 }
@@ -109,6 +113,8 @@ export function InventoryPage({
   const attentionCounts = useMemo(() => {
     let attention = 0
     let low = 0
+    let toOrder = 0
+    let toOrderQty = 0
     let onOrder = 0
     let reserved = 0
     let overdue = 0
@@ -118,15 +124,30 @@ export function InventoryPage({
       if (!matchesKind(unit, kindFilter)) continue
       const status = stockStatusOf(unit)
       const overdueOrder = isOrderOverdue(unit)
+      const need = unitToOrderQty(unit)
       if (unitNeedsAttention(unit)) attention += 1
       if (status === 'low') low += 1
+      if (need > 0) {
+        toOrder += 1
+        toOrderQty += need
+      }
       if (status === 'on-order') onOrder += 1
       if (status === 'reserved') reserved += 1
       if (overdueOrder) overdue += 1
       if (status === 'quarantine') quarantine += 1
       if (status === 'destroyed') destroyed += 1
     }
-    return { attention, low, onOrder, reserved, overdue, quarantine, destroyed }
+    return {
+      attention,
+      low,
+      toOrder,
+      toOrderQty,
+      onOrder,
+      reserved,
+      overdue,
+      quarantine,
+      destroyed,
+    }
   }, [units, kindFilter])
 
   const kindCounts = useMemo(() => {
@@ -227,6 +248,28 @@ export function InventoryPage({
         .includes(q)
     })
   }, [units, query, filter, kindFilter, programFilter])
+
+  const toOrderItems = useMemo(
+    () =>
+      units
+        .filter((u) => {
+          if (!matchesKind(u, kindFilter)) return false
+          if (programFilter === 'none' && u.program?.trim()) return false
+          if (
+            programFilter !== 'all' &&
+            programFilter !== 'none' &&
+            (u.program?.trim() || '') !== programFilter
+          ) {
+            return false
+          }
+          return unitToOrderQty(u) > 0
+        })
+        .map((unit) => ({ unit, qty: unitToOrderQty(unit) }))
+        .sort(
+          (a, b) => b.qty - a.qty || a.unit.name.localeCompare(b.unit.name),
+        ),
+    [units, kindFilter, programFilter],
+  )
 
   const selected =
     units.find((u) => u.id === selectedId) ??
@@ -385,6 +428,23 @@ export function InventoryPage({
       },
       'Received +1',
       'Received +1 into on hand',
+    )
+  }
+
+  function markOrdered(id: string, qty: number) {
+    if (qty <= 0) return
+    patchUnit(
+      id,
+      (unit) => ({
+        ...unit,
+        onOrderQty: unitOnOrderQty(unit) + qty,
+        stockStatus: 'on-order',
+        status: hardwareStatusForStock('on-order'),
+        orderedAt: unit.orderedAt || todayDateInput(),
+        updatedAt: new Date().toISOString(),
+      }),
+      `Ordered +${qty}`,
+      `Placed order · qty ${qty}`,
     )
   }
 
@@ -575,6 +635,7 @@ export function InventoryPage({
       count: attentionCounts.attention,
     },
     { id: 'low', label: 'Low', count: attentionCounts.low },
+    { id: 'to-order', label: 'To order', count: attentionCounts.toOrder },
     { id: 'on-order', label: 'On order', count: attentionCounts.onOrder },
     { id: 'reserved', label: 'Reserved', count: attentionCounts.reserved },
     { id: 'overdue', label: 'Overdue', count: attentionCounts.overdue },
@@ -639,6 +700,9 @@ export function InventoryPage({
                   {inventoryTotals.onOrder > 0
                     ? ` · ${inventoryTotals.onOrder} on order`
                     : ''}
+                  {toOrderItems.length > 0
+                    ? ` · ${toOrderItems.reduce((n, i) => n + i.qty, 0)} to order`
+                    : ''}
                 </span>
                 {inventoryTotals.priced > 0 ? (
                   <>
@@ -682,6 +746,78 @@ export function InventoryPage({
       </header>
 
       <SyncStatusBanners store={store} />
+
+      {sync !== 'loading' && hasLoaded && toOrderItems.length > 0 ? (
+        <section className="inv-to-order" aria-label="To order">
+          <div className="inv-to-order-head">
+            <h3>To order</h3>
+            <span className="simple-muted">
+              {toOrderItems.length === 1
+                ? '1 item'
+                : `${toOrderItems.length} items`}
+              {` · ${toOrderItems.reduce((n, i) => n + i.qty, 0)} units`}
+            </span>
+          </div>
+          <p className="simple-muted">
+            Below min, not covered by outstanding orders. Mark ordered moves
+            the needed qty onto On order.
+          </p>
+          <ul className="inv-to-order-list">
+            {toOrderItems.slice(0, 12).map(({ unit, qty }) => {
+              const orderHref = unit.orderUrl
+                ? normalizeOrderUrl(unit.orderUrl)
+                : null
+              return (
+                <li key={unit.id} className="inv-to-order-row">
+                  <button
+                    type="button"
+                    className="inv-to-order-main"
+                    onClick={() => openDetail(unit.id)}
+                  >
+                    <strong>{unit.name}</strong>
+                    <span className="simple-muted">
+                      {qty} to order
+                      {` · ${unitAvailableQty(unit)} available`}
+                      {unit.minQty != null ? ` · min ${unit.minQty}` : ''}
+                      {unit.program?.trim()
+                        ? ` · ${unit.program.trim()}`
+                        : ''}
+                    </span>
+                  </button>
+                  <div className="inv-to-order-actions">
+                    {orderHref ? (
+                      <a
+                        className="btn btn-ghost"
+                        href={orderHref}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Order
+                      </a>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="btn btn-accent"
+                      onClick={() => markOrdered(unit.id, qty)}
+                    >
+                      Mark ordered
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+          {toOrderItems.length > 12 ? (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setFilter('to-order')}
+            >
+              View all {toOrderItems.length}
+            </button>
+          ) : null}
+        </section>
+      ) : null}
 
       {sync === 'loading' || (sync === 'error' && !hasLoaded) ? (
         <p className={sync === 'loading' ? 'simple-loading' : 'simple-muted'}>
@@ -825,6 +961,12 @@ export function InventoryPage({
               placeholder="Search…"
               aria-label="Search inventory"
             />
+            {filter === 'to-order' ? (
+              <p className="simple-muted inv-destroyed-hint">
+                Stock below min that outstanding orders don’t cover. Mark
+                ordered from the list above, or set qty on order in the item.
+              </p>
+            ) : null}
             {filter === 'destroyed' ? (
               <p className="simple-muted inv-destroyed-hint">
                 Destroyed stock — open an item for the full cause in History.
@@ -835,6 +977,7 @@ export function InventoryPage({
                 const status = stockStatusOf(unit)
                 const onOrder = unitOnOrderQty(unit)
                 const overdue = isOrderOverdue(unit)
+                const toOrder = unitToOrderQty(unit)
                 const reserved =
                   Boolean(unit.installedOnUnitId) || status === 'reserved'
                 const host = unit.installedOnUnitId
@@ -871,6 +1014,7 @@ export function InventoryPage({
                             {unitReservedQty(unit) > 0
                               ? ` · ${unitReservedQty(unit)} reserved`
                               : ''}
+                            {toOrder > 0 ? ` · ${toOrder} to order` : ''}
                             {host
                               ? ` · on ${host.name}`
                               : unit.location

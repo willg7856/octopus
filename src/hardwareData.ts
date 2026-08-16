@@ -551,6 +551,34 @@ export function unitOnOrderQty(unit: Pick<HardwareUnit, 'onOrderQty'>) {
     : 0
 }
 
+/**
+ * Qty still needed to bring available + on-order up to min (or 1 if depleted
+ * with no min). 0 when already covered, reserved, quarantined, or destroyed.
+ */
+export function unitToOrderQty(unit: HardwareUnit) {
+  if (!isInventoryKind(unit.kind)) return 0
+  const status = stockStatusOf(unit)
+  if (
+    status === 'destroyed' ||
+    status === 'quarantine' ||
+    Boolean(unit.installedOnUnitId)
+  ) {
+    return 0
+  }
+  const available = unitAvailableQty(unit)
+  const onOrder = unitOnOrderQty(unit)
+  const min =
+    typeof unit.minQty === 'number' &&
+    Number.isFinite(unit.minQty) &&
+    unit.minQty >= 0
+      ? Math.floor(unit.minQty)
+      : undefined
+  if (min != null) return Math.max(0, min - available - onOrder)
+  if ((status === 'depleted' || available <= 0) && onOrder === 0) return 1
+  if (status === 'low' && onOrder === 0) return 1
+  return 0
+}
+
 /** Manual floor flag only (Needs attention button). */
 export function unitNeedsAttention(unit: HardwareUnit) {
   return Boolean(unit.needsAttention)
