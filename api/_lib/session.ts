@@ -172,7 +172,7 @@ export async function checkCredentials(
       return {
         ok: false,
         error: read.degraded
-          ? `The team list is offline${read.reason ? ` (${read.reason})` : ''}. Saved personal passwords cannot be checked. Use the shared team password.`
+          ? 'The team list is offline, so saved personal passwords cannot be checked. Use the shared team password.'
           : 'Invalid email or password',
       }
     }
