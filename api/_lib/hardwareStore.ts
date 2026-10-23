@@ -30,6 +30,11 @@ export type SharedHardwareLab = HardwareLabState & {
   revision: number
   updatedAt: string
   updatedBy: string
+  /**
+   * One-time sweep. Once true, To order stays a normal stock status and is
+   * not cleared again.
+   */
+  toOrderCleared?: boolean
 }
 
 export type StorageMode = 'redis' | 'blob' | 'file'
@@ -46,10 +51,74 @@ function seedLab(updatedBy = 'system'): SharedHardwareLab {
     revision: 1,
     updatedAt: new Date().toISOString(),
     updatedBy,
+    toOrderCleared: true,
     units: structuredClone(SEED_HARDWARE),
     progress: structuredClone(SEED_PROGRESS),
     tests: structuredClone(SEED_TESTS),
     processes: structuredClone(SEED_PROCESSES),
+  }
+}
+
+const SYSTEM_KINDS = new Set([
+  'vehicle',
+  'subsystem',
+  'motor',
+  'avionics',
+  'pad',
+  'ground',
+])
+
+/** Drop a stored To order flag. Quantity rules pick in stock, low, or depleted. */
+export function clearToOrderUnit(unit: HardwareUnit): HardwareUnit {
+  const stock = unit.stockStatus as string | undefined
+  const status = unit.status as string
+  if (stock !== 'to-order' && status !== 'to-order') return unit
+  if (SYSTEM_KINDS.has(unit.kind) && stock !== 'to-order') {
+    return { ...unit, status: 'concept' }
+  }
+  const qty =
+    typeof unit.quantity === 'number' && Number.isFinite(unit.quantity)
+      ? unit.quantity
+      : 1
+  const min = unit.minQty
+  const onOrder =
+    typeof unit.onOrderQty === 'number' &&
+    Number.isFinite(unit.onOrderQty) &&
+    unit.onOrderQty > 0
+  const stockStatus = onOrder
+    ? 'on-order'
+    : qty <= 0
+      ? 'depleted'
+      : typeof min === 'number' && Number.isFinite(min) && min >= 0 && qty <= min
+        ? 'low'
+        : 'in-stock'
+  const mirror =
+    stockStatus === 'on-order'
+      ? 'assembly'
+      : stockStatus === 'depleted'
+        ? 'retired'
+        : stockStatus === 'low'
+          ? 'checkout'
+          : 'flight-ready'
+  return { ...unit, stockStatus, status: mirror }
+}
+
+/** Mark the lab swept. Bump revision only when an item actually changed. */
+export function applyToOrderSweep(lab: SharedHardwareLab): SharedHardwareLab {
+  if (lab.toOrderCleared) return lab
+  let changed = false
+  const units = lab.units.map((unit) => {
+    const next = clearToOrderUnit(unit)
+    if (next !== unit) changed = true
+    return next
+  })
+  if (!changed) return { ...lab, toOrderCleared: true }
+  return {
+    ...lab,
+    units,
+    toOrderCleared: true,
+    revision: lab.revision + 1,
+    updatedAt: new Date().toISOString(),
   }
 }
 
@@ -75,6 +144,7 @@ function normalize(raw: StoredLab | null | undefined, updatedBy = 'system'): Sha
     progress: Array.isArray(raw.progress) ? raw.progress : seed.progress,
     tests: Array.isArray(raw.tests) ? raw.tests : seed.tests,
     processes: Array.isArray(raw.processes) ? raw.processes : seed.processes,
+    toOrderCleared: raw.toOrderCleared === true ? true : undefined,
   }
 }
 
@@ -277,34 +347,77 @@ async function withStorageErrors<T>(backend: string, fn: () => Promise<T>): Prom
   }
 }
 
+async function persistToOrderSweep(
+  lab: SharedHardwareLab,
+  write: (expectedRevision: number, next: SharedHardwareLab) => Promise<boolean>,
+  reread: () => Promise<SharedHardwareLab | null>,
+): Promise<SharedHardwareLab> {
+  if (lab.toOrderCleared) return lab
+  const next = applyToOrderSweep(lab)
+  if (await write(lab.revision, next)) return next
+  const latest = await reread()
+  if (!latest || latest.toOrderCleared) return latest ?? next
+  const retry = applyToOrderSweep(latest)
+  if (await write(latest.revision, retry)) return retry
+  return latest
+}
+
 export async function loadSharedLab(): Promise<SharedHardwareLab> {
   const mode = storageMode()
 
   if (mode === 'redis') {
     return withStorageErrors('Upstash Redis', async () => {
       const existing = await readRedis()
-      if (existing) return existing
-      const seeded = seedLab('system')
-      await writeRedis(seeded)
-      return seeded
+      if (!existing) {
+        const seeded = seedLab('system')
+        await writeRedis(seeded)
+        return seeded
+      }
+      return persistToOrderSweep(
+        existing,
+        async (expected, next) => (await writeRedisCas(expected, next)).ok,
+        readRedis,
+      )
     })
   }
 
   if (mode === 'blob') {
     return withStorageErrors('Vercel Blob', async () => {
       const existing = await readBlob()
-      if (existing) return existing
-      const seeded = seedLab('system')
-      await writeBlob(seeded)
-      return seeded
+      if (!existing) {
+        const seeded = seedLab('system')
+        await writeBlob(seeded)
+        return seeded
+      }
+      return persistToOrderSweep(
+        existing,
+        async (expected, next) => {
+          const current = await readBlob()
+          if (!current || current.revision !== expected) return false
+          await writeBlob(next)
+          return true
+        },
+        readBlob,
+      )
     })
   }
 
   const existing = await readLocal()
-  if (existing) return existing
-  const seeded = seedLab('system')
-  await writeLocal(seeded)
-  return seeded
+  if (!existing) {
+    const seeded = seedLab('system')
+    await writeLocal(seeded)
+    return seeded
+  }
+  return persistToOrderSweep(
+    existing,
+    async (expected, next) => {
+      const current = await readLocal()
+      if (!current || current.revision !== expected) return false
+      await writeLocal(next)
+      return true
+    },
+    readLocal,
+  )
 }
 
 export async function saveSharedLab(
@@ -316,6 +429,10 @@ export async function saveSharedLab(
   | { ok: false; conflict: true; lab: SharedHardwareLab }
 > {
   const mode = storageMode()
+  const current = await loadSharedLab()
+  if (current.revision !== expectedRevision) {
+    return { ok: false, conflict: true, lab: current }
+  }
 
   const lab: SharedHardwareLab = {
     revision: expectedRevision + 1,
@@ -325,6 +442,8 @@ export async function saveSharedLab(
     progress: next.progress,
     tests: next.tests,
     processes: next.processes,
+    // Keep the one-time sweep marked done so a later save cannot arm it again.
+    toOrderCleared: current.toOrderCleared === true,
   }
 
   if (mode === 'redis') {
@@ -340,11 +459,6 @@ export async function saveSharedLab(
 
   // Blob / file: check-then-write is racy. Re-read before write, then verify
   // our write token survived so concurrent saves surface as conflicts.
-  const current = await loadSharedLab()
-  if (current.revision !== expectedRevision) {
-    return { ok: false, conflict: true, lab: current }
-  }
-
   lab.revision = current.revision + 1
 
   if (mode === 'blob') {
