@@ -328,10 +328,25 @@ export function emailsWithPersonalPassword(access: OpsAccessState): string[] {
   return Object.keys(access.passwords || {}).sort((a, b) => a.localeCompare(b))
 }
 
+/**
+ * Auth reads must not take down sign-in. If Redis/Blob is unreachable
+ * (paused, archived, bad token), fall back to an empty shared list so
+ * OPS_PASSWORD and OPS_USERS still work.
+ */
+async function loadAccessListForAuth(): Promise<OpsAccessState> {
+  try {
+    return await loadAccessList()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`ops access list unavailable (${message})`)
+    return emptyAccess()
+  }
+}
+
 export async function getPasswordHashForEmail(
   email: string,
 ): Promise<string | null> {
-  const access = await loadAccessList()
+  const access = await loadAccessListForAuth()
   const entry = access.passwords?.[normalizeEmail(email)]
   return entry?.passwordHash || null
 }
@@ -349,7 +364,7 @@ export function envAllowlist(): string[] {
 /** Effective sign-in allowlist = env ∪ shared list. Empty = any email + password. */
 export async function effectiveAllowlist(): Promise<string[]> {
   const env = envAllowlist()
-  const shared = await loadAccessList()
+  const shared = await loadAccessListForAuth()
   return normalizeEmails([...env, ...shared.users])
 }
 

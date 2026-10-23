@@ -70,7 +70,8 @@ export function verifyPassword(password: string, encoded: string) {
   const N = Number(parts[1])
   const r = Number(parts[2])
   const p = Number(parts[3])
-  if (!Number.isFinite(N) || !Number.isFinite(r) || !Number.isFinite(p)) return false
+  // Same cost the app writes. Reject anything else so a bad record can't stall sign-in.
+  if (N !== 16384 || r !== 8 || p !== 1) return false
   let salt: Buffer
   let expected: Buffer
   try {
@@ -79,9 +80,16 @@ export function verifyPassword(password: string, encoded: string) {
   } catch {
     return false
   }
-  const hash = scryptSync(password, salt, expected.length, { N, r, p })
-  if (hash.length !== expected.length) return false
-  return timingSafeEqual(hash, expected)
+  if (salt.length === 0 || salt.length > 64 || expected.length === 0 || expected.length > 64) {
+    return false
+  }
+  try {
+    const hash = scryptSync(password, salt, expected.length, { N, r, p })
+    if (hash.length !== expected.length) return false
+    return timingSafeEqual(hash, expected)
+  } catch {
+    return false
+  }
 }
 
 export function signSession(payload: SessionPayload) {

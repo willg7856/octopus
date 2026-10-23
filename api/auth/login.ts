@@ -14,31 +14,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const email = String(req.body?.email || '').trim().toLowerCase()
-  const password = String(req.body?.password || '')
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase()
+    const password = String(req.body?.password || '')
 
-  if (!email || !password) {
-    res.status(400).json({ error: 'Email and password required' })
-    return
+    if (!email || !password) {
+      res.status(400).json({ error: 'Email and password required' })
+      return
+    }
+
+    if (!(await checkCredentials(email, password))) {
+      res.status(401).json({ error: 'Invalid email or password' })
+      return
+    }
+
+    const session = {
+      email,
+      name: displayName(email),
+      exp: Date.now() + MAX_AGE_SEC * 1000,
+    }
+
+    res.setHeader('Set-Cookie', sessionCookie(signSession(session)))
+    res.status(200).json({
+      user: {
+        email: session.email,
+        name: session.name,
+        canManageAccounts: canManageAccounts(email),
+      },
+    })
+  } catch (error) {
+    console.error('login failed', error)
+    res.status(500).json({ error: 'Sign-in is unavailable right now. Try again in a moment.' })
   }
-
-  if (!(await checkCredentials(email, password))) {
-    res.status(401).json({ error: 'Invalid email or password' })
-    return
-  }
-
-  const session = {
-    email,
-    name: displayName(email),
-    exp: Date.now() + MAX_AGE_SEC * 1000,
-  }
-
-  res.setHeader('Set-Cookie', sessionCookie(signSession(session)))
-  res.status(200).json({
-    user: {
-      email: session.email,
-      name: session.name,
-      canManageAccounts: canManageAccounts(email),
-    },
-  })
 }

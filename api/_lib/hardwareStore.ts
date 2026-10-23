@@ -273,7 +273,13 @@ async function withStorageErrors<T>(backend: string, fn: () => Promise<T>): Prom
     return await fn()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`${backend} read/write failed (${message}). ${storageSetupHint()}`)
+    const idle =
+      /archiv|disabled|suspend|inactive|paused|not active|ECONN|ENOTFOUND|401|403/i.test(
+        message,
+      )
+        ? ' If the database has been idle, restore it in Upstash (Vercel → Storage).'
+        : ''
+    throw new Error(`${backend} read/write failed (${message}). ${storageSetupHint()}${idle}`)
   }
 }
 

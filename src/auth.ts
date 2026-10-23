@@ -57,8 +57,13 @@ export async function login(
     })
     const data = await parseJson(res)
     if (res.ok && data?.user) return { user: data.user }
+    if (res.status >= 500) {
+      return {
+        error: data?.error || 'Sign-in is unavailable right now. Try again in a moment.',
+      }
+    }
     if (res.status !== 404) {
-      return { error: data?.error || 'Sign in failed' }
+      return { error: data?.error || 'Invalid email or password' }
     }
   } catch {
     /* local fallback below */
