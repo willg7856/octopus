@@ -116,6 +116,7 @@ function getRedis() {
   return new Redis({
     url: redisUrl(),
     token: redisToken(),
+    retry: { retries: 0 },
   })
 }
 
@@ -287,13 +288,19 @@ export async function loadSharedLab(): Promise<SharedHardwareLab> {
   const mode = storageMode()
 
   if (mode === 'redis') {
-    return withStorageErrors('Upstash Redis', async () => {
-      const existing = await readRedis()
-      if (existing) return existing
-      const seeded = seedLab('system')
-      await writeRedis(seeded)
-      return seeded
-    })
+    try {
+      return await withStorageErrors('Upstash Redis', async () => {
+        const existing = await readRedis()
+        if (existing) return existing
+        const seeded = seedLab('system')
+        await writeRedis(seeded)
+        return seeded
+      })
+    } catch (error) {
+      const fromBlob = await readBlob().catch(() => null)
+      if (fromBlob) return fromBlob
+      throw error
+    }
   }
 
   if (mode === 'blob') {

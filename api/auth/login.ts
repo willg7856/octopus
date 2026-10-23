@@ -23,8 +23,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return
     }
 
-    if (!(await checkCredentials(email, password))) {
-      res.status(401).json({ error: 'Invalid email or password' })
+    const credentials = await checkCredentials(email, password)
+    if (!credentials.ok) {
+      res.status(401).json({ error: credentials.error })
       return
     }
 

@@ -1,7 +1,8 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import {
   effectiveAllowlist,
-  getPasswordHashForEmail,
+  envAllowlist,
+  loadAccessListForAuth,
 } from './accessStore.js'
 import { readEnv } from './env.js'
 
@@ -154,19 +155,35 @@ export function clearSessionCookie() {
   return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? '; Secure' : ''}`
 }
 
-export async function checkCredentials(email: string, password: string) {
+export async function checkCredentials(
+  email: string,
+  password: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const normalized = email.trim().toLowerCase()
-  const personalHash = await getPasswordHashForEmail(normalized)
+  const read = await loadAccessListForAuth()
+  const personalHash = read.access.passwords?.[normalized]?.passwordHash || null
   if (personalHash) {
-    if (!verifyPassword(password, personalHash)) return false
+    if (!verifyPassword(password, personalHash)) {
+      return { ok: false, error: 'Invalid email or password' }
+    }
   } else {
     const expected = readEnv('OPS_PASSWORD') || 'goods-shed'
-    if (!passwordsMatch(password, expected)) return false
+    if (!passwordsMatch(password, expected)) {
+      return {
+        ok: false,
+        error: read.degraded
+          ? 'The team list is offline, so saved personal passwords cannot be checked. Use the shared team password.'
+          : 'Invalid email or password',
+      }
+    }
   }
 
-  const allowed = await effectiveAllowlist()
-  if (allowed.length === 0) return true
-  return allowed.includes(normalized)
+  // While storage is down, the shared password is enough. The in-app allowlist can't be read.
+  if (read.degraded) return { ok: true }
+
+  const allowed = [...new Set([...envAllowlist(), ...read.access.users])]
+  if (allowed.length === 0 || allowed.includes(normalized)) return { ok: true }
+  return { ok: false, error: 'Invalid email or password' }
 }
 
 export function displayName(email: string) {

@@ -119,6 +119,7 @@ function getRedis() {
   return new Redis({
     url: redisUrl(),
     token: redisToken(),
+    retry: { retries: 0 },
   })
 }
 
@@ -227,14 +228,30 @@ async function writeLocal(state: OpsAccessState) {
   await writeFile(LOCAL_PATH, JSON.stringify(state, null, 2), 'utf8')
 }
 
+async function readBlobAccess(): Promise<OpsAccessState | null> {
+  try {
+    return await readBlob()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`ops access blob unavailable (${message})`)
+    return null
+  }
+}
+
 export async function loadAccessList(): Promise<OpsAccessState> {
   const mode = storageMode()
   if (mode === 'redis') {
-    const existing = await readRedis()
-    if (existing) return existing
-    const seeded = emptyAccess()
-    await writeRedis(seeded)
-    return seeded
+    try {
+      const existing = await readRedis()
+      if (existing) return existing
+      const seeded = emptyAccess()
+      await writeRedis(seeded)
+      return seeded
+    } catch (error) {
+      const fromBlob = await readBlobAccess()
+      if (fromBlob) return fromBlob
+      throw error
+    }
   }
   if (mode === 'blob') {
     const existing = await readBlob()
@@ -333,20 +350,26 @@ export function emailsWithPersonalPassword(access: OpsAccessState): string[] {
  * (paused, archived, bad token), fall back to an empty shared list so
  * OPS_PASSWORD and OPS_USERS still work.
  */
-async function loadAccessListForAuth(): Promise<OpsAccessState> {
+export type AccessAuthRead = {
+  access: OpsAccessState
+  /** True when Redis and Blob both failed and only env credentials remain. */
+  degraded: boolean
+}
+
+export async function loadAccessListForAuth(): Promise<AccessAuthRead> {
   try {
-    return await loadAccessList()
+    return { access: await loadAccessList(), degraded: false }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error(`ops access list unavailable (${message})`)
-    return emptyAccess()
+    return { access: emptyAccess(), degraded: true }
   }
 }
 
 export async function getPasswordHashForEmail(
   email: string,
 ): Promise<string | null> {
-  const access = await loadAccessListForAuth()
+  const { access } = await loadAccessListForAuth()
   const entry = access.passwords?.[normalizeEmail(email)]
   return entry?.passwordHash || null
 }
@@ -363,9 +386,10 @@ export function envAllowlist(): string[] {
 
 /** Effective sign-in allowlist = env ∪ shared list. Empty = any email + password. */
 export async function effectiveAllowlist(): Promise<string[]> {
-  const env = envAllowlist()
-  const shared = await loadAccessListForAuth()
-  return normalizeEmails([...env, ...shared.users])
+  const read = await loadAccessListForAuth()
+  // Empty list means "any signed-in email". Don't lock people out while storage is down.
+  if (read.degraded) return []
+  return normalizeEmails([...envAllowlist(), ...read.access.users])
 }
 
 /** Always-allowed Team admins (merged with OPS_ADMINS when set). */
