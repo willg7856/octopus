@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import type { AuthUser } from '../auth'
 import type { Theme } from '../theme'
+import nozzlePhoto from '../assets/graphite-nozzle.jpg'
 
 type SignInProps = {
   theme: Theme
@@ -42,54 +43,67 @@ export function SignIn({ theme, onToggleTheme, onSignedIn, login }: SignInProps)
         {theme === 'light' ? 'Dark' : 'Light'}
       </button>
 
-      <div className="auth-panel">
-        <p className="brand-kicker">Beyond Stage Zero</p>
-        <h1 className="brand auth-brand">
-          Octopus<em>.</em>
-        </h1>
-        <p className="auth-copy">
-          Lab ops for inventory, hardware, and production.
-        </p>
+      <div className="auth-layout">
+        <figure className="auth-photo">
+          <img
+            src={nozzlePhoto}
+            alt="Graphite nozzle blank spinning on the lathe while a tool cuts the end face"
+          />
+          <figcaption>
+            <span className="brand-kicker">In the shop</span>
+            <strong>Graphite nozzle, in the cut.</strong>
+          </figcaption>
+        </figure>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <label className="auth-field">
-            <span>Email</span>
-            <input
-              type="email"
-              name="email"
-              autoComplete="username"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </label>
-          <label className="auth-field">
-            <span>Password</span>
-            <input
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-
-          {error ? (
-            <p className="auth-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-
-          <button type="submit" className="btn btn-accent auth-submit" disabled={pending}>
-            {pending ? 'Signing in…' : 'Sign in'}
-          </button>
-
-          <p className="auth-footnote">
-            Use your personal password, or the shared team password if you
-            don’t have one yet.
+        <div className="auth-panel">
+          <p className="brand-kicker">Beyond Stage Zero</p>
+          <h1 className="brand auth-brand">
+            Octopus<em>.</em>
+          </h1>
+          <p className="auth-copy">
+            Lab ops for inventory, hardware, and production.
           </p>
-        </form>
+
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <label className="auth-field">
+              <span>Email</span>
+              <input
+                type="email"
+                name="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </label>
+            <label className="auth-field">
+              <span>Password</span>
+              <input
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
+
+            {error ? (
+              <p className="auth-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            <button type="submit" className="btn btn-accent auth-submit" disabled={pending}>
+              {pending ? 'Signing in…' : 'Sign in'}
+            </button>
+
+            <p className="auth-footnote">
+              Use your personal password, or the shared team password if you
+              don’t have one yet.
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   )
