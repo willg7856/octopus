@@ -354,15 +354,38 @@ export type AccessAuthRead = {
   access: OpsAccessState
   /** True when Redis and Blob both failed and only env credentials remain. */
   degraded: boolean
+  /** Sanitized storage error, safe to show in the sign-in form. */
+  reason?: string
+}
+
+function storageReason(error: unknown) {
+  const parts: string[] = []
+  if (error instanceof Error) {
+    parts.push(error.message)
+    const cause = error.cause
+    if (cause instanceof Error && cause.message) parts.push(cause.message)
+    else if (cause && typeof cause === 'object' && 'code' in cause) {
+      parts.push(String((cause as { code: unknown }).code))
+    }
+  } else {
+    parts.push(String(error))
+  }
+  return parts
+    .join(' ')
+    .replace(/https?:\/\/\S+/gi, '[url]')
+    .replace(/\b[A-Za-z0-9_-]{24,}\b/g, '[redacted]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180)
 }
 
 export async function loadAccessListForAuth(): Promise<AccessAuthRead> {
   try {
     return { access: await loadAccessList(), degraded: false }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error(`ops access list unavailable (${message})`)
-    return { access: emptyAccess(), degraded: true }
+    const reason = storageReason(error)
+    console.error(`ops access list unavailable (${reason})`)
+    return { access: emptyAccess(), degraded: true, reason }
   }
 }
 
