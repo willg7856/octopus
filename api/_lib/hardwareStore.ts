@@ -116,6 +116,7 @@ function getRedis() {
   return new Redis({
     url: redisUrl(),
     token: redisToken(),
+    retry: { retries: 0 },
   })
 }
 
@@ -273,7 +274,13 @@ async function withStorageErrors<T>(backend: string, fn: () => Promise<T>): Prom
     return await fn()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`${backend} read/write failed (${message}). ${storageSetupHint()}`)
+    const idle =
+      /archiv|disabled|suspend|inactive|paused|not active|ECONN|ENOTFOUND|401|403/i.test(
+        message,
+      )
+        ? ' If the database has been idle, restore it in Upstash (Vercel → Storage).'
+        : ''
+    throw new Error(`${backend} read/write failed (${message}). ${storageSetupHint()}${idle}`)
   }
 }
 
@@ -281,13 +288,19 @@ export async function loadSharedLab(): Promise<SharedHardwareLab> {
   const mode = storageMode()
 
   if (mode === 'redis') {
-    return withStorageErrors('Upstash Redis', async () => {
-      const existing = await readRedis()
-      if (existing) return existing
-      const seeded = seedLab('system')
-      await writeRedis(seeded)
-      return seeded
-    })
+    try {
+      return await withStorageErrors('Upstash Redis', async () => {
+        const existing = await readRedis()
+        if (existing) return existing
+        const seeded = seedLab('system')
+        await writeRedis(seeded)
+        return seeded
+      })
+    } catch (error) {
+      const fromBlob = await readBlob().catch(() => null)
+      if (fromBlob) return fromBlob
+      throw error
+    }
   }
 
   if (mode === 'blob') {

@@ -1,7 +1,8 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import {
   effectiveAllowlist,
-  getPasswordHashForEmail,
+  envAllowlist,
+  loadAccessListForAuth,
 } from './accessStore.js'
 import { readEnv } from './env.js'
 
@@ -70,7 +71,8 @@ export function verifyPassword(password: string, encoded: string) {
   const N = Number(parts[1])
   const r = Number(parts[2])
   const p = Number(parts[3])
-  if (!Number.isFinite(N) || !Number.isFinite(r) || !Number.isFinite(p)) return false
+  // Same cost the app writes. Reject anything else so a bad record can't stall sign-in.
+  if (N !== 16384 || r !== 8 || p !== 1) return false
   let salt: Buffer
   let expected: Buffer
   try {
@@ -79,9 +81,16 @@ export function verifyPassword(password: string, encoded: string) {
   } catch {
     return false
   }
-  const hash = scryptSync(password, salt, expected.length, { N, r, p })
-  if (hash.length !== expected.length) return false
-  return timingSafeEqual(hash, expected)
+  if (salt.length === 0 || salt.length > 64 || expected.length === 0 || expected.length > 64) {
+    return false
+  }
+  try {
+    const hash = scryptSync(password, salt, expected.length, { N, r, p })
+    if (hash.length !== expected.length) return false
+    return timingSafeEqual(hash, expected)
+  } catch {
+    return false
+  }
 }
 
 export function signSession(payload: SessionPayload) {
@@ -146,19 +155,35 @@ export function clearSessionCookie() {
   return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? '; Secure' : ''}`
 }
 
-export async function checkCredentials(email: string, password: string) {
+export async function checkCredentials(
+  email: string,
+  password: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const normalized = email.trim().toLowerCase()
-  const personalHash = await getPasswordHashForEmail(normalized)
+  const read = await loadAccessListForAuth()
+  const personalHash = read.access.passwords?.[normalized]?.passwordHash || null
   if (personalHash) {
-    if (!verifyPassword(password, personalHash)) return false
+    if (!verifyPassword(password, personalHash)) {
+      return { ok: false, error: 'Invalid email or password' }
+    }
   } else {
     const expected = readEnv('OPS_PASSWORD') || 'goods-shed'
-    if (!passwordsMatch(password, expected)) return false
+    if (!passwordsMatch(password, expected)) {
+      return {
+        ok: false,
+        error: read.degraded
+          ? 'The team list is offline, so saved personal passwords cannot be checked. Use the shared team password.'
+          : 'Invalid email or password',
+      }
+    }
   }
 
-  const allowed = await effectiveAllowlist()
-  if (allowed.length === 0) return true
-  return allowed.includes(normalized)
+  // While storage is down, the shared password is enough. The in-app allowlist can't be read.
+  if (read.degraded) return { ok: true }
+
+  const allowed = [...new Set([...envAllowlist(), ...read.access.users])]
+  if (allowed.length === 0 || allowed.includes(normalized)) return { ok: true }
+  return { ok: false, error: 'Invalid email or password' }
 }
 
 export function displayName(email: string) {
