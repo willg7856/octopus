@@ -119,7 +119,6 @@ function getRedis() {
   return new Redis({
     url: redisUrl(),
     token: redisToken(),
-    retry: { retries: 0 },
   })
 }
 
@@ -228,30 +227,14 @@ async function writeLocal(state: OpsAccessState) {
   await writeFile(LOCAL_PATH, JSON.stringify(state, null, 2), 'utf8')
 }
 
-async function readBlobAccess(): Promise<OpsAccessState | null> {
-  try {
-    return await readBlob()
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error(`ops access blob unavailable (${message})`)
-    return null
-  }
-}
-
 export async function loadAccessList(): Promise<OpsAccessState> {
   const mode = storageMode()
   if (mode === 'redis') {
-    try {
-      const existing = await readRedis()
-      if (existing) return existing
-      const seeded = emptyAccess()
-      await writeRedis(seeded)
-      return seeded
-    } catch (error) {
-      const fromBlob = await readBlobAccess()
-      if (fromBlob) return fromBlob
-      throw error
-    }
+    const existing = await readRedis()
+    if (existing) return existing
+    const seeded = emptyAccess()
+    await writeRedis(seeded)
+    return seeded
   }
   if (mode === 'blob') {
     const existing = await readBlob()
@@ -345,54 +328,10 @@ export function emailsWithPersonalPassword(access: OpsAccessState): string[] {
   return Object.keys(access.passwords || {}).sort((a, b) => a.localeCompare(b))
 }
 
-/**
- * Auth reads must not take down sign-in. If Redis/Blob is unreachable
- * (paused, archived, bad token), fall back to an empty shared list so
- * OPS_PASSWORD and OPS_USERS still work.
- */
-export type AccessAuthRead = {
-  access: OpsAccessState
-  /** True when Redis and Blob both failed and only env credentials remain. */
-  degraded: boolean
-  /** Sanitized storage error, safe to show in the sign-in form. */
-  reason?: string
-}
-
-function storageReason(error: unknown) {
-  const parts: string[] = []
-  if (error instanceof Error) {
-    parts.push(error.message)
-    const cause = error.cause
-    if (cause instanceof Error && cause.message) parts.push(cause.message)
-    else if (cause && typeof cause === 'object' && 'code' in cause) {
-      parts.push(String((cause as { code: unknown }).code))
-    }
-  } else {
-    parts.push(String(error))
-  }
-  return parts
-    .join(' ')
-    .replace(/https?:\/\/\S+/gi, '[url]')
-    .replace(/\b[A-Za-z0-9_-]{24,}\b/g, '[redacted]')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 180)
-}
-
-export async function loadAccessListForAuth(): Promise<AccessAuthRead> {
-  try {
-    return { access: await loadAccessList(), degraded: false }
-  } catch (error) {
-    const reason = storageReason(error)
-    console.error(`ops access list unavailable (${reason})`)
-    return { access: emptyAccess(), degraded: true, reason }
-  }
-}
-
 export async function getPasswordHashForEmail(
   email: string,
 ): Promise<string | null> {
-  const { access } = await loadAccessListForAuth()
+  const access = await loadAccessList()
   const entry = access.passwords?.[normalizeEmail(email)]
   return entry?.passwordHash || null
 }
@@ -409,10 +348,9 @@ export function envAllowlist(): string[] {
 
 /** Effective sign-in allowlist = env ∪ shared list. Empty = any email + password. */
 export async function effectiveAllowlist(): Promise<string[]> {
-  const read = await loadAccessListForAuth()
-  // Empty list means "any signed-in email". Don't lock people out while storage is down.
-  if (read.degraded) return []
-  return normalizeEmails([...envAllowlist(), ...read.access.users])
+  const env = envAllowlist()
+  const shared = await loadAccessList()
+  return normalizeEmails([...env, ...shared.users])
 }
 
 /** Always-allowed Team admins (merged with OPS_ADMINS when set). */

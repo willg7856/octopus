@@ -30,11 +30,6 @@ export type SharedHardwareLab = HardwareLabState & {
   revision: number
   updatedAt: string
   updatedBy: string
-  /**
-   * Set once the shared lab has been saved with the full built-in catalog.
-   * Until then, missing seed records are filled back in on read.
-   */
-  catalogRestored?: boolean
 }
 
 export type StorageMode = 'redis' | 'blob' | 'file'
@@ -80,60 +75,6 @@ function normalize(raw: StoredLab | null | undefined, updatedBy = 'system'): Sha
     progress: Array.isArray(raw.progress) ? raw.progress : seed.progress,
     tests: Array.isArray(raw.tests) ? raw.tests : seed.tests,
     processes: Array.isArray(raw.processes) ? raw.processes : seed.processes,
-    catalogRestored: raw.catalogRestored === true,
-  }
-}
-
-function unionIds(current: string[] | undefined, extra: string[] | undefined) {
-  return [...new Set([...(current ?? []), ...(extra ?? [])])]
-}
-
-function mergeById<T extends { id: string }>(seed: T[], current: T[]): T[] {
-  const currentById = new Map(current.map((item) => [item.id, item]))
-  const seedIds = new Set(seed.map((item) => item.id))
-  const merged = seed.map((item) => structuredClone(currentById.get(item.id) ?? item))
-  for (const item of current) {
-    if (!seedIds.has(item.id)) merged.push(structuredClone(item))
-  }
-  return merged
-}
-
-function catalogComplete(units: { id: string }[]) {
-  const ids = new Set(units.map((unit) => unit.id))
-  return SEED_HARDWARE.every((unit) => ids.has(unit.id))
-}
-
-/** Put built-in inventory, hardware, and production records back if a saved lab dropped them. */
-export function restoreMissingCatalog(lab: SharedHardwareLab): SharedHardwareLab {
-  if (lab.catalogRestored) return lab
-  const tests = mergeById(SEED_TESTS, lab.tests).map((test) => {
-    const seed = SEED_TESTS.find((item) => item.id === test.id)
-    if (!seed) return test
-    return { ...test, unitIds: unionIds(test.unitIds, seed.unitIds) }
-  })
-  const processes = mergeById(SEED_PROCESSES, lab.processes).map((proc) => {
-    const seed = SEED_PROCESSES.find((item) => item.id === proc.id)
-    if (!seed) return proc
-    return {
-      ...proc,
-      steps: (proc.steps ?? []).map((step) => {
-        const seedStep = seed.steps.find((item) => item.order === step.order)
-        if (!seedStep) return step
-        return {
-          ...step,
-          linkedUnitIds: unionIds(step.linkedUnitIds, seedStep.linkedUnitIds),
-        }
-      }),
-    }
-  })
-  const units = mergeById(SEED_HARDWARE, lab.units)
-  return {
-    ...lab,
-    units,
-    progress: mergeById(SEED_PROGRESS, lab.progress),
-    tests,
-    processes,
-    catalogRestored: catalogComplete(units),
   }
 }
 
@@ -175,7 +116,6 @@ function getRedis() {
   return new Redis({
     url: redisUrl(),
     token: redisToken(),
-    retry: { retries: 0 },
   })
 }
 
@@ -333,33 +273,21 @@ async function withStorageErrors<T>(backend: string, fn: () => Promise<T>): Prom
     return await fn()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    const idle =
-      /archiv|disabled|suspend|inactive|paused|not active|ECONN|ENOTFOUND|401|403/i.test(
-        message,
-      )
-        ? ' If the database has been idle, restore it in Upstash (Vercel → Storage).'
-        : ''
-    throw new Error(`${backend} read/write failed (${message}). ${storageSetupHint()}${idle}`)
+    throw new Error(`${backend} read/write failed (${message}). ${storageSetupHint()}`)
   }
 }
 
-async function loadStoredLab(): Promise<SharedHardwareLab> {
+export async function loadSharedLab(): Promise<SharedHardwareLab> {
   const mode = storageMode()
 
   if (mode === 'redis') {
-    try {
-      return await withStorageErrors('Upstash Redis', async () => {
-        const existing = await readRedis()
-        if (existing) return existing
-        const seeded = seedLab('system')
-        await writeRedis(seeded)
-        return seeded
-      })
-    } catch (error) {
-      const fromBlob = await readBlob().catch(() => null)
-      if (fromBlob) return fromBlob
-      throw error
-    }
+    return withStorageErrors('Upstash Redis', async () => {
+      const existing = await readRedis()
+      if (existing) return existing
+      const seeded = seedLab('system')
+      await writeRedis(seeded)
+      return seeded
+    })
   }
 
   if (mode === 'blob') {
@@ -379,10 +307,6 @@ async function loadStoredLab(): Promise<SharedHardwareLab> {
   return seeded
 }
 
-export async function loadSharedLab(): Promise<SharedHardwareLab> {
-  return restoreMissingCatalog(await loadStoredLab())
-}
-
 export async function saveSharedLab(
   next: HardwareLabState,
   expectedRevision: number,
@@ -393,7 +317,6 @@ export async function saveSharedLab(
 > {
   const mode = storageMode()
 
-  const stored = await loadStoredLab().catch(() => null)
   const lab: SharedHardwareLab = {
     revision: expectedRevision + 1,
     updatedAt: new Date().toISOString(),
@@ -402,37 +325,17 @@ export async function saveSharedLab(
     progress: next.progress,
     tests: next.tests,
     processes: next.processes,
-    catalogRestored: Boolean(stored?.catalogRestored) || catalogComplete(next.units),
   }
 
   if (mode === 'redis') {
-    try {
-      return await withStorageErrors('Upstash Redis', async () => {
-        const cas = await writeRedisCas(expectedRevision, lab)
-        if (!cas.ok) {
-          const current = cas.current ?? (await loadSharedLab())
-          return { ok: false as const, conflict: true as const, lab: current }
-        }
-        return { ok: true as const, lab }
-      })
-    } catch (error) {
-      const current = await readBlob().catch(() => null)
-      if (current && current.revision !== expectedRevision) {
-        return { ok: false, conflict: true, lab: restoreMissingCatalog(current) }
+    return withStorageErrors('Upstash Redis', async () => {
+      const cas = await writeRedisCas(expectedRevision, lab)
+      if (!cas.ok) {
+        const current = cas.current ?? (await loadSharedLab())
+        return { ok: false as const, conflict: true as const, lab: current }
       }
-      try {
-        const fallback: SharedHardwareLab = {
-          ...lab,
-          revision: (current?.revision ?? expectedRevision) + 1,
-          catalogRestored:
-            Boolean(current?.catalogRestored) || catalogComplete(lab.units),
-        }
-        await writeBlob(fallback)
-        return { ok: true, lab: fallback }
-      } catch {
-        throw error
-      }
-    }
+      return { ok: true as const, lab }
+    })
   }
 
   // Blob / file: check-then-write is racy. Re-read before write, then verify
@@ -483,7 +386,6 @@ export async function resetSharedLab(updatedBy: string): Promise<SharedHardwareL
     revision: current.revision + 1,
     updatedAt: new Date().toISOString(),
     updatedBy,
-    catalogRestored: true,
   }
 
   if (mode === 'redis') {
