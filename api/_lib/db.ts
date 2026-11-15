@@ -70,6 +70,7 @@ const SCHEMA: string[] = [
     visitor text
   )`,
   `create index if not exists web_events_at_idx on web_events (at)`,
+  `alter table web_events add column if not exists project_id text`,
 ]
 
 // Cached on globalThis so dev hot-reloads reuse the one embedded database handle.

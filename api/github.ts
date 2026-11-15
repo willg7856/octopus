@@ -10,7 +10,7 @@ import { HttpError, q, route } from './_lib/http.js'
  */
 
 const API = (process.env.GITHUB_API_URL || 'https://api.github.com').replace(/\/$/, '')
-const RANGES = new Set([7, 30, 90, 365])
+const RANGES = new Set([1, 7, 30, 90, 182, 365])
 const CACHE_MS = 10 * 60_000
 
 interface RepoStats {
@@ -31,6 +31,7 @@ interface Result {
   linesPending: boolean
   contributors: number
   repos: RepoStats[]
+  bucket: 'hour' | 'day'
   daily: { date: string; commits: number }[]
   truncated: boolean
 }
@@ -75,25 +76,29 @@ async function listRepos(): Promise<string[]> {
   return (r.body ?? []).filter((x) => !x.archived && !x.fork).map((x) => x.full_name)
 }
 
-function dayOf(iso: string) {
+/** Bucket key: "YYYY-MM-DDTHH" (UTC hour) for a 24-hour range, otherwise "YYYY-MM-DD". */
+function dayOf(iso: string, hourly = false) {
+  if (hourly) return iso.slice(0, 13)
   return iso.slice(0, 10)
 }
 
-async function repoStats(repo: string, since: Date, authors: Set<string>, perDay: Map<string, number>) {
+async function repoStats(repo: string, since: Date, authors: Set<string>, perDay: Map<string, number>, hourly: boolean) {
   let commits = 0
   let truncated = false
+  const shas: string[] = []
   for (let page = 1; page <= 5; page++) {
-    const r = await gh<{ commit: { author: { date: string; email?: string } | null }; author: { login: string } | null }[]>(
+    const r = await gh<{ sha: string; commit: { author: { date: string; email?: string } | null }; author: { login: string } | null }[]>(
       `/repos/${repo}/commits?since=${since.toISOString()}&per_page=100&page=${page}`,
     )
     const list = r.body ?? []
     for (const c of list) {
       commits++
+      shas.push(c.sha)
       const who = c.author?.login ?? c.commit.author?.email
       if (who) authors.add(who.toLowerCase())
       const d = c.commit.author?.date
       if (d) {
-        const k = dayOf(d)
+        const k = dayOf(d, hourly)
         if (perDay.has(k)) perDay.set(k, perDay.get(k)! + 1)
       }
     }
@@ -104,7 +109,19 @@ async function repoStats(repo: string, since: Date, authors: Set<string>, perDay
   // Weekly [unixWeekStart, additions, -deletions]. GitHub computes this lazily and answers 202 first.
   let additions: number | null = null
   let deletions: number | null = null
-  if (commits > 0) {
+  const shortRange = Date.now() - since.getTime() <= 8 * 86_400_000
+  if (commits > 0 && shortRange && commits <= 40) {
+    // GitHub's line stats are weekly, too coarse for a day or a week — count each commit instead.
+    const details = await Promise.all(
+      shas.map((sha) => gh<{ stats?: { additions: number; deletions: number } }>(`/repos/${repo}/commits/${sha}`)),
+    )
+    additions = 0
+    deletions = 0
+    for (const d of details) {
+      additions += d.body?.stats?.additions ?? 0
+      deletions += d.body?.stats?.deletions ?? 0
+    }
+  } else if (commits > 0) {
     const f = await gh<[number, number, number][]>(`/repos/${repo}/stats/code_frequency`)
     if (Array.isArray(f.body)) {
       additions = 0
@@ -128,7 +145,7 @@ export default route({
   async GET(req, res) {
     await requireUser(req)
     const days = Number(q(req, 'days') ?? 30)
-    if (!RANGES.has(days)) throw new HttpError(400, 'days must be 7, 30, 90 or 365')
+    if (!RANGES.has(days)) throw new HttpError(400, 'days must be 1, 7, 30, 90, 182 or 365')
 
     const hit = cache.get(days)
     if (hit && Date.now() - hit.at < CACHE_MS && !hit.data.linesPending) {
@@ -141,9 +158,11 @@ export default route({
     const repos = (await listRepos()).slice(0, 30)
     const authors = new Set<string>()
     const perDay = new Map<string, number>()
-    for (let i = days - 1; i >= 0; i--) perDay.set(dayOf(new Date(now.getTime() - i * 86_400_000).toISOString()), 0)
+    const hourly = days <= 1
+    if (hourly) for (let i = 24; i >= 0; i--) perDay.set(dayOf(new Date(now.getTime() - i * 3_600_000).toISOString(), true), 0)
+    else for (let i = days - 1; i >= 0; i--) perDay.set(dayOf(new Date(now.getTime() - i * 86_400_000).toISOString()), 0)
 
-    const results = await Promise.all(repos.map((r) => repoStats(r, since, authors, perDay)))
+    const results = await Promise.all(repos.map((r) => repoStats(r, since, authors, perDay, hourly)))
     const list = results.map((r) => r.stats).filter((r) => r.commits > 0).sort((a, b) => b.commits - a.commits)
 
     const data: Result = {
@@ -156,6 +175,7 @@ export default route({
       linesPending: list.some((r) => r.additions == null),
       contributors: authors.size,
       repos: list,
+      bucket: hourly ? 'hour' : 'day',
       daily: [...perDay.entries()].map(([date, commits]) => ({ date, commits })),
       truncated: results.some((r) => r.truncated),
     }

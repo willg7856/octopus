@@ -445,6 +445,8 @@ a.stat:hover { border-color: var(--line-strong); color: inherit; }
 .an-setup { display: flex; flex-direction: column; gap: 8px; }
 .an-steps { margin: 4px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
 .an-steps code { font: 12px var(--mono); background: var(--neutral-soft); padding: 1px 5px; border-radius: 4px; }
+.an-note { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; border-radius: var(--r); background: var(--info-soft); color: var(--fg-2); }
+.an-note svg { flex: none; margin-top: 2px; color: var(--info); }
 .an-flight { display: flex; align-items: center; gap: 20px 28px; flex-wrap: wrap; }
 .an-flight-main { display: flex; flex-direction: column; gap: 3px; flex: 1 1 260px; min-width: 0; }
 .an-flight-main .an-card-title { margin-bottom: 2px; }

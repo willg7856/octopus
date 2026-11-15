@@ -10,18 +10,30 @@ import { HttpError, q, route } from './_lib/http.js'
  * the tracker's host (default starship.beyondstagezero.com).
  */
 
-const RANGES = new Set([7, 30, 90, 365])
+const RANGES = new Set([1, 7, 30, 90, 182, 365])
 const n = (v: unknown) => Number(v) || 0
 
 const starshipHost = () => (process.env.STARSHIP_HOST || 'starship.beyondstagezero.com').toLowerCase()
 
 type Row = Record<string, unknown>
+
+/** Bucket keys: "YYYY-MM-DD" for days/weeks, "YYYY-MM-DDTHH" (UTC) for hours. */
+const keyFmt = (bucket: string) => (bucket === 'hour' ? `'YYYY-MM-DD"T"HH24'` : `'YYYY-MM-DD'`)
 const kv = (rows: Row[], f = 'views') => rows.map((r) => ({ key: String(r.key), value: n(r[f]) }))
 
-/** Traffic stats for the events matching `where` (a SQL condition using $1 = host). */
+/**
+ * Which events are the Starship Tracker's: its host, or (when an event has no usable host)
+ * the same Vercel project as events that do carry the tracker's host, or STARSHIP_PROJECT_ID.
+ * $1 = tracker host, $2 = extra project ids.
+ */
+const STARSHIP_WHERE = `(lower(coalesce(host, '')) = $1 or (project_id is not null and project_id = any(
+  array(select distinct project_id from web_events where lower(host) = $1 and project_id is not null) || $2::text[])))`
+
+/** Traffic stats for the events matching `where` (a SQL condition using $1 / $2 as above). */
 async function siteStats(db: Db, days: number, bucket: string, where: string, host: string) {
   const since = `now() - interval '${days} days'`
-  const p = [host]
+  const extraIds = (process.env.STARSHIP_PROJECT_ID || '').split(',').map((x) => x.trim()).filter(Boolean)
+  const p: unknown[] = [host, extraIds]
   const [[totals], [live], series, pages, referrers, countries, devices, [ever], [peak], [busiest]] = await Promise.all([
     db.query(
       `select count(*) as views, count(distinct coalesce(visitor, session)) as visitors, count(distinct session) as sessions
@@ -34,7 +46,7 @@ async function siteStats(db: Db, days: number, bucket: string, where: string, ho
       p,
     ),
     db.query(
-      `select to_char(date_trunc('${bucket}', at), 'YYYY-MM-DD') as date,
+      `select to_char(date_trunc('${bucket}', at at time zone 'UTC'), ${keyFmt(bucket)}) as date,
               count(*) as views, count(distinct coalesce(visitor, session)) as visitors
        from web_events where at >= ${since} and ${where} group by 1 order by 1`,
       p,
@@ -55,7 +67,7 @@ async function siteStats(db: Db, days: number, bucket: string, where: string, ho
        group by 1 order by 2 desc`,
       p,
     ),
-    db.query(`select count(*) as events, max(at) as last from web_events where ${where}`, p),
+    db.query(`select count(*) as events, max(at) as last, min(at) as first from web_events where ${where}`, p),
     // Most people on the site at once, in 5-minute windows
     db.query(
       `select b as at, c as viewers from (
@@ -65,7 +77,7 @@ async function siteStats(db: Db, days: number, bucket: string, where: string, ho
       p,
     ),
     db.query(
-      `select to_char(date_trunc('day', at), 'YYYY-MM-DD') as date, count(*) as views
+      `select to_char(date_trunc('day', at at time zone 'UTC'), 'YYYY-MM-DD') as date, count(*) as views
        from web_events where at >= ${since} and ${where} group by 1 order by 2 desc limit 1`,
       p,
     ),
@@ -73,6 +85,8 @@ async function siteStats(db: Db, days: number, bucket: string, where: string, ho
   return {
     connected: n(ever!.events) > 0,
     lastEventAt: ever!.last ? new Date(ever!.last as string).toISOString() : null,
+    /** The oldest view Octopus has — the drain doesn't send anything from before it was set up. */
+    firstEventAt: ever!.first ? new Date(ever!.first as string).toISOString() : null,
     live: { visitors: n(live!.visitors), views: n(live!.views) },
     views: n(totals!.views),
     visitors: n(totals!.visitors),
@@ -132,19 +146,19 @@ export default route({
   async GET(req, res) {
     await requireUser(req)
     const days = Number(q(req, 'days') ?? 30)
-    if (!RANGES.has(days)) throw new HttpError(400, 'days must be 7, 30, 90 or 365')
+    if (!RANGES.has(days)) throw new HttpError(400, 'days must be 1, 7, 30, 90, 182 or 365')
     const db = await getDb()
     const since = `now() - interval '${days} days'`
-    const bucket = days > 90 ? 'week' : 'day'
+    const bucket = days <= 1 ? 'hour' : days > 90 ? 'week' : 'day'
     const host = starshipHost()
 
     const [web, starship, flight, [everAny], hubDaily, hubPeople, hubTypes, [team]] = await Promise.all([
-      siteStats(db, days, bucket, `(host is null or lower(host) <> $1)`, host),
-      siteStats(db, days, bucket, `lower(host) = $1`, host),
+      siteStats(db, days, bucket, `not ${STARSHIP_WHERE}`, host),
+      siteStats(db, days, bucket, STARSHIP_WHERE, host),
       currentFlight(),
       db.query(`select count(*) as events from web_events`),
       db.query(
-        `select to_char(date_trunc('${bucket}', at), 'YYYY-MM-DD') as date, count(*) as changes
+        `select to_char(date_trunc('${bucket}', at at time zone 'UTC'), ${keyFmt(bucket)}) as date, count(*) as changes
          from history where at >= ${since} group by 1 order by 1`,
       ),
       db.query(

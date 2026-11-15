@@ -77,7 +77,7 @@ export async function POST(request: Request): Promise<Response> {
     const views = events.filter((e) => (e.eventType ?? 'pageview') === 'pageview' && (e.path || e.route))
     if (!views.length) return reply(200, { ok: true, stored: 0 })
 
-    const cols: unknown[][] = [[], [], [], [], [], [], [], []]
+    const cols: unknown[][] = [[], [], [], [], [], [], [], [], []]
     for (const e of views.slice(0, 5000)) {
       const ts = Number(e.timestamp)
       cols[0]!.push(new Date(Number.isFinite(ts) && ts > 0 ? ts : Date.now()).toISOString())
@@ -88,11 +88,12 @@ export async function POST(request: Request): Promise<Response> {
       cols[5]!.push(str(e.deviceType, 20))
       cols[6]!.push(e.sessionId != null ? String(e.sessionId).slice(0, 64) : null)
       cols[7]!.push(e.deviceId != null ? String(e.deviceId).slice(0, 64) : null)
+      cols[8]!.push(str(e.projectId, 64))
     }
     const db = await getDb()
     await db.query(
-      `insert into web_events (at, host, path, referrer, country, device, session, visitor)
-       select * from unnest($1::timestamptz[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[])`,
+      `insert into web_events (at, host, path, referrer, country, device, session, visitor, project_id)
+       select * from unnest($1::timestamptz[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[])`,
       cols,
     )
     // Keep about 13 months.

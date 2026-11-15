@@ -65,9 +65,11 @@ Vercel has no API for reading Web Analytics, so it pushes page views to Octopus 
 3. Endpoint: `https://ops.beyondstagezero.com/api/drains/web`
 4. Put the drain's signing secret in `VERCEL_DRAIN_SECRET` on the Octopus project (and the verification value in `VERCEL_DRAIN_VERIFY` if asked), then redeploy.
 
-Include **both** the website's and the Starship Tracker's Vercel projects in the same drain. Octopus splits them by host: views from `starship.beyondstagezero.com` (override with `STARSHIP_HOST`) go to the **Starship Tracker** section, everything else to **Website**. The Starship Tracker section also shows the flight it's tracking, read from the tracker's public `/api/flight`.
+Include **both** the website's and the Starship Tracker's Vercel projects in the same drain. Octopus splits them by host: views from `starship.beyondstagezero.com` (override with `STARSHIP_HOST`) go to the **Starship Tracker** section, everything else to **Website**. Views that arrive without a site address are matched by their Vercel project instead (set `STARSHIP_PROJECT_ID` if the tracker's views never carry its address). The Starship Tracker section also shows the flight it's tracking, read from the tracker's public `/api/flight`.
 
 Octopus checks every delivery's signature and stores only page views: time, host, path, referrer site, country, device type and Vercel's anonymous session/device IDs. About 13 months are kept.
+
+**History:** a drain only sends views from the moment it's created — Vercel doesn't backfill. Analytics shows when its data starts; anything earlier is only in Vercel's own Web Analytics dashboard.
 
 `GET /api/health` reports whether the database is reachable.
 

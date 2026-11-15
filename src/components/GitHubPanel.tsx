@@ -9,16 +9,21 @@ interface GitHubData {
   linesPending: boolean
   contributors: number
   repos: { repo: string; url: string; commits: number; additions: number | null; deletions: number | null }[]
+  bucket?: 'hour' | 'day'
   daily: { date: string; commits: number }[]
   truncated: boolean
 }
 
 const RANGES = [
+  { days: 1, label: '24h' },
   { days: 7, label: '7d' },
   { days: 30, label: '30d' },
   { days: 90, label: '90d' },
+  { days: 182, label: '6mo' },
   { days: 365, label: '1y' },
 ]
+
+const RANGE_WORDS: Record<number, string> = { 1: '24 hours', 7: '7 days', 30: '30 days', 90: '90 days', 182: '6 months', 365: 'year' }
 
 const nf = (n: number) => n.toLocaleString('en-AU')
 
@@ -67,6 +72,13 @@ export function GitHubPanel({ days: controlled }: { days?: number } = {}) {
   // Bars: daily for ≤30 days, weekly beyond that.
   const bars = useMemo(() => {
     if (!data) return []
+    if (data.bucket === 'hour') {
+      return data.daily.map((d) => {
+        const t = new Date(`${d.date}:00:00Z`)
+        const h = t.getHours()
+        return { key: d.date, label: `${fmtDate(t.toISOString())} ${h % 12 || 12} ${h < 12 ? 'am' : 'pm'}`, value: d.commits }
+      })
+    }
     if (data.days <= 30) return data.daily.map((d) => ({ key: d.date, label: fmtDate(d.date), value: d.commits }))
     const out: { key: string; label: string; value: number }[] = []
     for (let i = 0; i < data.daily.length; i += 7) {
@@ -120,7 +132,7 @@ export function GitHubPanel({ days: controlled }: { days?: number } = {}) {
             <div className="live-tile">
               <span className="live-label">Commits</span>
               <span className="live-value">{nf(data.commits)}{data.truncated ? '+' : ''}</span>
-              <span className="live-sub">last {data.days === 365 ? 'year' : `${data.days} days`}</span>
+              <span className="live-sub">last {RANGE_WORDS[data.days] ?? `${data.days} days`}</span>
             </div>
             <div className="live-tile">
               <span className="live-label">Lines added</span>
@@ -141,7 +153,7 @@ export function GitHubPanel({ days: controlled }: { days?: number } = {}) {
             </div>
           </div>
 
-          <CommitBars bars={bars} unit={data.days <= 30 ? 'day' : 'week'} total={data.commits} />
+          <CommitBars bars={bars} unit={data.bucket === 'hour' ? 'hour' : data.days <= 30 ? 'day' : 'week'} total={data.commits} />
 
           {data.repos.length > 0 && (
             <ul className="gh-repos">
@@ -164,7 +176,7 @@ export function GitHubPanel({ days: controlled }: { days?: number } = {}) {
   )
 }
 
-function CommitBars({ bars, unit, total }: { bars: { key: string; label: string; value: number }[]; unit: 'day' | 'week'; total: number }) {
+function CommitBars({ bars, unit, total }: { bars: { key: string; label: string; value: number }[]; unit: 'hour' | 'day' | 'week'; total: number }) {
   const [hover, setHover] = useState<number | null>(null)
   const max = Math.max(1, ...bars.map((b) => b.value))
   const W = 600

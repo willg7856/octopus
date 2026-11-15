@@ -45,11 +45,28 @@ export function IncomeList() {
 /* ======================= Analytics page ======================= */
 
 const RANGES = [
+  { days: 1, label: '24 hours' },
   { days: 7, label: '7 days' },
   { days: 30, label: '30 days' },
   { days: 90, label: '90 days' },
+  { days: 182, label: '6 months' },
   { days: 365, label: '1 year' },
 ]
+
+type Bucket = 'hour' | 'day' | 'week'
+
+/** Label for a series key: hours are UTC keys shown in local time. */
+function bucketLabel(key: string | undefined, bucket: Bucket): string {
+  if (!key) return ''
+  if (bucket === 'hour') {
+    const d = new Date(`${key}:00:00Z`)
+    const h = d.getHours()
+    return `${fmtDate(d.toISOString())} ${h % 12 || 12} ${h < 12 ? 'am' : 'pm'}`
+  }
+  return `${bucket === 'week' ? 'Week of ' : ''}${fmtDate(key)}`
+}
+
+const bucketNoun = (b: Bucket) => b
 
 interface KV {
   key: string
@@ -59,6 +76,7 @@ interface KV {
 interface SiteTraffic {
   connected: boolean
   lastEventAt: string | null
+  firstEventAt: string | null
   live: { visitors: number; views: number }
   views: number
   visitors: number
@@ -84,7 +102,7 @@ interface Flight {
 
 interface ServerAnalytics {
   days: number
-  bucket: 'day' | 'week'
+  bucket: Bucket
   drainConnected: boolean
   web: SiteTraffic
   starship: SiteTraffic & { host: string; flight: Flight | null }
@@ -115,12 +133,17 @@ function readRange(): number {
  * Fills the gaps in a sparse server series so every day/week in the range has a point.
  * The server buckets by UTC date, so the keys here are UTC dates too.
  */
-function fillSeries<T extends { date: string }>(rows: T[], days: number, bucket: 'day' | 'week', zero: Omit<T, 'date'>): T[] {
+function fillSeries<T extends { date: string }>(rows: T[], days: number, bucket: Bucket, zero: Omit<T, 'date'>): T[] {
   const byDate = new Map(rows.map((r) => [r.date, r]))
   const out: T[] = []
   const utcDay = (t: number) => new Date(t).toISOString().slice(0, 10)
   const now = Date.now()
-  if (bucket === 'day') {
+  if (bucket === 'hour') {
+    for (let i = 24 * days; i >= 0; i--) {
+      const k = new Date(now - i * 3600000).toISOString().slice(0, 13)
+      out.push(byDate.get(k) ?? ({ date: k, ...zero } as T))
+    }
+  } else if (bucket === 'day') {
     // One extra day either side covers the UTC/local offset.
     for (let i = days; i >= 0; i--) {
       const k = utcDay(now - i * 86400000)
@@ -413,11 +436,19 @@ function LivePill({ n, label }: { n: number; label: string }) {
   )
 }
 
-function TrafficBody({ w, days, bucket, starship }: { w: SiteTraffic; days: number; bucket: 'day' | 'week'; starship?: boolean }) {
+function TrafficBody({ w, days, bucket, starship }: { w: SiteTraffic; days: number; bucket: Bucket; starship?: boolean }) {
   const series = fillSeries(w.series, days, bucket, { views: 0, visitors: 0 })
   const rangeLabel = RANGES.find((r) => r.days === days)!.label
+  const rangeStart = Date.now() - days * 86400000
+  const startsLate = w.firstEventAt && new Date(w.firstEventAt).getTime() > rangeStart + 86400000
   return (
     <>
+      {startsLate && (
+        <p className="an-note small">
+          <Icon name="clock" size={13} /> Octopus has views from <strong>{fmtDate(w.firstEventAt)}</strong> onwards — when the Vercel drain was
+          connected. Earlier traffic is only in Vercel’s own dashboard, so the start of this {rangeLabel} view is empty, not quiet.
+        </p>
+      )}
       <div className="stats">
         <Stat label="Page views" value={nf(w.views)} sub={`last ${rangeLabel}`} />
         <Stat label="Visitors" value={nf(w.visitors)} sub="unique devices" />
@@ -446,7 +477,7 @@ function TrafficBody({ w, days, bucket, starship }: { w: SiteTraffic; days: numb
         )}
       </div>
       <div className="card an-chart-card">
-        <h3 className="an-card-title">Views per {bucket}</h3>
+        <h3 className="an-card-title">Views per {bucketNoun(bucket)}</h3>
         <AreaChart points={series.map((p) => ({ date: p.date, value: p.views, extra: p.visitors }))} bucket={bucket} />
       </div>
       <div className="an-grid three">
@@ -597,7 +628,7 @@ function AreaChart({
   extraUnit = 'visitors',
 }: {
   points: { date: string; value: number; extra: number }[]
-  bucket: 'day' | 'week'
+  bucket: Bucket
   unit?: string
   extraUnit?: string | null
 }) {
@@ -617,8 +648,7 @@ function AreaChart({
         <span className="an-readout" aria-live="polite">
           {h ? (
             <>
-              {bucket === 'week' ? 'Week of ' : ''}
-              {fmtDate(h.date)}: <strong>{nf(h.value)}</strong> {unit}
+              {bucketLabel(h.date, bucket)}: <strong>{nf(h.value)}</strong> {unit}
               {extraUnit && (
                 <>
                   {' '}· <strong>{nf(h.extra)}</strong> {extraUnit}
@@ -661,8 +691,8 @@ function AreaChart({
       )}
       </div>
       <div className="live-chart-axis an-axis-labels" aria-hidden="true">
-        <span>{fmtDate(points[0]?.date)}</span>
-        <span>today</span>
+        <span>{bucketLabel(points[0]?.date, bucket).replace('Week of ', '')}</span>
+        <span>now</span>
       </div>
     </figure>
   )
@@ -690,7 +720,7 @@ function HubSection({ data, days }: { data: ServerAnalytics | null; days: number
       </div>
       <div className="an-grid">
         <div className="card an-chart-card">
-          <h3 className="an-card-title">Changes per {data.bucket}</h3>
+          <h3 className="an-card-title">Changes per {bucketNoun(data.bucket)}</h3>
           <AreaChart points={series.map((p) => ({ date: p.date, value: p.changes, extra: 0 }))} bucket={data.bucket} unit="changes" extraUnit={null} />
         </div>
         <div className="card">
@@ -736,7 +766,8 @@ const countries = (() => {
 })()
 
 function countryName(code: string) {
-  if (!code || code === '—' || code.length !== 2) return code
+  if (!code || code === '—') return 'Unknown'
+  if (code.length !== 2) return code
   try {
     return countries?.of(code.toUpperCase()) ?? code
   } catch {
