@@ -1,90 +1,56 @@
 # Octopus
 
-Internal ops tool for [Beyond Stage Zero](https://www.beyondstagezero.com) — shared **inventory**, **hardware**, and **vehicle production** tracking.
+The Beyond Stage Zero team hub — one place for everything we make, buy and use.
 
-## Live site
+| Module | What it's for |
+|---|---|
+| **Home** | Quick actions (log a build, use stock, request a purchase), what needs reordering, open orders, who's on which machine, recent activity, pinned links |
+| **Inventory** | Every part we make or buy. Stock is calculated from the log, never typed in |
+| **Build & stock log** | Every part made, received, used, scrapped or recounted — with process, serials, lot and who did it |
+| **Processes** | Step-by-step procedures with tick-off checklists, warnings, print view, and the builds logged against them |
+| **Remote desktops** | Shop/CAD/DAQ machines with one-click connect (RDP file, VNC, SSH, AnyDesk, TeamViewer, Parsec, Chrome RD, web) and claim/release so people know who's on what |
+| **Orders** | Purchase requests → approved → ordered → shipped → received. Receiving adds the items to stock in one step |
+| **Budget** | Budget lines with allocated / spent / committed / remaining, fed by orders |
+| **Contacts** | Suppliers, partners, customers and people |
+| **Templates** | Document templates — Google Docs links get a "Make a copy" button; plain-text templates get "Copy text" |
+| **Links** | Shared drives, calendars and tools, shown on Home |
+| **Activity** | Every change by everyone, and a Deleted tab to restore anything |
+| **People & access** | Team list, admin roles, password resets |
 
-**https://ops.beyondstagezero.com**
+Press **⌘K** (or `/`) anywhere to search everything or jump to an action. Every list has CSV export and CSV import.
 
-Deployed on Vercel as `beyondstagezero/octopus`.
+## Why it won't lose data
 
-## Sections
-
-- **Inventory** — general stock (parts, consumables, tools)
-- **Hardware** — vehicles and subsystems (motors, avionics, pad, GSE)
-- **Production** — vehicle production process tracker (ordered build / checkout steps)
-
-Seed defaults live in `src/hardwareSeed.ts`. On the live site, data is **shared for everyone signed in** via `/api/hardware/lab`. Local Vite without the API falls back to browser storage.
-
-Deep links: `#/inventory`, `#/hardware`, `#/vehicles`.
-
-## Sign in
-
-The app is gated behind team sign-in.
-
-Set these Vercel env vars on the `octopus` project:
-
-- `OPS_PASSWORD` — shared team password (fallback when a user has no personal password)
-- `AUTH_SECRET` — random string used to sign session cookies
-- `OPS_USERS` — comma-separated allowed emails (bootstrap / break-glass). If empty **and** no shared Team list yet, any email + correct password works
-- `OPS_ADMINS` — optional extra admin emails for **Team**. Always includes bootstrap admins `willg7856@gmail.com` and `will.grant@beyondstagezero.com`. Non-admins do not see the Team nav.
-
-### Team accounts (in-app)
-
-**Team** is admin-only (`OPS_ADMINS`, or the built-in bootstrap admins). Admins see it in the nav and can:
-
-- Copy an invite (ops URL + sign-in instructions)
-- Add / remove teammate emails on the shared allowlist
-- Set or reset personal passwords per teammate (or leave them on the shared `OPS_PASSWORD`)
-
-The allowlist is stored with the same Redis/Blob backend as inventory. `OPS_USERS` emails stay locked (edit those in Vercel env). Sign-in uses a personal password if one is set in **Team**, otherwise the shared `OPS_PASSWORD`. Passwords are stored hashed — admins can set/reset them but cannot view existing ones.
-
-### Shared storage (Redis preferred)
-
-Inventory / Hardware / Production prefer **Upstash Redis**. If Redis isn’t connected yet, the app falls back to the connected **Vercel Blob** store.
-
-**Connect Redis (recommended):**
-
-1. Vercel → `octopus` → **Storage**
-2. Create or connect an **Upstash Redis** database to **Production** (and Preview if needed)
-3. Redeploy Production (uncheck “Use existing Build Cache”)
-
-Prefer connecting through Storage rather than pasting Sensitive env vars by hand — marketplace-connected vars are what the runtime reliably sees.
-
-The integration injects `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (or `KV_REST_API_*`).
-
-### Team access checklist
-
-1. Put every teammate’s email in `OPS_USERS` (or clear it if you want any email + the shared password).
-2. Connect Upstash Redis under Storage (Blob can stay connected as fallback).
-3. Redeploy. Open Inventory — edits should feel snappy and sync for everyone.
-
-Optional: `OPS_ADMINS` — comma-separated emails allowed to `DELETE /api/hardware/lab` (full shared-lab reset). Everyone else can still edit via PUT.
-
-### Sync & conflict handling
-
-- Edits use revision checks (Redis Lua CAS when Redis is primary).
-- The UI queues saves, auto-refreshes ~every 20s / on tab focus, and surfaces conflicts so you can re-apply after reviewing.
-- Each section exposes **Export CSV**, last updated-by/when, and Live/Saving status.
-
-Local Vite uses password `goods-shed` (or `VITE_OPS_PASSWORD`) when `/api` isn’t available.
+- **Real database, one row per record.** Postgres, not a single shared JSON blob.
+- **Conflict-safe edits.** Every save carries the version it was based on. If someone else saved first, nothing is overwritten — you get a choice to keep yours or load theirs.
+- **All-or-nothing saves.** Multi-step actions (e.g. receiving an order and adding its stock) commit together or not at all.
+- **Full history.** Every create/update/delete is written to a history table in the same statement as the change. Detail pages show who changed what.
+- **Nothing is hard-deleted.** Deletes are soft and can be undone from the toast or restored from Activity.
+- **No silent fallbacks.** In production the API refuses to run without a database instead of quietly writing somewhere temporary.
 
 ## Run locally
 
 ```bash
 npm install
-npm start
+npm run dev
 ```
 
-Or: `./start.sh` → **http://127.0.0.1:5173**
+Open http://127.0.0.1:5173 and sign in with any email and the password `octopus`. The first person to sign in locally becomes an admin. Local data lives in `.data/` (an embedded Postgres — no setup needed).
 
-Requires Node.js 20+.
+## Deploy (Vercel)
 
-For local shared API storage with `vercel dev`, put Redis vars in `.env.local`, or the API falls back to a local `.data/` file.
+1. **Database:** Vercel → project → Storage → connect a **Neon Postgres** database. This sets `DATABASE_URL`. Tables are created automatically on first request.
+2. **Environment variables:**
+   - `AUTH_SECRET` — long random string used to sign session cookies (required).
+   - `OPS_PASSWORD` — the shared team password new people use until they set their own.
+   - `OPS_ADMINS` — comma-separated emails that are always admins and can always sign in (bootstrap).
+3. Deploy. Admins sign in first, then add teammates under **People & access**.
 
-## Build
+`GET /api/health` reports whether the database is reachable.
 
-```bash
-npm run build
-npm run preview
-```
+## How it's built
+
+- Vite + React + TypeScript frontend (`src/`), Vercel functions (`api/`).
+- `src/lib/schema.ts` defines every module (fields, list columns, search). Lists, forms, CSV and detail pages are generated from it, so a new module is mostly a new entry there plus a route in `src/App.tsx`.
+- `api/records.ts` is the one generic endpoint for all module data; `api/_lib/records.ts` holds the versioned write + history logic.
+- In dev, `devApi.ts` serves `api/` from the Vite server.

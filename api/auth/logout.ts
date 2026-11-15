@@ -1,12 +1,9 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { clearSessionCookie } from '../_lib/session.js'
+import { clearSession } from '../_lib/auth.js'
+import { route } from '../_lib/http.js'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' })
-    return
-  }
-
-  res.setHeader('Set-Cookie', clearSessionCookie())
-  res.status(200).json({ ok: true })
-}
+export default route({
+  async POST(_req, res) {
+    clearSession(res)
+    res.status(200).json({ ok: true })
+  },
+})

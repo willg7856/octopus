@@ -1,50 +1,11 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { canManageAccounts } from '../_lib/accessStore.js'
-import {
-  checkCredentials,
-  displayName,
-  MAX_AGE_SEC,
-  sessionCookie,
-  signSession,
-} from '../_lib/session.js'
+import { authenticate, setSession } from '../_lib/auth.js'
+import { body, route } from '../_lib/http.js'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' })
-    return
-  }
-
-  try {
-    const email = String(req.body?.email || '').trim().toLowerCase()
-    const password = String(req.body?.password || '')
-
-    if (!email || !password) {
-      res.status(400).json({ error: 'Email and password required' })
-      return
-    }
-
-    const credentials = await checkCredentials(email, password)
-    if (!credentials.ok) {
-      res.status(401).json({ error: credentials.error })
-      return
-    }
-
-    const session = {
-      email,
-      name: displayName(email),
-      exp: Date.now() + MAX_AGE_SEC * 1000,
-    }
-
-    res.setHeader('Set-Cookie', sessionCookie(signSession(session)))
-    res.status(200).json({
-      user: {
-        email: session.email,
-        name: session.name,
-        canManageAccounts: canManageAccounts(email),
-      },
-    })
-  } catch (error) {
-    console.error('login failed', error)
-    res.status(500).json({ error: 'Sign-in is unavailable right now. Try again in a moment.' })
-  }
-}
+export default route({
+  async POST(req, res) {
+    const { email, password } = body<{ email?: string; password?: string }>(req)
+    const user = await authenticate(String(email ?? ''), String(password ?? ''))
+    setSession(res, user)
+    res.status(200).json({ user })
+  },
+})
