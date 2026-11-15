@@ -72,13 +72,23 @@ export function getDb(): Promise<Db> {
   return g.__octopusDb
 }
 
+const URL_NAME = /(^|_)(DATABASE_URL|POSTGRES_URL)(_UNPOOLED)?$/
+
+/** Finds the Postgres URL, including names with a custom prefix from the Vercel integration. */
 function databaseUrl(): string | undefined {
-  return (
-    process.env.DATABASE_URL ||
-    process.env.POSTGRES_URL ||
-    process.env.DATABASE_URL_UNPOOLED ||
-    undefined
-  )
+  const direct = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL_UNPOOLED
+  if (direct) return direct
+  for (const [k, v] of Object.entries(process.env)) {
+    if (URL_NAME.test(k) && v && /^postgres(ql)?:\/\//.test(v)) return v
+  }
+  return undefined
+}
+
+/** Names (never values) of env vars that look database-related, for the setup error message. */
+function dbEnvNames(): string[] {
+  return Object.keys(process.env)
+    .filter((k) => /DATABASE|POSTGRES|PG|NEON/.test(k))
+    .sort()
 }
 
 async function connect(): Promise<Db> {
@@ -87,8 +97,12 @@ async function connect(): Promise<Db> {
   if (url) {
     db = await connectNeon(url)
   } else if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+    const seen = dbEnvNames()
     throw new DbUnavailableError(
-      'No database configured. Connect a Postgres database (e.g. Neon) to this project so DATABASE_URL is set, then redeploy.',
+      'No database configured. In Vercel: Storage → connect a Neon Postgres database to the Production environment, then redeploy. ' +
+        (seen.length
+          ? `Database-like settings found, but none hold a postgres:// URL: ${seen.join(', ')}.`
+          : 'No database settings are visible to this deployment yet.'),
     )
   } else {
     db = await connectEmbedded()
