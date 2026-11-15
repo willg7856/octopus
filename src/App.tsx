@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { DialogProvider } from './components/Dialog'
 import { EditorProvider } from './components/Editor'
 import { RecordDetail } from './components/RecordDetail'
 import { Shell } from './components/Shell'
@@ -42,13 +43,15 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <StoreProvider user={user}>
-        <EditorProvider>
-          <Shell>
-            <Routes />
-          </Shell>
-        </EditorProvider>
-      </StoreProvider>
+      <DialogProvider>
+        <StoreProvider user={user}>
+          <EditorProvider>
+            <Shell>
+              <Routes />
+            </Shell>
+          </EditorProvider>
+        </StoreProvider>
+      </DialogProvider>
     </ToastProvider>
   )
 }

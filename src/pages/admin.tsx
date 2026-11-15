@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useDialog } from '../components/Dialog'
 import { RefLink } from '../components/fields'
 import { Button, Empty, useToast, Badge } from '../components/ui'
 import { api } from '../lib/api'
@@ -121,6 +122,7 @@ export function TeamPage() {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState('member')
+  const dialog = useDialog()
   const isAdmin = user.role === 'admin'
 
   const load = useCallback(() => {
@@ -230,8 +232,16 @@ export function TeamPage() {
                             <Button
                               small
                               variant="ghost"
-                              onClick={() => {
-                                const pw = window.prompt(`New password for ${m.email} (8+ characters). Leave blank to put them back on the team password.`)
+                              onClick={async () => {
+                                const pw = await dialog.prompt({
+                                  title: `Reset password for ${m.name}`,
+                                  message: 'Leave it blank to put them back on the shared team password.',
+                                  label: 'New password',
+                                  type: 'password',
+                                  placeholder: 'At least 8 characters',
+                                  confirmLabel: 'Reset password',
+                                  validate: (v) => (v && v.length < 8 ? 'Use at least 8 characters, or leave it blank.' : null),
+                                })
                                 if (pw === null) return
                                 run(() => api.updateUser({ email: m.email, password: pw || null }), 'Password updated')
                               }}
@@ -245,7 +255,15 @@ export function TeamPage() {
                               small
                               variant="ghost"
                               className="danger-text"
-                              onClick={() => window.confirm(`Remove ${m.email} from the team?`) && run(() => api.removeUser(m.email), 'Removed')}
+                              onClick={async () => {
+                                const ok = await dialog.confirm({
+                                  title: `Remove ${m.name} from the team?`,
+                                  message: `${m.email} won’t be able to sign in. Everything they added stays.`,
+                                  confirmLabel: 'Remove',
+                                  danger: true,
+                                })
+                                if (ok) run(() => api.removeUser(m.email), 'Removed')
+                              }}
                             >
                               Remove
                             </Button>

@@ -6,6 +6,7 @@ import { href, navigate, setParam, useRoute } from '../lib/router'
 import { recordTitle, type Collection } from '../lib/schema'
 import { useRecords, useStore } from '../lib/store'
 import type { Data, Op, Rec } from '../lib/types'
+import { useDialog } from './Dialog'
 import { useEditor } from './Editor'
 import { FieldValue } from './fields'
 import { Icon } from './Icon'
@@ -59,6 +60,7 @@ export function CollectionPage<D = Data>({
   const { records, commit } = useStore()
   const openEditor = useEditor()
   const toast = useToast()
+  const dialog = useDialog()
   const { params } = useRoute()
   const q = params.get('q') ?? ''
   const filterKey = params.get('f') ?? filters?.[0]?.key
@@ -141,8 +143,16 @@ export function CollectionPage<D = Data>({
       toast('No rows matched this module’s columns.', { tone: 'bad' })
       return
     }
-    const msg = `Import ${data.length} ${c.label.toLowerCase()}?${ignored.length ? `\n\nThese columns don’t match and will be skipped: ${ignored.join(', ')}` : ''}`
-    if (!window.confirm(msg)) return
+    const ok = await dialog.confirm({
+      title: `Import ${data.length} ${data.length === 1 ? c.singular.toLowerCase() : c.label.toLowerCase()}?`,
+      message: ignored.length ? (
+        <>These columns don’t match any field and will be skipped: <strong>{ignored.join(', ')}</strong></>
+      ) : (
+        'Every column matched.'
+      ),
+      confirmLabel: 'Import',
+    })
+    if (!ok) return
     try {
       for (let i = 0; i < data.length; i += 100) {
         const ops: Op[] = data.slice(i, i + 100).map((d) => ({ op: 'create', id: newId(), type: c.type, data: d }))

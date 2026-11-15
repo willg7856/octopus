@@ -5,6 +5,7 @@ import { useStore } from '../lib/store'
 import type { Data, Rec } from '../lib/types'
 import { FieldInput, splitTags } from './fields'
 import { Icon } from './Icon'
+import { useDialog } from './Dialog'
 import { Button, useToast } from './ui'
 
 interface EditorRequest {
@@ -53,6 +54,7 @@ function EditorDrawer({ req, onClose, reopen }: { req: EditorRequest; onClose: (
   const c = byType.get(req.type)!
   const { create, update, remove, restore, records, user } = useStore()
   const toast = useToast()
+  const dialog = useDialog()
   const editing = req.record
   const [data, setData] = useState<Data>(() => {
     if (editing) return { ...editing.data }
@@ -69,10 +71,20 @@ function EditorDrawer({ req, onClose, reopen }: { req: EditorRequest; onClose: (
   const [dirty, setDirty] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  const close = useCallback(() => {
-    if (dirty && !window.confirm('Discard your changes?')) return
+  const close = useCallback(async () => {
+    if (
+      dirty &&
+      !(await dialog.confirm({
+        title: 'Discard your changes?',
+        message: 'What you’ve typed in this form hasn’t been saved.',
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+        danger: true,
+      }))
+    )
+      return
     onClose()
-  }, [dirty, onClose])
+  }, [dirty, onClose, dialog])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -131,7 +143,13 @@ function EditorDrawer({ req, onClose, reopen }: { req: EditorRequest; onClose: (
   const doDelete = async () => {
     if (!editing) return
     const live = records.get(editing.id) ?? editing
-    if (!window.confirm(`Delete “${recordTitle(live)}”? You can restore it from Activity.`)) return
+    const ok = await dialog.confirm({
+      title: `Delete “${recordTitle(live)}”?`,
+      message: 'You can undo this straight away, or restore it later from Activity.',
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await remove(live)
       onClose()

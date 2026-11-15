@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { newId } from '../lib/api'
 import { CollectionPage, type Column, type Filter } from '../components/CollectionPage'
+import { useDialog } from '../components/Dialog'
 import { useEditor } from '../components/Editor'
 import { RefLink } from '../components/fields'
 import { RecordDetail } from '../components/RecordDetail'
@@ -74,12 +75,17 @@ const NEXT: Partial<Record<OrderStatus, { to: OrderStatus; label: string }>> = {
 export function useReceiveOrder() {
   const { commit, user } = useStore()
   const toast = useToast()
+  const dialog = useDialog()
   return async (r: Rec<Order>) => {
     const stocked = (r.data.lines ?? []).filter((l) => l.item && Number(l.qty) > 0)
-    const msg = stocked.length
-      ? `Mark “${r.data.title}” received and add ${stocked.length} line${stocked.length > 1 ? 's' : ''} to stock?`
-      : `Mark “${r.data.title}” received?`
-    if (!window.confirm(msg)) return
+    const ok = await dialog.confirm({
+      title: `Mark “${r.data.title}” received?`,
+      message: stocked.length
+        ? `This adds ${stocked.length} line${stocked.length > 1 ? 's' : ''} to stock and counts the order as spent.`
+        : 'No lines are linked to inventory items, so stock won’t change.',
+      confirmLabel: 'Mark received',
+    })
+    if (!ok) return
     const date = today()
     const ops: Op[] = [
       { op: 'update', id: r.id, version: r.version, data: { ...r.data, status: 'received', receivedAt: r.data.receivedAt ?? date } },
