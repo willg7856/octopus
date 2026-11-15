@@ -57,6 +57,19 @@ const SCHEMA: string[] = [
     created_at timestamptz not null default now(),
     last_login_at timestamptz
   )`,
+  // Website page views pushed from Vercel Web Analytics (a Vercel Drain).
+  `create table if not exists web_events (
+    id bigserial primary key,
+    at timestamptz not null,
+    host text,
+    path text,
+    referrer text,
+    country text,
+    device text,
+    session text,
+    visitor text
+  )`,
+  `create index if not exists web_events_at_idx on web_events (at)`,
 ]
 
 // Cached on globalThis so dev hot-reloads reuse the one embedded database handle.

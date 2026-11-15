@@ -88,6 +88,7 @@ export type IconName =
   | 'shield'
   | 'search'
   | 'plus'
+  | 'chart'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -215,6 +216,39 @@ export const COLLECTIONS: Collection[] = [
       { key: 'url', label: 'Order link', type: 'url', half: true },
       { key: 'invoiceUrl', label: 'Invoice / receipt', type: 'url', half: true, help: 'Link to the PDF in Drive or the supplier portal.' },
       { key: 'notes', label: 'Notes', type: 'textarea' },
+    ],
+  },
+  {
+    key: 'income',
+    type: 'income',
+    label: 'Income',
+    singular: 'Income',
+    icon: 'wallet',
+    group: 'money',
+    blurb: 'Money coming in — sponsorships, grants, sales, donations and prizes.',
+    title: (d) => String(d.title ?? 'Untitled income'),
+    subtitle: (d) => String(d.reference ?? ''),
+    columns: ['amount', 'category', 'from', 'date', 'status'],
+    searchText: (d) => String(d.notes ?? ''),
+    fields: [
+      { key: 'title', label: 'What for', type: 'text', required: true, placeholder: 'e.g. Engineering faculty sponsorship' },
+      { key: 'amount', label: 'Amount', type: 'money', required: true, half: true },
+      { key: 'date', label: 'Date', type: 'date', required: true, half: true, initial: today },
+      { key: 'category', label: 'Type', type: 'select', half: true, initial: 'sponsorship', options: [
+        { value: 'sponsorship', label: 'Sponsorship', tone: 'accent' },
+        { value: 'grant', label: 'Grant', tone: 'info' },
+        { value: 'sales', label: 'Sales', tone: 'good' },
+        { value: 'donation', label: 'Donation', tone: 'neutral' },
+        { value: 'prize', label: 'Prize', tone: 'warn' },
+        { value: 'other', label: 'Other', tone: 'neutral' },
+      ] },
+      { key: 'status', label: 'Status', type: 'select', half: true, required: true, initial: 'received', options: [
+        { value: 'expected', label: 'Expected', tone: 'warn' },
+        { value: 'received', label: 'Received', tone: 'good' },
+      ] },
+      { key: 'from', label: 'From', type: 'ref', ref: 'contact', half: true },
+      { key: 'reference', label: 'Invoice / reference', type: 'text', half: true },
+      { key: 'notes', label: 'Notes', type: 'textarea', rows: 2 },
     ],
   },
   {

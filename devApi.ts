@@ -24,8 +24,9 @@ export function devApi(): Plugin {
         try {
           const mod = await server.ssrLoadModule(file)
           const body = await readBody(req)
-          const r = req as IncomingMessage & { query: Record<string, string>; body?: unknown }
+          const r = req as IncomingMessage & { query: Record<string, string>; body?: unknown; rawBody?: string }
           r.query = Object.fromEntries(url.searchParams)
+          r.rawBody = body
           if (body) {
             try {
               r.body = JSON.parse(body)
@@ -45,6 +46,20 @@ export function devApi(): Plugin {
             s.setHeader('Content-Type', 'application/json')
             s.end(JSON.stringify(b))
             return s
+          }
+          const webHandler = !mod.default && mod[req.method ?? 'GET']
+          if (typeof webHandler === 'function') {
+            // Web-standard handler: (Request) => Response
+            const request = new Request(url.href.replace('http://localhost', `http://${req.headers.host}`), {
+              method: req.method,
+              headers: Object.entries(req.headers).flatMap(([k, v]) => (v == null ? [] : [[k, String(v)]])) as [string, string][],
+              body: body && req.method !== 'GET' && req.method !== 'HEAD' ? body : undefined,
+            })
+            const out: Response = await webHandler(request)
+            s.statusCode = out.status
+            out.headers.forEach((v, k) => s.setHeader(k, v))
+            s.end(Buffer.from(await out.arrayBuffer()))
+            return
           }
           await mod.default(r, s)
         } catch (err) {

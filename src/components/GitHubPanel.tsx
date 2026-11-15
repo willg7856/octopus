@@ -31,8 +31,10 @@ function readRange(): number {
   }
 }
 
-export function GitHubPanel() {
-  const [days, setDays] = useState(readRange)
+/** Pass `days` to control the range from outside (the Analytics page); otherwise it has its own switch. */
+export function GitHubPanel({ days: controlled }: { days?: number } = {}) {
+  const [own, setDays] = useState(readRange)
+  const days = controlled ?? own
   const [data, setData] = useState<GitHubData | null>(null)
   const [error, setError] = useState<{ msg: string; setup: boolean } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -83,7 +85,7 @@ export function GitHubPanel() {
           </svg>
           Code shipped
         </span>
-        <div className="gh-ranges" role="tablist" aria-label="Time range">
+        {controlled == null && <div className="gh-ranges" role="tablist" aria-label="Time range">
           {RANGES.map((r) => (
             <button
               key={r.days}
@@ -102,7 +104,7 @@ export function GitHubPanel() {
               {r.label}
             </button>
           ))}
-        </div>
+        </div>}
       </header>
 
       {error ? (

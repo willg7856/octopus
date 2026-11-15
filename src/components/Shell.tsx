@@ -23,7 +23,12 @@ interface NavItem {
 }
 
 const GROUPS: { label?: string; items: NavItem[] }[] = [
-  { items: [{ key: 'home', label: 'Home', icon: 'home' }] },
+  {
+    items: [
+      { key: 'home', label: 'Home', icon: 'home' },
+      { key: 'analytics', label: 'Analytics', icon: 'chart' },
+    ],
+  },
   {
     label: 'Make',
     items: COLLECTIONS.filter((c) => c.group === 'work').map((c) => ({ key: c.key, label: c.label, icon: c.icon })),

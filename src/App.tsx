@@ -13,6 +13,7 @@ import type { User } from './lib/types'
 import { ActivityPage, TeamPage } from './pages/admin'
 import { PublicStatsPage } from './pages/publicStats'
 import { CountdownsPage } from './pages/countdowns'
+import { AnalyticsPage, IncomeList } from './pages/analytics'
 import { Home } from './pages/home'
 import { InventoryList, ItemDetail, LogList } from './pages/inventory'
 import { BudgetDetail, BudgetPage, OrderDetail, OrdersList } from './pages/money'
@@ -88,6 +89,10 @@ function Routes() {
       return id ? <RecordDetail c={byKey.get('templates')!} id={id} /> : <TemplatesList />
     case 'links':
       return <LinksList />
+    case 'analytics':
+      return <AnalyticsPage />
+    case 'income':
+      return <IncomeList />
     case 'countdowns':
       return <CountdownsPage />
     case 'public-stats':

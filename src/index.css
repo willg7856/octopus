@@ -405,6 +405,56 @@ a.stat:hover { border-color: var(--line-strong); color: inherit; }
 .feed-value { font: 600 24px var(--mono); font-variant-numeric: tabular-nums; }
 .feed-suffix { font-size: 14px; margin-left: 3px; color: #9aa3ad; }
 
+/* ============ analytics ============ */
+.analytics { --s1: #2a78d6; --s2: #eb6834; gap: 28px; }
+:root[data-theme='dark'] .analytics { --s1: #3987e5; --s2: #d95926; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .analytics { --s1: #3987e5; --s2: #d95926; } }
+.an-section { display: flex; flex-direction: column; gap: 12px; }
+.an-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.an-head h2 { display: flex; align-items: center; gap: 8px; font-size: 18px; }
+.an-head h2 svg { color: var(--muted); }
+.an-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.an-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.an-card-title { font: 600 10.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.an-gap { margin-top: 18px; }
+.an-fig { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.an-fig svg { width: 100%; display: block; overflow: visible; }
+.an-plot { position: relative; }
+.an-plot svg { height: 150px; cursor: crosshair; }
+.an-legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--fg-2); min-height: 20px; }
+.an-key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+.an-key.s1 { background: var(--s1); }
+.an-key.s2 { background: var(--s2); }
+.an-readout { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.an-readout strong { color: var(--fg); }
+.an-bar.s1 { fill: var(--s1); }
+.an-bar.s2 { fill: var(--s2); }
+.an-bar.on { filter: brightness(1.12); }
+.an-grid-line { stroke: var(--line); stroke-dasharray: 2 4; }
+.an-axis { stroke: var(--line-strong); }
+.an-tick { font: 10.5px var(--mono); fill: var(--muted); }
+.an-area { fill: var(--s1); opacity: 0.12; }
+.an-line { fill: none; stroke: var(--s1); stroke-width: 2; stroke-linejoin: round; }
+.an-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.an-dot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--s1); box-shadow: 0 0 0 2px var(--panel); pointer-events: none; }
+.an-axis-labels { color: var(--muted); }
+.an-live { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; }
+.an-live strong { font: 700 16px var(--mono); }
+.an-top-page { font: 600 16px var(--mono); overflow-wrap: anywhere; }
+.an-devices { margin-top: 10px; text-transform: capitalize; }
+.an-setup { display: flex; flex-direction: column; gap: 8px; }
+.an-steps { margin: 4px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.an-steps code { font: 12px var(--mono); background: var(--neutral-soft); padding: 1px 5px; border-radius: 4px; }
+.rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rank li { position: relative; display: flex; justify-content: space-between; gap: 12px; padding: 5px 8px; font-size: 13px; border-radius: 4px; overflow: hidden; }
+.rank-bar { position: absolute; inset: 0 auto 0 0; opacity: 0.14; border-radius: 4px; }
+.rank-bar[data-tone='s1'] { background: var(--s1); }
+.rank-bar[data-tone='s2'] { background: var(--s2); }
+.rank-key { position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.rank-val { position: relative; font: 600 12.5px var(--mono); white-space: nowrap; }
+.analytics .gh { margin-top: 4px; }
+@media (max-width: 1080px) { .an-grid, .an-grid.three { grid-template-columns: minmax(0, 1fr); } }
+
 /* ============ github ============ */
 .gh-ranges { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--live-line); border-radius: 6px; }
 .gh-ranges button { background: none; border: 0; color: var(--live-muted); font: 600 11px var(--mono); padding: 4px 9px; border-radius: 4px; cursor: pointer; }
