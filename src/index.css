@@ -409,6 +409,12 @@ textarea { resize: vertical; line-height: 1.5; }
 .input-money { position: relative; }
 .input-money::before { content: '$'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
 .input-money input { padding-left: 20px !important; }
+.date-input { position: relative; }
+.date-input input[inputmode='numeric'] { padding-right: 38px; font-variant-numeric: tabular-nums; }
+.date-input input[aria-invalid] { border-color: var(--bad); }
+.date-btn { position: absolute; right: 4px; top: 4px; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; }
+.date-btn:hover { background: var(--hover); color: var(--fg); }
+.date-native { position: absolute; right: 0; top: 0; width: 36px; height: 36px; opacity: 0; pointer-events: none; }
 .form-error { color: var(--bad); font-weight: 500; }
 
 .combo { position: relative; }

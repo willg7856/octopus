@@ -116,11 +116,29 @@ export function fmtQty(n: number, unit?: string): string {
   return unit && unit !== 'ea' ? `${s} ${unit}` : s
 }
 
+/** Formats a date (YYYY-MM-DD or ISO timestamp) as DD/MM/YYYY. */
 export function fmtDate(s: unknown): string {
   if (!s) return '—'
-  const d = new Date(String(s).length === 10 ? `${s}T00:00:00` : String(s))
-  if (Number.isNaN(d.getTime())) return String(s)
-  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })
+  const str = String(s)
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str)
+  if (ymd) return `${ymd[3]}/${ymd[2]}/${ymd[1]}`
+  const d = new Date(str)
+  if (Number.isNaN(d.getTime())) return str
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
+/** Parses DD/MM/YYYY (also D/M/YY, dashes or dots) into YYYY-MM-DD. Returns null if invalid. */
+export function parseDate(input: string): string | null {
+  const m = /^\s*(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})\s*$/.exec(input)
+  if (!m) return null
+  const day = Number(m[1])
+  const month = Number(m[2])
+  let year = Number(m[3])
+  if (m[3]!.length === 2) year += 2000
+  const d = new Date(year, month - 1, day)
+  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
 export function fmtAgo(s: string | null | undefined): string {

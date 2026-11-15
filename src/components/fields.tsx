@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { fmtDate, fmtMoney, lineTotal } from '../lib/derive'
+import { fmtDate, fmtMoney, lineTotal, parseDate } from '../lib/derive'
 import { href } from '../lib/router'
 import { byType, labelOf, recordTitle, toneOf, initialData, type Field } from '../lib/schema'
 import { useRecords, useStore } from '../lib/store'
@@ -128,7 +128,7 @@ export function FieldInput({ field, value, onChange, autoFocus }: InputProps) {
       )
       break
     case 'date':
-      input = <input {...common} type="date" value={String(value ?? '')} onChange={(e) => onChange(e.target.value || undefined)} />
+      input = <DateInput id={id} autoFocus={autoFocus} value={value as string | undefined} onChange={onChange} />
       break
     case 'select':
       input = (
@@ -206,6 +206,109 @@ function useSuggestions(field: Field): string[] {
     }
     return [...set].sort().slice(0, 200)
   }, [records, field])
+}
+
+/* ---------- DD/MM/YYYY date input (stores YYYY-MM-DD) ---------- */
+
+function DateInput({
+  id,
+  value,
+  onChange,
+  autoFocus,
+}: {
+  id: string
+  value: string | undefined
+  onChange: (v: string | undefined) => void
+  autoFocus?: boolean
+}) {
+  const [text, setText] = useState(value ? fmtDate(value) : '')
+  const [bad, setBad] = useState(false)
+  const pickerRef = useRef<HTMLInputElement>(null)
+
+  // Follow changes made elsewhere (calendar picker, "Load theirs" on a conflict).
+  useEffect(() => {
+    if (value !== (parseDate(text) ?? undefined)) setText(value ? fmtDate(value) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+
+  const commit = (t: string) => {
+    if (!t.trim()) {
+      setBad(false)
+      onChange(undefined)
+      return
+    }
+    const iso = parseDate(t)
+    setBad(!iso)
+    if (iso) {
+      onChange(iso)
+      setText(fmtDate(iso))
+    }
+  }
+
+  return (
+    <div className="date-input">
+      <input
+        id={id}
+        autoFocus={autoFocus}
+        inputMode="numeric"
+        placeholder="DD/MM/YYYY"
+        autoComplete="off"
+        aria-invalid={bad || undefined}
+        value={text}
+        onChange={(e) => {
+          // Keep digits and separators; a typed slash right after an auto-inserted one is dropped.
+          let t = e.target.value.replace(/[^\d/.-]/g, '').replace(/[/.-]{2,}/g, '/')
+          const growing = t.length > text.length
+          // Pasted digits: 15112026 → 15/11/2026
+          if (/^\d{5,8}$/.test(t)) t = [t.slice(0, 2), t.slice(2, 4), t.slice(4)].join('/')
+          // Typing forward: add the slash after DD and after MM
+          else if (growing && (/^\d{2}$/.test(t) || /^\d{1,2}\/\d{2}$/.test(t))) t += '/'
+          else if (growing && /^\d{3}$/.test(t)) t = `${t.slice(0, 2)}/${t.slice(2)}`
+          else if (growing && /^\d{1,2}\/\d{3}$/.test(t)) t = `${t.slice(0, -1)}/${t.slice(-1)}`
+          setText(t)
+          const iso = parseDate(t)
+          if (iso) {
+            setBad(false)
+            onChange(iso)
+          } else if (!t) onChange(undefined)
+        }}
+        onBlur={(e) => commit(e.target.value)}
+      />
+      <button
+        type="button"
+        className="date-btn"
+        aria-label="Pick a date"
+        onClick={() => {
+          const el = pickerRef.current
+          if (!el) return
+          try {
+            el.showPicker()
+          } catch {
+            el.focus()
+          }
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4" />
+        </svg>
+      </button>
+      <input
+        ref={pickerRef}
+        type="date"
+        tabIndex={-1}
+        aria-hidden="true"
+        className="date-native"
+        value={value ?? ''}
+        onChange={(e) => {
+          const v = e.target.value || undefined
+          setBad(false)
+          setText(v ? fmtDate(v) : '')
+          onChange(v)
+        }}
+      />
+      {bad && <p className="help text-bad">Use DD/MM/YYYY, e.g. 15/11/2026</p>}
+    </div>
+  )
 }
 
 /* ---------- ref picker: searchable, with quick-create ---------- */

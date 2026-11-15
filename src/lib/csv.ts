@@ -1,3 +1,4 @@
+import { fmtDate, parseDate } from './derive'
 import { recordTitle, type Collection } from './schema'
 import type { Data, OrderLine, Rec } from './types'
 
@@ -15,6 +16,7 @@ export function toCsv(c: Collection, rows: Rec[], all: Map<string, Rec>): string
       const v = r.data[f.key]
       if (f.type === 'ref') return v ? recordTitle(all.get(String(v))) : ''
       if (f.type === 'tags') return Array.isArray(v) ? v.join(', ') : ''
+      if (f.type === 'date') return v ? fmtDate(v) : ''
       return v
     })
     if (hasLines) {
@@ -23,7 +25,7 @@ export function toCsv(c: Collection, rows: Rec[], all: Map<string, Rec>): string
         ls.map((l) => `${l.qty ?? 0} × ${l.item ? recordTitle(all.get(l.item)) : l.description ?? ''} @ ${l.unitPrice ?? 0}`).join('; '),
       )
     }
-    return [r.id, ...vals, r.updatedAt, r.updatedBy ?? ''].map(cell).join(',')
+    return [r.id, ...vals, fmtDate(r.updatedAt), r.updatedBy ?? ''].map(cell).join(',')
   })
   return [head.map(cell).join(','), ...lines].join('\n')
 }
@@ -97,6 +99,9 @@ export function csvToData(c: Collection, rows: string[][], all: Map<string, Rec>
       } else if (f.type === 'select') {
         const opt = f.options?.find((o) => norm(o.value) === norm(raw) || norm(o.label) === norm(raw))
         if (opt) d[f.key] = opt.value
+      } else if (f.type === 'date') {
+        const iso = /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : parseDate(raw)
+        if (iso) d[f.key] = iso
       } else if (f.type !== 'lines') d[f.key] = raw
     })
     return d
