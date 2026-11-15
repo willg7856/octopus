@@ -141,6 +141,34 @@ export function parseDate(input: string): string | null {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
+/**
+ * Parses a time typed as 12- or 24-hour ("2:30 pm", "2pm", "14:30", "1430", "9") into "HH:MM".
+ * Returns null if it isn't a valid time.
+ */
+export function parseTime(input: string): string | null {
+  const m = /^\s*(\d{1,2})(?:[:.h]?(\d{2}))?\s*([ap])?\.?\s*m?\.?\s*$/i.exec(input)
+  if (!m) return null
+  let h = Number(m[1])
+  const min = m[2] ? Number(m[2]) : 0
+  const ap = m[3]?.toLowerCase()
+  if (min > 59) return null
+  if (ap) {
+    if (h < 1 || h > 12) return null
+    if (ap === 'a') h = h === 12 ? 0 : h
+    else h = h === 12 ? 12 : h + 12
+  } else if (h > 23) return null
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
+/** "14:30" → "2:30 pm"; "00:00" → "12:00 am". Leaves unparseable text as it was. */
+export function fmtTime12(t: unknown): string {
+  if (!t) return ''
+  const hhmm = parseTime(String(t))
+  if (!hhmm) return String(t)
+  const [h, m] = hhmm.split(':').map(Number) as [number, number]
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`
+}
+
 export function fmtAgo(s: string | null | undefined): string {
   if (!s) return '—'
   const sec = (Date.now() - new Date(s).getTime()) / 1000

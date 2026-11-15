@@ -3,6 +3,7 @@
  * CSV export/import and detail pages are all generated from these definitions, so
  * adding a new module is mostly a matter of adding an entry to COLLECTIONS.
  */
+import { fmtTime12 } from './derive'
 import type { Data, Rec } from './types'
 
 export type FieldType =
@@ -11,6 +12,7 @@ export type FieldType =
   | 'number'
   | 'money'
   | 'date'
+  | 'time'
   | 'select'
   | 'url'
   | 'email'
@@ -359,14 +361,14 @@ export const COLLECTIONS: Collection[] = [
     group: 'work',
     blurb: 'T-minus clocks to launches, static fires and deadlines. The next few also show on Home.',
     title: (d) => String(d.name ?? 'Untitled countdown'),
-    subtitle: (d) => [d.date && String(d.date).split('-').reverse().join('/'), d.time].filter(Boolean).join(' '),
+    subtitle: (d) => [d.date && String(d.date).split('-').reverse().join('/'), d.time && fmtTime12(d.time)].filter(Boolean).join(' · '),
     columns: ['date', 'time', 'category', 'public'],
     searchText: (d) => String(d.notes ?? ''),
     fields: [
       { key: 'name', label: 'What’s happening', type: 'text', required: true, placeholder: 'e.g. Static fire 3, Grant report due' },
       { key: 'date', label: 'Date', type: 'date', required: true, half: true },
-      { key: 'time', label: 'Time (24h)', type: 'text', half: true, placeholder: '14:30',
-        help: 'Optional. Leave blank for midnight at the start of the day.' },
+      { key: 'time', label: 'Time', type: 'time', half: true,
+        help: 'Optional, e.g. 2:30 pm. Leave blank for midnight at the start of the day.' },
       { key: 'category', label: 'Type', type: 'select', half: true, initial: 'deadline', options: [
         { value: 'launch', label: 'Launch', tone: 'accent' },
         { value: 'test', label: 'Test / static fire', tone: 'warn' },

@@ -1,4 +1,4 @@
-import { fmtDate, parseDate } from './derive'
+import { fmtDate, fmtTime12, parseDate, parseTime } from './derive'
 import { recordTitle, type Collection } from './schema'
 import type { Data, OrderLine, Rec } from './types'
 
@@ -17,6 +17,7 @@ export function toCsv(c: Collection, rows: Rec[], all: Map<string, Rec>): string
       if (f.type === 'ref') return v ? recordTitle(all.get(String(v))) : ''
       if (f.type === 'tags') return Array.isArray(v) ? v.join(', ') : ''
       if (f.type === 'date') return v ? fmtDate(v) : ''
+      if (f.type === 'time') return v ? fmtTime12(v) : ''
       return v
     })
     if (hasLines) {
@@ -102,6 +103,9 @@ export function csvToData(c: Collection, rows: string[][], all: Map<string, Rec>
       } else if (f.type === 'date') {
         const iso = /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : parseDate(raw)
         if (iso) d[f.key] = iso
+      } else if (f.type === 'time') {
+        const t = parseTime(raw)
+        if (t) d[f.key] = t
       } else if (f.type !== 'lines') d[f.key] = raw
     })
     return d

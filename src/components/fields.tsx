@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { fmtDate, fmtMoney, lineTotal, parseDate } from '../lib/derive'
+import { fmtDate, fmtMoney, fmtTime12, lineTotal, parseDate, parseTime } from '../lib/derive'
 import { href } from '../lib/router'
 import { byType, labelOf, recordTitle, toneOf, initialData, type Field } from '../lib/schema'
 import { useRecords, useStore } from '../lib/store'
@@ -35,6 +35,8 @@ export function FieldValue({ field, value }: { field: Field; value: unknown }): 
       return <span className="num">{String(value)}</span>
     case 'date':
       return <span className="nowrap">{fmtDate(value)}</span>
+    case 'time':
+      return <span className="nowrap">{fmtTime12(value)}</span>
     case 'url':
       return (
         <a href={String(value)} target="_blank" rel="noreferrer" className="ext-link" onClick={(e) => e.stopPropagation()}>
@@ -129,6 +131,9 @@ export function FieldInput({ field, value, onChange, autoFocus }: InputProps) {
       break
     case 'date':
       input = <DateInput id={id} autoFocus={autoFocus} value={value as string | undefined} onChange={onChange} />
+      break
+    case 'time':
+      input = <TimeInput id={id} autoFocus={autoFocus} value={value as string | undefined} onChange={onChange} />
       break
     case 'select':
       input = (
@@ -307,6 +312,67 @@ function DateInput({
         }}
       />
       {bad && <p className="help text-bad">Use DD/MM/YYYY, e.g. 15/11/2026</p>}
+    </div>
+  )
+}
+
+/* ---------- 12-hour time input (stores "HH:MM", 24h) ---------- */
+
+function TimeInput({
+  id,
+  value,
+  onChange,
+  autoFocus,
+}: {
+  id: string
+  value: string | undefined
+  onChange: (v: string | undefined) => void
+  autoFocus?: boolean
+}) {
+  const [text, setText] = useState(value ? fmtTime12(value) : '')
+  const [bad, setBad] = useState(false)
+
+  useEffect(() => {
+    if (value !== (parseTime(text) ?? undefined)) setText(value ? fmtTime12(value) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+
+  return (
+    <div>
+      <input
+        id={id}
+        autoFocus={autoFocus}
+        placeholder="e.g. 2:30 pm"
+        autoComplete="off"
+        aria-invalid={bad || undefined}
+        value={text}
+        onChange={(e) => {
+          const t = e.target.value
+          setText(t)
+          setBad(false)
+          if (!t.trim()) onChange(undefined)
+          else {
+            // Only commit once am/pm is given, or it's unambiguous 24-hour (13:00+ or a leading 0).
+            const hhmm = parseTime(t)
+            if (hhmm && (/[ap]/i.test(t) || /^\s*(0\d|1[3-9]|2\d)/.test(t))) onChange(hhmm)
+          }
+        }}
+        onBlur={(e) => {
+          const t = e.target.value
+          if (!t.trim()) {
+            onChange(undefined)
+            return
+          }
+          const hhmm = parseTime(t)
+          if (!hhmm) {
+            setBad(true)
+            return
+          }
+          onChange(hhmm)
+          setText(fmtTime12(hhmm))
+        }}
+      />
+      {bad && <p className="help text-bad">Try something like 2:30 pm or 14:30</p>}
     </div>
   )
 }

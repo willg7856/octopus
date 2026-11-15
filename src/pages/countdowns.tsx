@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useEditor } from '../components/Editor'
 import { Badge, Button, Empty } from '../components/ui'
-import { fmtDate } from '../lib/derive'
+import { fmtDate, fmtTime12, parseTime } from '../lib/derive'
 import { href } from '../lib/router'
 import { byType, labelOf, toneOf } from '../lib/schema'
 import { useRecords } from '../lib/store'
@@ -19,13 +19,11 @@ export type Countdown = {
 const C = byType.get('countdown')!
 const CATEGORY = C.fields.find((f) => f.key === 'category')!.options
 
-/** Target moment in the viewer's local time. Time is optional ("14:30", "1430", "9"). */
+/** Target moment in the viewer's local time. Time is optional and may be 12- or 24-hour. */
 export function targetOf(d: Countdown): number {
   const [y, m, day] = d.date.split('-').map(Number)
-  const t = /^\s*(\d{1,2})(?:[:.h]?(\d{2}))?\s*$/.exec(d.time ?? '')
-  const hh = t ? Math.min(23, Number(t[1])) : 0
-  const mm = t?.[2] ? Math.min(59, Number(t[2])) : 0
-  return new Date(y!, m! - 1, day!, hh, mm).getTime()
+  const [hh, mm] = (parseTime(d.time ?? '') ?? '00:00').split(':').map(Number)
+  return new Date(y!, m! - 1, day!, hh!, mm!).getTime()
 }
 
 /** Re-renders every second while mounted. */
@@ -92,7 +90,7 @@ function CountdownCard({ rec, at, now }: { rec: Rec<Countdown>; at: number; now:
       <TClock target={at} now={now} />
       <p className="muted small">
         {fmtDate(d.date)}
-        {d.time ? ` · ${d.time}` : ''}
+        {d.time ? ` · ${fmtTime12(d.time)}` : ''}
       </p>
       {d.notes && <p className="small prewrap">{d.notes}</p>}
     </article>
@@ -171,7 +169,7 @@ export function NextCountdowns() {
           <TClock target={x.at} now={now} size="s" />
           <span className="muted small">
             {fmtDate(x.rec.data.date)}
-            {x.rec.data.time ? ` · ${x.rec.data.time}` : ''}
+            {x.rec.data.time ? ` · ${fmtTime12(x.rec.data.time)}` : ''}
           </span>
         </a>
       ))}

@@ -55,10 +55,26 @@
     return Number(n).toLocaleString('en-AU', { maximumFractionDigits: 2 })
   }
 
+  // Accepts "14:30" or "2:30 pm"; returns [hours24, minutes] or null.
+  function parseTime(t) {
+    var m = /^\s*(\d{1,2})(?:[:.h]?(\d{2}))?\s*([ap])?\.?\s*m?\.?\s*$/i.exec(t || '')
+    if (!m) return null
+    var h = +m[1], min = m[2] ? +m[2] : 0, ap = m[3] && m[3].toLowerCase()
+    if (ap === 'a') h = h === 12 ? 0 : h
+    else if (ap === 'p') h = h === 12 ? 12 : h + 12
+    return h > 23 || min > 59 ? null : [h, min]
+  }
+
+  function time12(t) {
+    var p = parseTime(t)
+    if (!p) return t
+    return (p[0] % 12 || 12) + ':' + pad(p[1]) + ' ' + (p[0] < 12 ? 'am' : 'pm')
+  }
+
   function targetOf(c) {
-    var p = c.date.split('-').map(Number)
-    var t = /^\s*(\d{1,2})(?:[:.h]?(\d{2}))?\s*$/.exec(c.time || '')
-    return new Date(p[0], p[1] - 1, p[2], t ? Math.min(23, +t[1]) : 0, t && t[2] ? Math.min(59, +t[2]) : 0).getTime()
+    var d = c.date.split('-').map(Number)
+    var t = parseTime(c.time) || [0, 0]
+    return new Date(d[0], d[1] - 1, d[2], t[0], t[1]).getTime()
   }
 
   function pad(n) {
@@ -102,7 +118,7 @@
       item.appendChild(clock)
       var d = new Date(x.at)
       item.appendChild(
-        el('span', 'octo-when', d.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' }) + (x.c.time ? ' · ' + x.c.time : '')),
+        el('span', 'octo-when', d.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' }) + (x.c.time ? ' · ' + time12(x.c.time) : '')),
       )
       grid.appendChild(item)
       clocks.push({ node: clock, at: x.at })
