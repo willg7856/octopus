@@ -1,6 +1,6 @@
-import { requireUser } from './_lib/auth.js'
+import { requireAdmin, requireUser } from './_lib/auth.js'
 import { getDb } from './_lib/db.js'
-import { q, route } from './_lib/http.js'
+import { HttpError, q, route } from './_lib/http.js'
 
 const iso = (v: unknown) => (v == null ? null : new Date(v as string).toISOString())
 
@@ -44,5 +44,23 @@ export default route({
         by: r.by ?? null,
       })),
     })
+  },
+
+  /**
+   * DELETE /api/history?record=ID → admin only. Permanently erases a record and every
+   * saved version of it. This is the one thing in Octopus that can't be undone.
+   */
+  async DELETE(req, res) {
+    const admin = await requireAdmin(req)
+    const record = q(req, 'record')
+    if (!record) throw new HttpError(400, 'Which record?')
+    const db = await getDb()
+    const [h, r] = await db.transaction([
+      ['delete from history where record_id = $1 returning record_id', [record]],
+      ['delete from records where id = $1 returning id', [record]],
+    ])
+    if (!h!.length && !r!.length) throw new HttpError(404, 'Already erased')
+    console.log(`purge: ${admin.email} erased record ${record} (${h!.length} history entries)`)
+    res.status(200).json({ ok: true, erased: h!.length + r!.length })
   },
 })

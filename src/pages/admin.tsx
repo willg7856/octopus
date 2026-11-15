@@ -5,7 +5,7 @@ import { Button, Empty, useToast, Badge } from '../components/ui'
 import { api } from '../lib/api'
 import { fmtAgo } from '../lib/derive'
 import { setParam, useRoute } from '../lib/router'
-import { byType, COLLECTIONS } from '../lib/schema'
+import { byType, COLLECTIONS, recordTitle } from '../lib/schema'
 import { useStore } from '../lib/store'
 import type { HistoryEntry, TeamMember } from '../lib/types'
 import { describe } from './home'
@@ -16,8 +16,10 @@ export function ActivityPage() {
   const { params } = useRoute()
   const tab = params.get('tab') === 'deleted' ? 'deleted' : 'all'
   const type = params.get('type') ?? ''
-  const { restore } = useStore()
+  const { restore, user, records, refresh } = useStore()
   const toast = useToast()
+  const dialog = useDialog()
+  const isAdmin = user.role === 'admin'
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null)
 
   const load = useCallback(() => {
@@ -40,7 +42,10 @@ export function ActivityPage() {
       <header className="page-head">
         <div>
           <h1>Activity</h1>
-          <p className="muted">Every change anyone makes is kept. Deleted things can be restored.</p>
+          <p className="muted">
+            Every change anyone makes is kept. Deleted things can be restored.
+            {isAdmin && ' Admins can erase something permanently, including its history.'}
+          </p>
         </div>
       </header>
       <div className="toolbar">
@@ -86,6 +91,46 @@ export function ActivityPage() {
                 <div className="row gap-s">
                   {tab === 'deleted' && <Badge>{c?.singular ?? e.type}</Badge>}
                   <span className="muted small nowrap">{fmtAgo(e.at)}</span>
+                  {isAdmin && (
+                    <Button
+                      small
+                      variant="ghost"
+                      className="danger-text"
+                      icon="trash"
+                      title="Erase permanently"
+                      onClick={async () => {
+                        const live = records.get(e.recordId)
+                        const name = live ? recordTitle(live) : d.title
+                        const ok = await dialog.confirm({
+                          title: `Erase “${d.title}” for good?`,
+                          message: (
+                            <>
+                              This permanently removes the {c?.singular.toLowerCase() ?? 'record'} and every entry about it from Activity.
+                              {live && (
+                                <>
+                                  {' '}It still exists as <strong>“{name}”</strong> and will be deleted too.
+                                </>
+                              )}{' '}
+                              This can’t be undone.
+                            </>
+                          ),
+                          confirmLabel: 'Erase forever',
+                          danger: true,
+                        })
+                        if (!ok) return
+                        try {
+                          await api.eraseRecord(e.recordId)
+                          toast(`Erased ${d.title}`, { tone: 'good' })
+                          refresh(true)
+                          load()
+                        } catch (err) {
+                          toast((err as Error).message, { tone: 'bad' })
+                        }
+                      }}
+                    >
+                      Erase
+                    </Button>
+                  )}
                   {tab === 'deleted' && (
                     <Button
                       small

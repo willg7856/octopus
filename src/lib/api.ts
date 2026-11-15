@@ -59,6 +59,9 @@ export const api = {
     return call<{ entries: HistoryEntry[] }>(`/api/history?${qs}`)
   },
 
+  eraseRecord: (id: string) =>
+    call<{ ok: true; erased: number }>(`/api/history?record=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
   users: () => call<{ users: TeamMember[] }>('/api/users'),
   addUser: (u: { email: string; name?: string; role: string; password?: string }) =>
     call<{ user: TeamMember }>('/api/users', { method: 'POST', body: json(u) }),
