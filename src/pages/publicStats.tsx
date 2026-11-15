@@ -17,6 +17,7 @@ export function PublicStatsPage() {
   const toast = useToast()
   const [feed, setFeed] = useState<Feed | null>(null)
   const url = `${window.location.origin}/api/public/stats`
+  const snippet = `<div data-octopus="numbers"></div>\n<div data-octopus="countdowns"></div>\n<script src="${window.location.origin}/embed.js" defer></script>`
 
   useEffect(() => {
     fetch('/api/public/stats')
@@ -36,10 +37,13 @@ export function PublicStatsPage() {
               <h2 className="card-title">What the website sees</h2>
               <p className="muted small">
                 Only the numbers below marked <em>Shown</em>, plus build counts from the log. Budget, orders, contacts and people are never
-                published.
+                published. Paste the website snippet into any page builder (Framer, Webflow, Squarespace) or HTML to show these live.
               </p>
             </div>
             <div className="row gap-s">
+              <Button small variant="primary" icon="copy" onClick={() => copyText(snippet).then(() => toast('Website snippet copied', { tone: 'good' }))}>
+                Copy website snippet
+              </Button>
               <Button small icon="copy" onClick={() => copyText(url).then(() => toast('Feed link copied'))}>Copy feed link</Button>
               <LinkButton small href={url} external icon="external">Open feed</LinkButton>
             </div>
