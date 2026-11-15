@@ -1,0 +1,97 @@
+import { getDb } from '../_lib/db.js'
+import { HttpError, route } from '../_lib/http.js'
+
+/**
+ * GET /api/public/stats — the ONLY unauthenticated data endpoint in Octopus.
+ *
+ * Read by beyondstagezero.com. It deliberately publishes just:
+ *  - "Public numbers" the team marks as Shown, and
+ *  - a few build counts calculated from the log, and
+ *  - countdowns marked "Shown publicly" (name, date, time, type only — never notes).
+ * Nothing about money, suppliers, contacts, people, machines or orders is ever included.
+ * Set PUBLIC_STATS=off on the server to switch it off.
+ */
+
+interface Row {
+  type: string
+  data: Record<string, unknown>
+  created_at: string
+}
+
+const DAY = 86_400_000
+
+function day(d: Date) {
+  return d.toISOString().slice(0, 10)
+}
+
+export default route({
+  async GET(_req, res) {
+    if ((process.env.PUBLIC_STATS || '').toLowerCase() === 'off') throw new HttpError(404, 'Not found')
+
+    const db = await getDb()
+    const rows = await db.query<Row>(
+      `select type, data, created_at from records
+       where deleted_at is null and type in ('stat', 'movement', 'process', 'countdown')`,
+    )
+
+    const now = new Date()
+    const monthStart = day(now).slice(0, 8) + '01'
+    const since30 = day(new Date(now.getTime() - 29 * DAY))
+
+    const numbers = rows
+      .filter((r) => r.type === 'stat' && r.data.visible !== 'hidden' && r.data.label)
+      .map((r) => ({
+        label: String(r.data.label),
+        value: Number(r.data.value) || 0,
+        suffix: r.data.suffix ? String(r.data.suffix) : null,
+        description: r.data.description ? String(r.data.description) : null,
+        order: Number(r.data.order ?? 999),
+      }))
+      .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
+      .map(({ order: _order, ...n }) => n)
+
+    const builds = rows.filter((r) => r.type === 'movement' && r.data.kind === 'made')
+    const qty = (r: Row) => Math.abs(Number(r.data.qty) || 0)
+    const dateOf = (r: Row) => String(r.data.date ?? day(new Date(r.created_at)))
+    const daily = new Map<string, number>()
+    for (let i = 29; i >= 0; i--) daily.set(day(new Date(now.getTime() - i * DAY)), 0)
+    let lastBuild = ''
+    for (const b of builds) {
+      const d = dateOf(b)
+      if (daily.has(d)) daily.set(d, daily.get(d)! + qty(b))
+      if (d > lastBuild) lastBuild = d
+    }
+
+    const today = day(new Date(now.getTime() - DAY)) // keep yesterday's for time-zone slack
+    const countdowns = rows
+      .filter((r) => r.type === 'countdown' && r.data.public === 'shown' && r.data.name && r.data.date && String(r.data.date) >= today)
+      .map((r) => ({
+        name: String(r.data.name),
+        date: String(r.data.date),
+        time: r.data.time ? String(r.data.time) : null,
+        category: r.data.category ? String(r.data.category) : null,
+      }))
+      .sort((a, b) => `${a.date} ${a.time ?? ''}`.localeCompare(`${b.date} ${b.time ?? ''}`))
+
+    const body = {
+      updatedAt: now.toISOString(),
+      numbers,
+      countdowns,
+      builds: {
+        partsBuilt: builds.reduce((t, b) => t + qty(b), 0),
+        partsBuiltThisMonth: builds.filter((b) => dateOf(b) >= monthStart).reduce((t, b) => t + qty(b), 0),
+        partsBuiltLast30Days: builds.filter((b) => dateOf(b) >= since30).reduce((t, b) => t + qty(b), 0),
+        buildsLogged: builds.length,
+        lastBuildDate: lastBuild || null,
+        processesInUse: rows.filter((r) => r.type === 'process' && r.data.status !== 'retired').length,
+        daily: [...daily.entries()].map(([date, parts]) => ({ date, parts })),
+      },
+    }
+
+    // Public, cacheable for a minute at the edge so the website stays fast.
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'GET')
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
+    res.status(200).json(body)
+  },
+})

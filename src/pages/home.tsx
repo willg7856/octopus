@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useEditor } from '../components/Editor'
+import { GitHubPanel } from '../components/GitHubPanel'
+import { LiveStats } from '../components/LiveStats'
+import { NextCountdowns } from './countdowns'
 import { prettyUrl, RefLink } from '../components/fields'
 import { Icon } from '../components/Icon'
 import { Button, Empty, Stat } from '../components/ui'
@@ -64,6 +67,12 @@ export function Home() {
           <h1>{greeting()}, {user.name.split(' ')[0]}</h1>
         </div>
       </header>
+
+      <NextCountdowns />
+
+      {!isEmpty && <LiveStats />}
+
+      <GitHubPanel />
 
       <div className="quick-actions">
         <QuickAction icon="wrench" label="Log a build" sub="Made something" onClick={() => openEditor({ type: 'movement', initial: { kind: 'made' } })} />

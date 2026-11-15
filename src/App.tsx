@@ -11,6 +11,8 @@ import { byKey } from './lib/schema'
 import { StoreProvider } from './lib/store'
 import type { User } from './lib/types'
 import { ActivityPage, TeamPage } from './pages/admin'
+import { PublicStatsPage } from './pages/publicStats'
+import { CountdownsPage } from './pages/countdowns'
 import { Home } from './pages/home'
 import { InventoryList, ItemDetail, LogList } from './pages/inventory'
 import { BudgetDetail, BudgetPage, OrderDetail, OrdersList } from './pages/money'
@@ -86,6 +88,10 @@ function Routes() {
       return id ? <RecordDetail c={byKey.get('templates')!} id={id} /> : <TemplatesList />
     case 'links':
       return <LinksList />
+    case 'countdowns':
+      return <CountdownsPage />
+    case 'public-stats':
+      return <PublicStatsPage />
     case 'activity':
       return <ActivityPage />
     case 'team':
