@@ -5,7 +5,7 @@ The Beyond Stage Zero team hub — one place for everything we make, buy and use
 | Module | What it's for |
 |---|---|
 | **Home** | Next countdowns, a live BSZ stats panel, code shipped on GitHub (7d / 30d / 90d / 1y), quick actions (log a build, use stock, request a purchase), what needs reordering, open orders, who's on which machine, recent activity, pinned links |
-| **Analytics** | Money made vs spent (this month and 12-month chart), website views with live visitors, top pages, referrers and countries, hub usage, and GitHub activity — over 7 days to 1 year |
+| **Analytics** | Money made vs spent (this month and 12-month chart), Starship Tracker viewers (live, peak, launch-day spikes, current flight and T-minus), website views with live visitors, top pages, referrers and countries, hub usage, and GitHub activity — over 7 days to 1 year |
 | **Inventory** | Every part we make or buy. Stock is calculated from the log, never typed in |
 | **Build & stock log** | Every part made, received, used, scrapped or recounted — with process, serials, lot and who did it |
 | **Processes** | Step-by-step procedures with tick-off checklists, warnings, print view, and the builds logged against them |
@@ -64,6 +64,8 @@ Vercel has no API for reading Web Analytics, so it pushes page views to Octopus 
 2. Vercel → **Team Settings → Drains → Add Drain** → data type **Web Analytics**, the website project, format **JSON**.
 3. Endpoint: `https://ops.beyondstagezero.com/api/drains/web`
 4. Put the drain's signing secret in `VERCEL_DRAIN_SECRET` on the Octopus project (and the verification value in `VERCEL_DRAIN_VERIFY` if asked), then redeploy.
+
+Include **both** the website's and the Starship Tracker's Vercel projects in the same drain. Octopus splits them by host: views from `starship.beyondstagezero.com` (override with `STARSHIP_HOST`) go to the **Starship Tracker** section, everything else to **Website**. The Starship Tracker section also shows the flight it's tracking, read from the tracker's public `/api/flight`.
 
 Octopus checks every delivery's signature and stores only page views: time, host, path, referrer site, country, device type and Vercel's anonymous session/device IDs. About 13 months are kept.
 

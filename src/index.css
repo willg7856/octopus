@@ -445,6 +445,10 @@ a.stat:hover { border-color: var(--line-strong); color: inherit; }
 .an-setup { display: flex; flex-direction: column; gap: 8px; }
 .an-steps { margin: 4px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
 .an-steps code { font: 12px var(--mono); background: var(--neutral-soft); padding: 1px 5px; border-radius: 4px; }
+.an-flight { display: flex; align-items: center; gap: 20px 28px; flex-wrap: wrap; }
+.an-flight-main { display: flex; flex-direction: column; gap: 3px; flex: 1 1 260px; min-width: 0; }
+.an-flight-main .an-card-title { margin-bottom: 2px; }
+.an-flight-title { font-size: 18px; font-weight: 600; }
 .rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .rank li { position: relative; display: flex; justify-content: space-between; gap: 12px; padding: 5px 8px; font-size: 13px; border-radius: 4px; overflow: hidden; }
 .rank-bar { position: absolute; inset: 0 auto 0 0; opacity: 0.14; border-radius: 4px; }

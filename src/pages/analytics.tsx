@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { TClock, useNow } from './countdowns'
 import { CollectionPage, type Column, type Filter } from '../components/CollectionPage'
 import { FieldValue, RefLink } from '../components/fields'
 import { GitHubPanel } from '../components/GitHubPanel'
@@ -55,22 +56,38 @@ interface KV {
   value: number
 }
 
+interface SiteTraffic {
+  connected: boolean
+  lastEventAt: string | null
+  live: { visitors: number; views: number }
+  views: number
+  visitors: number
+  sessions: number
+  peak: { viewers: number; at: string } | null
+  busiestDay: { date: string; views: number } | null
+  series: { date: string; views: number; visitors: number }[]
+  pages: KV[]
+  referrers: KV[]
+  countries: KV[]
+  devices: KV[]
+}
+
+interface Flight {
+  flight: number
+  title: string
+  ship: number | null
+  plannedLiftoff: string | null
+  paused: boolean
+  landingKind: string | null
+  webcastUrl: string | null
+}
+
 interface ServerAnalytics {
   days: number
   bucket: 'day' | 'week'
-  web: {
-    connected: boolean
-    lastEventAt: string | null
-    live: { visitors: number; views: number }
-    views: number
-    visitors: number
-    sessions: number
-    series: { date: string; views: number; visitors: number }[]
-    pages: KV[]
-    referrers: KV[]
-    countries: KV[]
-    devices: KV[]
-  }
+  drainConnected: boolean
+  web: SiteTraffic
+  starship: SiteTraffic & { host: string; flight: Flight | null }
   hub: {
     changes: number
     series: { date: string; changes: number }[]
@@ -186,6 +203,7 @@ export function AnalyticsPage() {
       <MoneySection days={days} />
       {error && <p className="form-error">{error}</p>}
       <WebsiteSection data={data} days={days} />
+      <StarshipSection data={data} days={days} />
       <HubSection data={data} days={days} />
       <GitHubPanel days={days} />
     </div>
@@ -372,35 +390,81 @@ function WebsiteSection({ data, days }: { data: ServerAnalytics | null; days: nu
       </Section>
     )
   }
+  if (!data.drainConnected) return <WebsiteSetup />
   const w = data.web
-  if (!w.connected) return <WebsiteSetup />
-  const series = fillSeries(w.series, days, data.bucket, { views: 0, visitors: 0 })
   return (
     <Section
       title="Website"
       icon="monitor"
-      sub={`beyondstagezero.com · from Vercel Web Analytics · last event ${w.lastEventAt ? fmtDateTime(w.lastEventAt) : '—'}`}
-      right={
-        <div className="an-live" title="People on the site in the last 5 minutes">
-          <span className="live-dot" aria-hidden="true" />
-          <strong>{nf(w.live.visitors)}</strong> on the site now
-        </div>
-      }
+      sub={`beyondstagezero.com · from Vercel Web Analytics · last view ${w.lastEventAt ? fmtDateTime(w.lastEventAt) : '—'}`}
+      right={<LivePill n={w.live.visitors} label="on the site now" />}
     >
+      <TrafficBody w={w} days={days} bucket={data.bucket} />
+    </Section>
+  )
+}
+
+function LivePill({ n, label }: { n: number; label: string }) {
+  return (
+    <div className="an-live" title="People in the last 5 minutes">
+      <span className="live-dot" aria-hidden="true" />
+      <strong>{nf(n)}</strong> {label}
+    </div>
+  )
+}
+
+function TrafficBody({ w, days, bucket, starship }: { w: SiteTraffic; days: number; bucket: 'day' | 'week'; starship?: boolean }) {
+  const series = fillSeries(w.series, days, bucket, { views: 0, visitors: 0 })
+  const rangeLabel = RANGES.find((r) => r.days === days)!.label
+  return (
+    <>
       <div className="stats">
-        <Stat label="Page views" value={nf(w.views)} sub={`last ${RANGES.find((r) => r.days === days)!.label}`} />
+        <Stat label="Page views" value={nf(w.views)} sub={`last ${rangeLabel}`} />
         <Stat label="Visitors" value={nf(w.visitors)} sub="unique devices" />
-        <Stat label="Views per visit" value={w.sessions ? (w.views / w.sessions).toFixed(1) : '—'} sub={`${nf(w.sessions)} visits`} />
-        <Stat label="Top page" value={<span className="an-top-page">{w.pages[0]?.key ?? '—'}</span>} sub={w.pages[0] ? `${nf(w.pages[0].value)} views` : undefined} />
+        {starship ? (
+          <>
+            <Stat
+              label="Peak viewers"
+              value={w.peak ? nf(w.peak.viewers) : '—'}
+              sub={w.peak ? `at once · ${fmtDateTime(w.peak.at)}` : 'most watching at once'}
+            />
+            <Stat
+              label="Busiest day"
+              value={w.busiestDay ? nf(w.busiestDay.views) : '—'}
+              sub={w.busiestDay ? `views on ${fmtDate(w.busiestDay.date)}` : 'views in one day'}
+            />
+          </>
+        ) : (
+          <>
+            <Stat label="Views per visit" value={w.sessions ? (w.views / w.sessions).toFixed(1) : '—'} sub={`${nf(w.sessions)} visits`} />
+            <Stat
+              label="Top page"
+              value={<span className="an-top-page">{w.pages[0]?.key ?? '—'}</span>}
+              sub={w.pages[0] ? `${nf(w.pages[0].value)} views` : undefined}
+            />
+          </>
+        )}
       </div>
       <div className="card an-chart-card">
-        <h3 className="an-card-title">Views per {data.bucket}</h3>
-        <AreaChart points={series.map((p) => ({ date: p.date, value: p.views, extra: p.visitors }))} bucket={data.bucket} />
+        <h3 className="an-card-title">Views per {bucket}</h3>
+        <AreaChart points={series.map((p) => ({ date: p.date, value: p.views, extra: p.visitors }))} bucket={bucket} />
       </div>
       <div className="an-grid three">
         <div className="card">
-          <h3 className="an-card-title">Top pages</h3>
-          <RankList rows={w.pages} format={nf} tone="s1" />
+          <h3 className="an-card-title">{starship ? 'Devices & pages' : 'Top pages'}</h3>
+          {starship ? (
+            <>
+              <RankList rows={w.devices.map((d) => ({ key: d.key[0]!.toUpperCase() + d.key.slice(1), value: d.value }))} format={nf} tone="s1" />
+              {w.pages.length > 1 && (
+                <>
+                  <h3 className="an-card-title an-gap">Pages</h3>
+                  <RankList rows={w.pages} format={nf} tone="s1" />
+                </>
+              )}
+            </>
+          ) : (
+            <RankList rows={w.pages} format={nf} tone="s1" />
+          )}
         </div>
         <div className="card">
           <h3 className="an-card-title">Where visitors came from</h3>
@@ -409,13 +473,82 @@ function WebsiteSection({ data, days }: { data: ServerAnalytics | null; days: nu
         <div className="card">
           <h3 className="an-card-title">Countries</h3>
           <RankList rows={w.countries.map((c) => ({ key: countryName(c.key), value: c.value }))} format={nf} tone="s1" />
-          {w.devices.length > 0 && (
+          {!starship && w.devices.length > 0 && (
             <p className="muted small an-devices">
               {w.devices.map((d) => `${d.key} ${Math.round((d.value / Math.max(1, w.views)) * 100)}%`).join(' · ')}
             </p>
           )}
         </div>
       </div>
+    </>
+  )
+}
+
+/* ---------------- starship tracker ---------------- */
+
+function StarshipSection({ data, days }: { data: ServerAnalytics | null; days: number }) {
+  const now = useNow()
+  if (!data) return null
+  const s = data.starship
+  const f = s.flight
+  const liftoff = f?.plannedLiftoff ? new Date(f.plannedLiftoff).getTime() : null
+  const site = `https://${s.host}`
+  return (
+    <Section
+      title="Starship Tracker"
+      icon="chart"
+      sub={
+        <>
+          <a href={site} target="_blank" rel="noreferrer">{s.host}</a> · from Vercel Web Analytics
+          {s.lastEventAt ? ` · last view ${fmtDateTime(s.lastEventAt)}` : ''}
+        </>
+      }
+      right={s.connected ? <LivePill n={s.live.visitors} label="watching now" /> : undefined}
+    >
+      <div className="card an-flight">
+        {f ? (
+          <>
+            <div className="an-flight-main">
+              <span className="an-card-title">Tracking now</span>
+              <span className="an-flight-title">
+                {f.title}
+                {f.ship != null && <span className="muted"> · Ship {f.ship}</span>}
+              </span>
+              <span className="muted small">
+                {liftoff
+                  ? `${f.paused ? 'Countdown paused · ' : ''}Planned liftoff ${fmtDateTime(new Date(liftoff).toISOString())}`
+                  : 'No liftoff time published yet'}
+                {f.landingKind ? ` · ship ${f.landingKind === 'catch' ? 'catch' : f.landingKind}` : ''}
+              </span>
+            </div>
+            {liftoff && <TClock target={liftoff} now={now} />}
+            <div className="row gap-s wrap">
+              <a className="btn btn-sm" href={site} target="_blank" rel="noreferrer">
+                <Icon name="external" size={14} /> Open tracker
+              </a>
+              {f.webcastUrl && (
+                <a className="btn btn-sm" href={f.webcastUrl} target="_blank" rel="noreferrer">
+                  <Icon name="play" size={14} /> Webcast
+                </a>
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="muted small">Couldn’t reach the tracker’s flight feed right now — traffic below still updates.</p>
+        )}
+      </div>
+      {s.connected ? (
+        <TrafficBody w={s} days={days} bucket={data.bucket} starship />
+      ) : (
+        <div className="card an-setup">
+          <p className="strong">No tracker views yet.</p>
+          <p className="muted small">
+            The tracker already loads Vercel Web Analytics. Add its Vercel project to the Web Analytics drain
+            {data.drainConnected ? ' (the drain is working for the main site)' : ' when you set the drain up (see Website above)'} — Vercel
+            → Team Settings → Drains → edit the drain → include the <strong>starship tracker</strong> project.
+          </p>
+        </div>
+      )}
     </Section>
   )
 }
@@ -428,15 +561,16 @@ function WebsiteSetup() {
     <Section title="Website" icon="monitor" sub="Page views from Vercel Web Analytics will show here once it’s connected.">
       <div className="card an-setup">
         <p className="strong">Not connected yet.</p>
+        <p className="muted small">One drain covers both beyondstagezero.com and the Starship Tracker — include both Vercel projects in it.</p>
         <p className="muted small">
           Vercel doesn’t offer an API for reading Web Analytics, so it pushes each page view to Octopus instead (a “Drain”, on Vercel Pro).
           {user.role === 'admin' ? ' One-time setup:' : ' Ask an admin to set it up.'}
         </p>
         {user.role === 'admin' && (
           <ol className="an-steps">
-            <li>Make sure Web Analytics is turned on for the public website’s Vercel project.</li>
+            <li>Make sure Web Analytics is turned on for the website’s and the Starship Tracker’s Vercel projects.</li>
             <li>
-              Vercel → <strong>Team Settings → Drains → Add Drain</strong>. Choose <strong>Web Analytics</strong>, the website project, and{' '}
+              Vercel → <strong>Team Settings → Drains → Add Drain</strong>. Choose <strong>Web Analytics</strong>, both projects, and{' '}
               <strong>JSON</strong>.
             </li>
             <li>
