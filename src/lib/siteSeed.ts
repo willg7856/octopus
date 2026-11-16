@@ -54,14 +54,6 @@ export const SITE_SEED = {
   ],
   "news": [
     {
-      "title": "First B1M pressure test: leaks at 50 psi",
-      "date": "2026-11-02",
-      "dateLabel": "2 November 2026",
-      "tag": "Testing",
-      "body": "We pressure tested the first B1M engine at 50 psi, the first step of the campaign. It leaked, so we are fixing the leaks before stepping up to 100 psi, no earlier than 14 November.",
-      "status": "published"
-    },
-    {
       "title": "First B1M engine complete",
       "date": "2026-10-20",
       "dateLabel": "20 October 2026",
