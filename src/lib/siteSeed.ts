@@ -54,11 +54,11 @@ export const SITE_SEED = {
   ],
   "news": [
     {
-      "title": "First B1M engine complete",
-      "date": "2026-10-20",
-      "dateLabel": "20 October 2026",
+      "title": "First B1M engine completed",
+      "date": "2026-10-24",
+      "dateLabel": "24 October 2026",
       "tag": "Programme",
-      "body": "The first B1M engine is complete. The first static fire is pending regulatory approval, and two engines are still in production with Federation University.",
+      "body": "The first B1M engine is complete. We are now preparing it for pressure testing, and its first static fire is pending regulatory approval. Two more engines are still in production with Federation University.",
       "status": "published"
     },
     {
