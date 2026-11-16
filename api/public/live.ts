@@ -1,6 +1,7 @@
 import { getDb } from '../_lib/db.js'
 import { HttpError, route } from '../_lib/http.js'
 import { melbourneInstant } from '../_lib/melbourne.js'
+import { publicMode, thin, type Sample, type Units } from '../_lib/telemetry.js'
 
 /**
  * GET /api/public/live — the feed behind beyondstagezero.space.
@@ -44,6 +45,7 @@ export default route({
           atMs: at,
           status: String(r.data.status || 'scheduled'),
           stream: r.data.stream ? String(r.data.stream) : null,
+          telemetryMode: publicMode(r.data.telemetry),
           result: r.data.result ? String(r.data.result) : null,
           updatedMs: new Date(r.updated_at).getTime(),
         }
@@ -75,10 +77,48 @@ export default route({
       : []
 
     const clean = (t: (typeof tests)[number]) => {
-      const { atMs: _a, updatedMs: _u, ...rest } = t
+      const { atMs: _a, updatedMs: _u, telemetryMode: _m, ...rest } = t
       void _a
       void _u
+      void _m
       return rest
+    }
+
+    // Sensor data (e.g. chamber pressure) for the current test, held back by the chosen delay.
+    let telemetry: Record<string, unknown> | null = null
+    const mode = current?.telemetryMode
+    const over = current?.status === 'done' || current?.status === 'scrubbed'
+    if (current && mode !== undefined && mode !== 'off' && (mode !== 'after' || over)) {
+      const cutoff = over || mode === 'after' ? Infinity : now - (mode as number) * 1000
+      const tRows = await db.query<{ samples: Sample[] | string; units: Units | string | null }>(
+        'select samples, units from telemetry where test_id = $1 and t0 <= $2 order by id',
+        [current.id, Number.isFinite(cutoff) ? cutoff : Number.MAX_SAFE_INTEGER],
+      )
+      const parse = <T,>(v: T | string): T => (typeof v === 'string' ? (JSON.parse(v) as T) : v)
+      const samples: Sample[] = []
+      let units: Units = {}
+      for (const r of tRows) {
+        for (const smp of parse(r.samples)) if (smp.t <= cutoff) samples.push(smp)
+        if (r.units) units = { ...units, ...parse(r.units) }
+      }
+      samples.sort((a, b) => a.t - b.t)
+      if (samples.length) {
+        const channels = [...new Set(samples.flatMap((smp) => Object.keys(smp).filter((k) => k !== 't')))].sort((a, b) =>
+          a === 'chamber' ? -1 : b === 'chamber' ? 1 : a.localeCompare(b),
+        )
+        const peak: Record<string, number> = {}
+        for (const smp of samples) for (const c of channels) if (c in smp && (peak[c] === undefined || smp[c] > peak[c])) peak[c] = smp[c]
+        const last = samples[samples.length - 1]
+        telemetry = {
+          channels,
+          units,
+          delay: over ? 0 : mode,
+          receiving: !over && Number.isFinite(cutoff) && cutoff - last.t < 10_000,
+          points: thin(samples, channels),
+          latest: [last.t, ...channels.map((c) => (c in last ? last[c] : null))],
+          peak,
+        }
+      }
     }
 
     res.setHeader('Access-Control-Allow-Origin', '*')
@@ -88,7 +128,7 @@ export default route({
     res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=2')
     res.status(200).json({
       updatedAt: new Date(now).toISOString(),
-      current: current ? { ...clean(current), updates } : null,
+      current: current ? { ...clean(current), updates, telemetry } : null,
       next: upcoming.filter((t) => t.id !== current?.id).slice(0, 3).map(clean),
       recent: finished.filter((t) => t.id !== current?.id).slice(0, 5).map(clean),
     })

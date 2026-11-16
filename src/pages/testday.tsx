@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDialog } from '../components/Dialog'
 import { useEditor } from '../components/Editor'
 import { Icon } from '../components/Icon'
+import { RangePanel } from '../components/RangePanel'
 import { Badge, Button, Empty, LinkButton, useToast } from '../components/ui'
 import { fmtDate, fmtTime12 } from '../lib/derive'
 import { setParam, useRoute } from '../lib/router'
@@ -213,6 +214,8 @@ function TestConsole({
         </div>
         <p className="muted small">Changing status also posts an update (Hold, Live, Complete, Scrubbed) — delete it below if you don’t want it.</p>
       </section>
+
+      <RangePanel test={test as Rec} now={now} />
 
       <div className="testday-grid">
         <section className="card testday-compose">

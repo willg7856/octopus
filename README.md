@@ -94,3 +94,17 @@ Budget, orders, suppliers, contacts, people and machines are never included. Res
 - `src/lib/schema.ts` defines every module (fields, list columns, search). Lists, forms, CSV and detail pages are generated from it, so a new module is mostly a new entry there plus a route in `src/App.tsx`.
 - `api/records.ts` is the one generic endpoint for all module data; `api/_lib/records.ts` holds the versioned write + history logic.
 - In dev, `devApi.ts` serves `api/` from the Vite server.
+
+## Live sensor data (chamber pressure)
+
+The range laptop streams test-stand readings into Octopus; the team sees them live on the .space page
+and beyondstagezero.space shows them with a delay (set per test: team only, 10/30/60 s, or after the test).
+
+1. Octopus → .space → Live sensor data → **Range laptop** → *Make a key* (admins). Shown once.
+2. Download `range_sender.py` from that panel (served from `public/range/`), `pip install pyserial`.
+3. `python3 range_sender.py --port COM3 --key bszr_…` (or `--simulate` to try it without hardware).
+
+The Arduino prints one reading per line (`98.4`, or `chamber=98.4,tank=150`). Every reading is saved to a
+CSV on the laptop; Octopus gets up to 20 a second per channel. Readings go to the test that's Live or on
+Hold. API: `POST /api/range/ingest` (range key), `GET|DELETE /api/range/data` (team / admins),
+`GET|POST /api/range/key`. Data lives in the `telemetry` table.

@@ -69,7 +69,19 @@ export const api = {
     call<{ user: TeamMember }>('/api/users', { method: 'PATCH', body: json(u) }),
   removeUser: (email: string) =>
     call(`/api/users?email=${encodeURIComponent(email)}`, { method: 'DELETE' }),
+
+  rangeData: (test: string, after?: string) =>
+    call<{ cursor: string; more: boolean; samples: Sample[]; units: Record<string, string> | null }>(
+      `/api/range/data?test=${encodeURIComponent(test)}${after ? `&after=${after}` : ''}`,
+    ),
+  clearRangeData: (test: string) =>
+    call<{ ok: true; deleted: number }>(`/api/range/data?test=${encodeURIComponent(test)}`, { method: 'DELETE' }),
+  rangeKey: () => call<{ set: boolean; updatedAt?: string; updatedBy?: string }>('/api/range/key'),
+  newRangeKey: () => call<{ key: string; set: true; updatedAt: string }>('/api/range/key', { method: 'POST', body: '{}' }),
 }
+
+/** One sensor reading from the range: epoch ms plus a value per channel (e.g. chamber). */
+export type Sample = { t: number } & Record<string, number>
 
 export function newId(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 20)

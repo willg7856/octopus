@@ -71,6 +71,24 @@ const SCHEMA: string[] = [
   )`,
   `create index if not exists web_events_at_idx on web_events (at)`,
   `alter table web_events add column if not exists project_id text`,
+  // Live sensor data (e.g. chamber pressure) sent from the range laptop, in small batches.
+  `create table if not exists telemetry (
+    id bigserial primary key,
+    test_id text not null,
+    t0 bigint not null,
+    t1 bigint not null,
+    samples jsonb not null,
+    units jsonb,
+    received_at timestamptz not null default now()
+  )`,
+  `create index if not exists telemetry_test_idx on telemetry (test_id, id)`,
+  // Small server-side settings (e.g. the hashed range-laptop key). Never sent to browsers.
+  `create table if not exists settings (
+    key text primary key,
+    value text not null,
+    updated_at timestamptz not null default now(),
+    updated_by text
+  )`,
 ]
 
 // Cached on globalThis so dev hot-reloads reuse the one embedded database handle.
