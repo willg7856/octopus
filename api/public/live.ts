@@ -5,7 +5,7 @@ import { melbourneInstant } from '../_lib/melbourne.js'
 /**
  * GET /api/public/live — the feed behind beyondstagezero.space.
  *
- * Public, cached for only a second so live updates reach viewers fast. Contains only
+ * Public, cached for only 2 seconds so live updates reach viewers fast. Contains only
  * test and launch countdowns marked "Shown publicly", their status, stream link, public result
  * and the live updates posted against them in Octopus's .space page — never team notes.
  */
@@ -83,9 +83,9 @@ export default route({
 
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET')
-    // Cached at the edge for a second at most, so however many people watch, the database sees ~1 query a
-    // second per region and updates reach viewers within a couple of seconds.
-    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=1')
+    // Cached at the edge for 2 seconds at most, so however many people watch, the database sees ~1 query every
+    // 2 seconds per region and updates reach viewers within a couple of seconds.
+    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=2')
     res.status(200).json({
       updatedAt: new Date(now).toISOString(),
       current: current ? { ...clean(current), updates } : null,
