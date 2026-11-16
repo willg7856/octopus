@@ -217,6 +217,7 @@ export default route({
         : { ...drain, source: 'drain' as const }
 
     res.status(200).json({
+      vercelApi: !vercelAnalyticsConfigured() ? 'missing-token' : errors.length ? 'error' : 'ok',
       vercelErrors: errors.length ? errors : undefined,
       days,
       bucket,

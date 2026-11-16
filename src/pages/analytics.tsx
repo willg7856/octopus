@@ -105,6 +105,8 @@ interface Flight {
 
 interface ServerAnalytics {
   days: number
+  vercelApi?: 'ok' | 'missing-token' | 'error'
+  vercelErrors?: string[]
   bucket: Bucket
   drainConnected: boolean
   web: SiteTraffic
@@ -173,9 +175,11 @@ export function AnalyticsPage() {
   const [data, setData] = useState<ServerAnalytics | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let live = true
+    setLoading(true)
     fetch(`/api/analytics?days=${days}`)
       .then(async (r) => {
         const body = await r.json().catch(() => ({}))
@@ -186,6 +190,7 @@ export function AnalyticsPage() {
         } else setError(body.error ?? 'Couldn’t load analytics')
       })
       .catch(() => live && setError('Couldn’t reach Octopus'))
+      .finally(() => live && setLoading(false))
     return () => {
       live = false
     }
@@ -204,6 +209,11 @@ export function AnalyticsPage() {
           <h1>Analytics</h1>
           <p className="muted">Money, the website and how the team is using Octopus — one place.</p>
         </div>
+      </header>
+
+      {/* Sticks to the top while scrolling so the range is always in reach */}
+      <div className="an-rangebar">
+        <span className="an-rangebar-label">Showing</span>
         <div className="chips" role="tablist" aria-label="Time range">
           {RANGES.map((r) => (
             <button
@@ -224,7 +234,8 @@ export function AnalyticsPage() {
             </button>
           ))}
         </div>
-      </header>
+        {loading && <span className="an-rangebar-loading">Loading…</span>}
+      </div>
 
       <MoneySection days={days} />
       {error && <p className="form-error">{error}</p>}
@@ -425,6 +436,7 @@ function WebsiteSection({ data, days }: { data: ServerAnalytics | null; days: nu
       sub={`beyondstagezero.com · ${w.source === 'vercel' ? 'Vercel Web Analytics (full history)' : 'from the Vercel drain'}${w.lastEventAt ? ` · last live view ${fmtDateTime(w.lastEventAt)}` : ''}`}
       right={<LivePill n={w.live.visitors} label="on the site now" />}
     >
+      <HistoryNote data={data} />
       <TrafficBody w={w} days={days} bucket={data.bucket} />
     </Section>
   )
@@ -519,6 +531,32 @@ function TrafficBody({ w, days, bucket, starship }: { w: SiteTraffic; days: numb
   )
 }
 
+function HistoryNote({ data }: { data: ServerAnalytics }) {
+  const { user } = useStore()
+  if (data.vercelApi === 'missing-token') {
+    return (
+      <p className="an-note small">
+        <Icon name="alert" size={13} /> Only showing views since the drain was connected. To see history back to when the sites went live,
+        {user.role === 'admin' ? (
+          <>
+            {' '}add <code>VERCEL_API_TOKEN</code> (a Vercel token scoped to the team, marked Sensitive) to the octopus project in Vercel, then redeploy.
+          </>
+        ) : (
+          ' ask an admin to connect Vercel’s Web Analytics API.'
+        )}
+      </p>
+    )
+  }
+  if (data.vercelApi === 'error') {
+    return (
+      <p className="an-note small">
+        <Icon name="alert" size={13} /> Couldn’t load history from Vercel ({data.vercelErrors?.[0] ?? 'unknown error'}) — showing drain data instead.
+      </p>
+    )
+  }
+  return null
+}
+
 /* ---------------- starship tracker ---------------- */
 
 function StarshipSection({ data, days }: { data: ServerAnalytics | null; days: number }) {
@@ -573,7 +611,10 @@ function StarshipSection({ data, days }: { data: ServerAnalytics | null; days: n
         )}
       </div>
       {s.connected ? (
-        <TrafficBody w={s} days={days} bucket={data.bucket} starship />
+        <>
+          <HistoryNote data={data} />
+          <TrafficBody w={s} days={days} bucket={data.bucket} starship />
+        </>
       ) : (
         <div className="card an-setup">
           <p className="strong">No tracker views yet.</p>
