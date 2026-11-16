@@ -11,7 +11,7 @@ import { byKey } from './lib/schema'
 import { StoreProvider } from './lib/store'
 import type { User } from './lib/types'
 import { ActivityPage, TeamPage } from './pages/admin'
-import { PublicStatsPage } from './pages/publicStats'
+import { SitePage } from './pages/site'
 import { CountdownsPage } from './pages/countdowns'
 import { AnalyticsPage, IncomeList } from './pages/analytics'
 import { Home } from './pages/home'
@@ -95,8 +95,11 @@ function Routes() {
       return <IncomeList />
     case 'countdowns':
       return <CountdownsPage />
+    case 'site':
     case 'public-stats':
-      return <PublicStatsPage />
+    case 'news':
+    case 'site-notice':
+      return <SitePage />
     case 'activity':
       return <ActivityPage />
     case 'team':

@@ -52,7 +52,10 @@
   }
 
   function fmt(n) {
-    return Number(n).toLocaleString('en-AU', { maximumFractionDigits: 2 })
+    // Numbers get thousands separators; text values ("Apr 2025") are shown as they are
+    return typeof n === 'number' || /^-?\d+(\.\d+)?$/.test(String(n))
+      ? Number(n).toLocaleString('en-AU', { maximumFractionDigits: 2 })
+      : String(n)
   }
 
   // Accepts "14:30" or "2:30 pm"; returns [hours24, minutes] or null.

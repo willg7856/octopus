@@ -7,7 +7,8 @@ import { HttpError, route } from '../_lib/http.js'
  * Read by beyondstagezero.com. It deliberately publishes just:
  *  - "Public numbers" the team marks as Shown, and
  *  - a few build counts calculated from the log, and
- *  - countdowns marked "Shown publicly" (name, date, time, type only — never notes).
+ *  - countdowns marked "Shown publicly" (name, date, time, type only — never notes),
+ *  - published news posts and the active site notice (BSZ site page in Octopus).
  * Nothing about money, suppliers, contacts, people, machines or orders is ever included.
  * Set PUBLIC_STATS=off on the server to switch it off.
  */
@@ -20,6 +21,12 @@ interface Row {
 
 const DAY = 86_400_000
 
+function longDate(iso: string) {
+  const [y, m, d] = iso.split('-').map(Number)
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  return d && m ? `${d} ${months[m - 1]} ${y}` : iso
+}
+
 function day(d: Date) {
   return d.toISOString().slice(0, 10)
 }
@@ -31,7 +38,7 @@ export default route({
     const db = await getDb()
     const rows = await db.query<Row>(
       `select type, data, created_at from records
-       where deleted_at is null and type in ('stat', 'movement', 'process', 'countdown')`,
+       where deleted_at is null and type in ('stat', 'movement', 'process', 'countdown', 'post', 'notice')`,
     )
 
     const now = new Date()
@@ -42,7 +49,8 @@ export default route({
       .filter((r) => r.type === 'stat' && r.data.visible !== 'hidden' && r.data.label)
       .map((r) => ({
         label: String(r.data.label),
-        value: Number(r.data.value) || 0,
+        // Numbers or text like "Apr 2025" / "Q1–Q2'27"
+        value: typeof r.data.value === 'number' ? r.data.value : String(r.data.value ?? ''),
         suffix: r.data.suffix ? String(r.data.suffix) : null,
         description: r.data.description ? String(r.data.description) : null,
         order: Number(r.data.order ?? 999),
@@ -73,9 +81,45 @@ export default route({
       }))
       .sort((a, b) => `${a.date} ${a.time ?? ''}`.localeCompare(`${b.date} ${b.time ?? ''}`))
 
+    const posts = rows.filter((r) => r.type === 'post')
+    const news = posts
+      .filter((r) => r.data.status !== 'draft' && r.data.title && r.data.date)
+      .map((r) => ({
+        title: String(r.data.title),
+        date: String(r.data.date),
+        display: r.data.dateLabel ? String(r.data.dateLabel) : longDate(String(r.data.date)),
+        tag: r.data.tag ? String(r.data.tag) : null,
+        body: String(r.data.body ?? ''),
+        link: r.data.link ? String(r.data.link) : null,
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 100)
+
+    const notices = rows.filter((r) => r.type === 'notice')
+    const active = notices
+      .filter((r) => r.data.active !== 'off' && r.data.title)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] // newest active notice wins
+    const notice = active
+      ? {
+          label: active.data.label ? String(active.data.label) : null,
+          title: String(active.data.title),
+          link: active.data.link ? String(active.data.link) : null,
+          linkText: active.data.linkText ? String(active.data.linkText) : null,
+        }
+      : null
+
     const body = {
       updatedAt: now.toISOString(),
+      // Which parts Octopus manages. Once something exists in Octopus the website uses it,
+      // even if that means showing nothing (e.g. every notice switched off).
+      managed: {
+        numbers: rows.some((r) => r.type === 'stat'),
+        news: posts.length > 0,
+        notice: notices.length > 0,
+      },
+      notice,
       numbers,
+      news,
       countdowns,
       builds: {
         partsBuilt: builds.reduce((t, b) => t + qty(b), 0),

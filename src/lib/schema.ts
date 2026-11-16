@@ -70,7 +70,7 @@ export interface Collection {
   searchText?: (d: Data) => string
   /** Hide from the main sidebar (still searchable / linkable). */
   hiddenInNav?: boolean
-  group: 'work' | 'money' | 'team'
+  group: 'work' | 'money' | 'team' | 'site'
 }
 
 export type IconName =
@@ -89,6 +89,7 @@ export type IconName =
   | 'search'
   | 'plus'
   | 'chart'
+  | 'alert'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -420,24 +421,75 @@ export const COLLECTIONS: Collection[] = [
   {
     key: 'public-stats',
     type: 'stat',
-    label: 'Public numbers',
-    singular: 'Public number',
+    label: 'Headline numbers',
+    singular: 'Headline number',
     icon: 'monitor',
-    group: 'team',
-    blurb: 'Headline numbers shown on beyondstagezero.com. Change one here and the website updates within a minute.',
+    group: 'site',
+    hiddenInNav: true,
+    blurb: 'The track-record numbers on beyondstagezero.com. Change one here and the website updates within a minute.',
     title: (d) => String(d.label ?? 'Untitled number'),
     subtitle: (d) => (d.visible === 'hidden' ? 'Hidden from the website' : ''),
-    columns: ['value', 'suffix', 'visible', 'order'],
+    columns: ['value', 'visible', 'order'],
     fields: [
-      { key: 'label', label: 'Label', type: 'text', required: true, placeholder: 'e.g. Static fires' },
-      { key: 'value', label: 'Number', type: 'number', required: true, half: true, initial: 0 },
-      { key: 'suffix', label: 'Unit / suffix', type: 'text', half: true, placeholder: 'e.g. s, kN, +' },
+      { key: 'label', label: 'Label', type: 'text', required: true, placeholder: 'e.g. Static fires completed' },
+      { key: 'value', label: 'Value', type: 'text', required: true, half: true, placeholder: 'e.g. 4, 8, Apr 2025' },
+      { key: 'suffix', label: 'Unit / suffix', type: 'text', half: true, placeholder: 'e.g. kN, s (optional)' },
+      { key: 'description', label: 'Note', type: 'text', placeholder: 'Line under the number, e.g. “Mk I & Mk II campaigns logged and published”' },
       { key: 'visible', label: 'On the website', type: 'select', required: true, half: true, initial: 'shown', options: [
         { value: 'shown', label: 'Shown', tone: 'good' },
         { value: 'hidden', label: 'Hidden', tone: 'neutral' },
       ] },
       { key: 'order', label: 'Position', type: 'number', half: true, help: 'Lower numbers show first.' },
-      { key: 'description', label: 'Caption', type: 'text', placeholder: 'Optional line under the number' },
+    ],
+  },
+  {
+    key: 'news',
+    type: 'post',
+    label: 'News posts',
+    singular: 'News post',
+    icon: 'file',
+    group: 'site',
+    hiddenInNav: true,
+    blurb: 'Updates on the News page of beyondstagezero.com, newest first.',
+    title: (d) => String(d.title ?? 'Untitled post'),
+    subtitle: (d) => [d.tag, d.status === 'draft' ? 'Draft' : ''].filter(Boolean).join(' · '),
+    columns: ['date', 'tag', 'status'],
+    searchText: (d) => String(d.body ?? ''),
+    fields: [
+      { key: 'title', label: 'Headline', type: 'text', required: true, placeholder: 'e.g. 100 psi pressure test passed' },
+      { key: 'body', label: 'Post', type: 'textarea', required: true, rows: 8, placeholder: 'What happened, in a few plain sentences.' },
+      { key: 'tag', label: 'Tag', type: 'text', half: true, suggest: true, placeholder: 'Testing, Programme, Data link' },
+      { key: 'date', label: 'Date', type: 'date', required: true, half: true, initial: today },
+      { key: 'status', label: 'Status', type: 'select', required: true, half: true, initial: 'published', options: [
+        { value: 'published', label: 'Published — on the website', tone: 'good' },
+        { value: 'draft', label: 'Draft — not shown', tone: 'warn' },
+      ] },
+      { key: 'dateLabel', label: 'Show date as', type: 'text', half: true, placeholder: 'e.g. May 2026 (optional)',
+        help: 'Leave blank to show the full date.' },
+      { key: 'link', label: 'Read more link', type: 'url', placeholder: 'Optional — e.g. a page on the site or a video' },
+    ],
+  },
+  {
+    key: 'site-notice',
+    type: 'notice',
+    label: 'Site notice',
+    singular: 'Site notice',
+    icon: 'alert',
+    group: 'site',
+    hiddenInNav: true,
+    blurb: 'The banner on the home, B1M and Tests pages — what’s happening right now.',
+    title: (d) => String(d.title ?? 'Untitled notice'),
+    subtitle: (d) => String(d.label ?? ''),
+    columns: ['label', 'active'],
+    fields: [
+      { key: 'label', label: 'Small label', type: 'text', half: true, placeholder: 'e.g. Static fire', initial: 'Static fire' },
+      { key: 'active', label: 'On the website', type: 'select', required: true, half: true, initial: 'on', options: [
+        { value: 'on', label: 'Showing', tone: 'good' },
+        { value: 'off', label: 'Hidden', tone: 'neutral' },
+      ] },
+      { key: 'title', label: 'Message', type: 'text', required: true, placeholder: 'e.g. Our first B1M static fire is pending regulatory approval.' },
+      { key: 'link', label: 'Link', type: 'url', half: true, placeholder: 'Optional' },
+      { key: 'linkText', label: 'Link text', type: 'text', half: true, placeholder: 'e.g. Watch live' },
     ],
   },
   {

@@ -1,0 +1,121 @@
+/**
+ * What beyondstagezero.com showed before Octopus managed it (copied from the site's src/data.js
+ * and B1mStaticFireNotice). The BSZ site page offers to import this once, so nobody retypes it.
+ */
+export const SITE_SEED = {
+  "notice": {
+    "label": "Static fire",
+    "title": "Our first B1M static fire is pending regulatory approval.",
+    "active": "on"
+  },
+  "numbers": [
+    {
+      "label": "Static fires completed",
+      "value": "4",
+      "description": "Mk I & Mk II campaigns logged and published",
+      "order": 1,
+      "visible": "shown"
+    },
+    {
+      "label": "Engines built",
+      "value": "10",
+      "description": "From early ground motors to B1M production",
+      "order": 2,
+      "visible": "shown"
+    },
+    {
+      "label": "B1M engine complete",
+      "value": "1",
+      "description": "Static fire pending regulatory approval. Two engines still in production.",
+      "order": 3,
+      "visible": "shown"
+    },
+    {
+      "label": "Ceramic nozzles completed",
+      "value": "8",
+      "description": "Current mould: v15. Next batch: a nozzle redesigned for ceramic.",
+      "order": 4,
+      "visible": "shown"
+    },
+    {
+      "label": "Founded",
+      "value": "Apr 2025",
+      "description": "Creswick, Victoria — programme start",
+      "order": 5,
+      "visible": "shown"
+    },
+    {
+      "label": "First flight window",
+      "value": "Q1–Q2'27",
+      "description": "STRAVOX B1M-01 · 3 km systems validation",
+      "order": 6,
+      "visible": "shown"
+    }
+  ],
+  "news": [
+    {
+      "title": "First B1M pressure test: leaks at 50 psi",
+      "date": "2026-11-02",
+      "dateLabel": "2 November 2026",
+      "tag": "Testing",
+      "body": "We pressure tested the first B1M engine at 50 psi, the first step of the campaign. It leaked, so we are fixing the leaks before stepping up to 100 psi, no earlier than 14 November.",
+      "status": "published"
+    },
+    {
+      "title": "First B1M engine complete",
+      "date": "2026-10-20",
+      "dateLabel": "20 October 2026",
+      "tag": "Programme",
+      "body": "The first B1M engine is complete. The first static fire is pending regulatory approval, and two engines are still in production with Federation University.",
+      "status": "published"
+    },
+    {
+      "title": "Octopus data link",
+      "date": "2026-05-01",
+      "dateLabel": "May 2026",
+      "tag": "Data link",
+      "body": "We are building Octopus — the connection that gets data from the pad during static fires and launches into Goods Shed mission control. It will also support a vehicle-to-mission-control link. Octopus is not planned to be the flight computer; it moves data to the shed so the team can run range operations live.",
+      "status": "published"
+    },
+    {
+      "title": "B1M engines in production",
+      "date": "2026-05-01",
+      "dateLabel": "May 2026",
+      "tag": "Programme",
+      "body": "We have begun building three B1M engines — 550 mm tall, 80 mm wide, loaded with around 2 kg of KNO₃/Sorbitol at a 65:35 ratio. Design is complete; propellant characterisation and engine build are in progress. We are targeting approximately 150 kgf of thrust for 3.5 seconds per firing, and aiming to reuse each casing for at least two static fires. These are the motors that will fly on STRAVOX B1M-01.",
+      "status": "published"
+    },
+    {
+      "title": "STRAVOX B1M-01 announced",
+      "date": "2026-05-01",
+      "dateLabel": "May 2026",
+      "tag": "Programme",
+      "body": "Our first planned mission is STRAVOX B1M-01 — a sub-scale flight to 3 km apogee on a BSZ-built KNSB engine. B1M is our systems validation vehicle: it lets us test avionics, recovery, and propulsion in real flight conditions before committing to the full 30 km STRAVOX programme. We are targeting launch in Q4 2026 to Q1 2027 from a cleared launch site.",
+      "status": "published"
+    },
+    {
+      "title": "Campaign 2: Mk II engine static fires — SF-03 and SF-04",
+      "date": "2026-04-26",
+      "dateLabel": "26 April 2026",
+      "tag": "Testing",
+      "body": "We ran two more static fires on April 26th with our redesigned Mk II engine — 300 mm tall and 30 mm wide, loaded with 400 g of KNO₃/Sorbitol. SF-03 returned our first meaningful thrust data at 6.8 kgf peak, but showed an uneven burn rate and minor burn-throughs on the nozzle and forward closure. SF-04 suffered a case rupture, destroying our ground infrastructure. Both fires were comparative KNO₃ grade tests — SF-03 used fertiliser grade, SF-04 technical grade. Design work on the forward closure and casing continues.",
+      "status": "published"
+    },
+    {
+      "title": "Campaign 1: first static fires — SF-01 and SF-02",
+      "date": "2026-02-18",
+      "dateLabel": "18 February 2026",
+      "tag": "Testing",
+      "body": "We conducted our first two static fires on February 18th, testing Mk I engines — 250 mm long, 32 mm wide, loaded with approximately 300 g of KNO₃/Sucrose. SF-01 used technical grade KNO₃ and burned for 28 seconds, but we lost all thrust data and the nozzle ejected, destroying ground equipment. SF-02 used fertiliser grade — it burned twice as fast (14 s), produced a 4.6 kgf peak thrust before nozzle ejection, and accidentally generated a sonic boom. Both fires confirmed nozzle retention as the critical fix for the next design iteration.",
+      "status": "published"
+    },
+    {
+      "title": "Beyond Stage Zero founded",
+      "date": "2025-04-01",
+      "dateLabel": "April 2025",
+      "tag": "Founding",
+      "body": "Beyond Stage Zero was founded in April 2025 in Creswick, Victoria, with one goal: design, build, and fly Australia's first fully and rapidly reusable launch vehicle to 30 km apogee with a propulsive vertical landing. Our first rocket is STRAVOX — a 2,633 mm vehicle with a split nosecone airbrake and four folding drone arms for touchdown. The programme starts here.",
+      "status": "published"
+    }
+  ]
+} as const

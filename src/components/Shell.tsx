@@ -27,20 +27,21 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
     items: [
       { key: 'home', label: 'Home', icon: 'home' },
       { key: 'analytics', label: 'Analytics', icon: 'chart' },
+      { key: 'site', label: 'BSZ site', icon: 'monitor' },
     ],
   },
   {
     label: 'Make',
-    items: COLLECTIONS.filter((c) => c.group === 'work').map((c) => ({ key: c.key, label: c.label, icon: c.icon })),
+    items: COLLECTIONS.filter((c) => c.group === 'work' && !c.hiddenInNav).map((c) => ({ key: c.key, label: c.label, icon: c.icon })),
   },
   {
     label: 'Money',
-    items: COLLECTIONS.filter((c) => c.group === 'money').map((c) => ({ key: c.key, label: c.label, icon: c.icon })),
+    items: COLLECTIONS.filter((c) => c.group === 'money' && !c.hiddenInNav).map((c) => ({ key: c.key, label: c.label, icon: c.icon })),
   },
   {
     label: 'Team',
     items: [
-      ...COLLECTIONS.filter((c) => c.group === 'team').map((c) => ({ key: c.key, label: c.label, icon: c.icon })),
+      ...COLLECTIONS.filter((c) => c.group === 'team' && !c.hiddenInNav).map((c) => ({ key: c.key, label: c.label, icon: c.icon })),
       { key: 'activity', label: 'Activity', icon: 'clock' },
       { key: 'team', label: 'People & access', icon: 'shield' },
     ],
