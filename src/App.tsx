@@ -96,6 +96,7 @@ function Routes() {
       return <IncomeList />
     case 'countdowns':
       return <CountdownsPage />
+    case 'space':
     case 'test-day':
     case 'live-updates':
       return <TestDayPage />

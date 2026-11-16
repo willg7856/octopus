@@ -64,8 +64,9 @@ export function TestDayPage() {
       <div className="page">
         <header className="page-head">
           <div>
-            <h1>Test day</h1>
-            <p className="muted">Run a test live on beyondstagezero.space.</p>
+            <p className="eyebrow">.space</p>
+            <h1>Live test page</h1>
+            <p className="muted">Run a test live on <a href={SPACE} target="_blank" rel="noreferrer">beyondstagezero.space</a>.</p>
           </div>
         </header>
         <Empty
@@ -157,7 +158,7 @@ function TestConsole({
     <div className="page testday">
       <header className="page-head">
         <div>
-          <p className="eyebrow">Test day</p>
+          <p className="eyebrow">.space · live test page</p>
           <h1>{d.name}</h1>
           <p className="muted">
             {fmtDate(d.date)}
@@ -190,6 +191,8 @@ function TestConsole({
           </div>
         </div>
       )}
+
+      <OnSpace testId={test.id} isPublic={isPublic} />
 
       <section className={`card testday-status status-${status}`}>
         <div className="testday-clock">
@@ -304,6 +307,64 @@ function TestConsole({
           </div>
         </section>
       </div>
+
+      <SpacePreview />
     </div>
+  )
+}
+
+type Feed = { current: { id: string; name: string; status: string; updates: unknown[] } | null }
+const FEED_LABEL: Record<string, string> = { scheduled: 'Scheduled', hold: 'Hold', live: 'Live', done: 'Complete', scrubbed: 'Scrubbed' }
+
+/** What beyondstagezero.space is showing right now, straight from its public feed. */
+function OnSpace({ testId, isPublic }: { testId: string; isPublic: boolean }) {
+  const [feed, setFeed] = useState<Feed | null | undefined>(undefined)
+  useEffect(() => {
+    let stop = false
+    const load = () =>
+      fetch('/api/public/live', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((f) => !stop && setFeed(f))
+        .catch(() => !stop && setFeed(null))
+    load()
+    const t = setInterval(load, 10_000)
+    return () => {
+      stop = true
+      clearInterval(t)
+    }
+  }, [])
+  if (feed === undefined) return null
+  const c = feed?.current
+  const thisOne = c?.id === testId
+  return (
+    <section className={`card space-onair${thisOne ? ' on' : ''}`}>
+      <span className={`space-dot${c && (c.status === 'live' || c.status === 'hold') ? ' space-dot-live' : ''}`} aria-hidden="true" />
+      <div>
+        <p className="muted small">On beyondstagezero.space right now</p>
+        <p className="space-onair-name">
+          {feed === null ? 'Can’t reach the public feed' : c ? `${c.name} · ${FEED_LABEL[c.status] ?? c.status}` : 'Standby: no test showing'}
+        </p>
+        {c && !thisOne && isPublic && (
+          <p className="muted small">This test isn’t the one showing. Set it to Live or Hold to put it on .space.</p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/** The real .space page, framed, so you can see what viewers see. */
+function SpacePreview() {
+  const [open, setOpen] = useState(false)
+  return (
+    <section className="card space-preview">
+      <div className="row between wrap gap-s">
+        <div>
+          <h2 className="card-title">Preview</h2>
+          <p className="muted small">Exactly what viewers see on beyondstagezero.space. It updates on its own every 10 seconds.</p>
+        </div>
+        <Button icon={open ? 'x' : 'monitor'} onClick={() => setOpen(!open)}>{open ? 'Hide preview' : 'Show preview'}</Button>
+      </div>
+      {open && <iframe className="space-frame" src={SPACE} title="beyondstagezero.space preview" loading="lazy" />}
+    </section>
   )
 }

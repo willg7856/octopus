@@ -7,7 +7,7 @@ import { melbourneInstant } from '../_lib/melbourne.js'
  *
  * Public, cached for only a few seconds so live updates reach viewers fast. Contains only
  * test and launch countdowns marked "Shown publicly", their status, stream link, public result
- * and the live updates posted against them in Octopus's Test day page — never team notes.
+ * and the live updates posted against them in Octopus's .space page — never team notes.
  */
 
 interface Row {
