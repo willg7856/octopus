@@ -327,7 +327,7 @@ function OnSpace({ testId, isPublic }: { testId: string; isPublic: boolean }) {
         .then((f) => !stop && setFeed(f))
         .catch(() => !stop && setFeed(null))
     load()
-    const t = setInterval(load, 10_000)
+    const t = setInterval(load, 5_000)
     return () => {
       stop = true
       clearInterval(t)
@@ -360,7 +360,7 @@ function SpacePreview() {
       <div className="row between wrap gap-s">
         <div>
           <h2 className="card-title">Preview</h2>
-          <p className="muted small">Exactly what viewers see on beyondstagezero.space. It updates on its own every 10 seconds.</p>
+          <p className="muted small">Exactly what viewers see on beyondstagezero.space. It updates on its own within a couple of seconds.</p>
         </div>
         <Button icon={open ? 'x' : 'monitor'} onClick={() => setOpen(!open)}>{open ? 'Hide preview' : 'Show preview'}</Button>
       </div>
