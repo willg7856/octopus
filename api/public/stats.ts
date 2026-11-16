@@ -78,6 +78,8 @@ export default route({
         date: String(r.data.date),
         time: r.data.time ? String(r.data.time) : null,
         category: r.data.category ? String(r.data.category) : null,
+        // Test-day status, so beyondstagezero.com can point people to the live page
+        status: r.data.status ? String(r.data.status) : null,
       }))
       .sort((a, b) => `${a.date} ${a.time ?? ''}`.localeCompare(`${b.date} ${b.time ?? ''}`))
 

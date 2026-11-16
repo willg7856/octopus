@@ -12,6 +12,7 @@ import { StoreProvider } from './lib/store'
 import type { User } from './lib/types'
 import { ActivityPage, TeamPage } from './pages/admin'
 import { SitePage } from './pages/site'
+import { TestDayPage } from './pages/testday'
 import { CountdownsPage } from './pages/countdowns'
 import { AnalyticsPage, IncomeList } from './pages/analytics'
 import { Home } from './pages/home'
@@ -95,6 +96,9 @@ function Routes() {
       return <IncomeList />
     case 'countdowns':
       return <CountdownsPage />
+    case 'test-day':
+    case 'live-updates':
+      return <TestDayPage />
     case 'site':
     case 'public-stats':
     case 'news':

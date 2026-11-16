@@ -28,6 +28,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
       { key: 'home', label: 'Home', icon: 'home' },
       { key: 'analytics', label: 'Analytics', icon: 'chart' },
       { key: 'site', label: 'BSZ site', icon: 'monitor' },
+      { key: 'test-day', label: 'Test day', icon: 'play' },
     ],
   },
   {

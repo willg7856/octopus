@@ -1,0 +1,309 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDialog } from '../components/Dialog'
+import { useEditor } from '../components/Editor'
+import { Icon } from '../components/Icon'
+import { Badge, Button, Empty, LinkButton, useToast } from '../components/ui'
+import { fmtDate, fmtTime12 } from '../lib/derive'
+import { setParam, useRoute } from '../lib/router'
+import { useRecords, useStore } from '../lib/store'
+import type { Rec } from '../lib/types'
+import { targetOf, TClock, useNow, type Countdown } from './countdowns'
+
+type TestCountdown = Countdown & { status?: Status; stream?: string; result?: string }
+type Status = 'scheduled' | 'hold' | 'live' | 'done' | 'scrubbed'
+type LiveUpdate = { text: string; test: string; kind: Kind }
+type Kind = 'update' | 'milestone' | 'hold' | 'go' | 'result'
+
+const SPACE = 'https://beyondstagezero.space'
+
+const STATUSES: { value: Status; label: string; tone: 'neutral' | 'warn' | 'bad' | 'good'; post?: { text: string; kind: Kind } }[] = [
+  { value: 'scheduled', label: 'Scheduled', tone: 'neutral' },
+  { value: 'hold', label: 'Hold', tone: 'warn', post: { text: 'We are holding.', kind: 'hold' } },
+  { value: 'live', label: 'Live', tone: 'bad', post: { text: 'We are live.', kind: 'go' } },
+  { value: 'done', label: 'Complete', tone: 'good', post: { text: 'Test complete.', kind: 'result' } },
+  { value: 'scrubbed', label: 'Scrubbed', tone: 'neutral', post: { text: 'Today’s test has been scrubbed.', kind: 'hold' } },
+]
+
+const KINDS: { value: Kind; label: string }[] = [
+  { value: 'update', label: 'Update' },
+  { value: 'milestone', label: 'Milestone' },
+  { value: 'go', label: 'Go' },
+  { value: 'hold', label: 'Hold' },
+  { value: 'result', label: 'Result' },
+]
+
+const H = 3_600_000
+
+/** Pick what the public page would show: a Live/Hold test, else the next scheduled one. */
+function defaultTest(tests: { rec: Rec<TestCountdown>; at: number }[], now: number) {
+  const active = tests.filter((t) => t.rec.data.status === 'live' || t.rec.data.status === 'hold')
+  if (active.length) return active.sort((a, b) => b.rec.updatedAt.localeCompare(a.rec.updatedAt))[0]
+  const next = tests.filter((t) => (t.rec.data.status ?? 'scheduled') === 'scheduled' && t.at > now - 6 * H).sort((a, b) => a.at - b.at)
+  return next[0] ?? tests.sort((a, b) => b.at - a.at)[0]
+}
+
+export function TestDayPage() {
+  const countdowns = useRecords<TestCountdown>('countdown')
+  const updates = useRecords<LiveUpdate>('liveupdate')
+  const { params } = useRoute()
+  const now = useNow()
+  const openEditor = useEditor()
+
+  const tests = useMemo(
+    () =>
+      countdowns
+        .filter((c) => (c.data.category === 'test' || c.data.category === 'launch') && c.data.date)
+        .map((rec) => ({ rec, at: targetOf(rec.data) })),
+    [countdowns],
+  )
+  const chosenId = params.get('test')
+  const chosen = (chosenId && tests.find((t) => t.rec.id === chosenId)) || defaultTest([...tests], now)
+
+  if (!chosen) {
+    return (
+      <div className="page">
+        <header className="page-head">
+          <div>
+            <h1>Test day</h1>
+            <p className="muted">Run a test live on beyondstagezero.space.</p>
+          </div>
+        </header>
+        <Empty
+          title="No tests yet"
+          action={
+            <Button variant="primary" icon="plus" onClick={() => openEditor({ type: 'countdown', initial: { category: 'test', public: 'shown' } })}>
+              Add a test
+            </Button>
+          }
+        >
+          Add a countdown with the type “Test / static fire” and it appears here, ready to run live.
+        </Empty>
+      </div>
+    )
+  }
+
+  return <TestConsole test={chosen.rec} at={chosen.at} tests={tests} updates={updates} now={now} />
+}
+
+function TestConsole({
+  test,
+  at,
+  tests,
+  updates,
+  now,
+}: {
+  test: Rec<TestCountdown>
+  at: number
+  tests: { rec: Rec<TestCountdown>; at: number }[]
+  updates: Rec<LiveUpdate>[]
+  now: number
+}) {
+  const { update, create, remove } = useStore()
+  const openEditor = useEditor()
+  const dialog = useDialog()
+  const toast = useToast()
+  const d = test.data
+  const status: Status = d.status ?? 'scheduled'
+  const isPublic = d.public === 'shown'
+  const log = updates.filter((u) => u.data.test === test.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
+  const [text, setText] = useState('')
+  const [kind, setKind] = useState<Kind>('update')
+  const [stream, setStream] = useState(d.stream ?? '')
+  const [result, setResult] = useState(d.result ?? '')
+  const [posting, setPosting] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    setStream(d.stream ?? '')
+    setResult(d.result ?? '')
+  }, [test.id, d.stream, d.result])
+
+  const save = async (patch: Partial<TestCountdown>) => {
+    try {
+      await update(test as Rec, { ...d, ...patch })
+      return true
+    } catch (e) {
+      toast((e as Error).message, { tone: 'bad' })
+      return false
+    }
+  }
+
+  const post = async (t: string, k: Kind) => {
+    const body = t.trim()
+    if (!body) return
+    setPosting(true)
+    try {
+      await create('liveupdate', { text: body, test: test.id, kind: k })
+      setText('')
+      setKind('update')
+      inputRef.current?.focus()
+    } catch (e) {
+      toast((e as Error).message, { tone: 'bad' })
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  const setStatus = async (s: (typeof STATUSES)[number]) => {
+    if (s.value === status) return
+    if (!(await save({ status: s.value }))) return
+    if (s.post) await post(s.post.text, s.post.kind)
+    toast(`Status: ${s.label}`, { tone: s.tone === 'bad' ? 'good' : 'neutral' })
+  }
+
+  const others = tests.filter((t) => t.rec.id !== test.id).sort((a, b) => b.at - a.at)
+
+  return (
+    <div className="page testday">
+      <header className="page-head">
+        <div>
+          <p className="eyebrow">Test day</p>
+          <h1>{d.name}</h1>
+          <p className="muted">
+            {fmtDate(d.date)}
+            {d.time ? ` · ${fmtTime12(d.time)}` : ''} · what you do here shows on{' '}
+            <a href={SPACE} target="_blank" rel="noreferrer">beyondstagezero.space</a> within seconds.
+          </p>
+        </div>
+        <div className="row gap-s wrap">
+          {others.length > 0 && (
+            <select className="select-sm" aria-label="Switch test" value={test.id} onChange={(e) => setParam('test', e.target.value)}>
+              <option value={test.id}>{d.name}</option>
+              {others.map((t) => (
+                <option key={t.rec.id} value={t.rec.id}>
+                  {t.rec.data.name} · {fmtDate(t.rec.data.date)}
+                </option>
+              ))}
+            </select>
+          )}
+          <Button icon="edit" onClick={() => openEditor({ type: 'countdown', record: test as Rec })}>Edit test</Button>
+          <LinkButton href={SPACE} external icon="external">Open .space</LinkButton>
+        </div>
+      </header>
+
+      {!isPublic && (
+        <div className="drawer-error testday-warn">
+          <Icon name="alert" />
+          <div>
+            <p>This test is team-only, so it isn’t on beyondstagezero.space.</p>
+            <Button small variant="primary" onClick={() => save({ public: 'shown' })}>Show it publicly</Button>
+          </div>
+        </div>
+      )}
+
+      <section className={`card testday-status status-${status}`}>
+        <div className="testday-clock">
+          <TClock target={at} now={now} />
+          <Badge tone={STATUSES.find((s) => s.value === status)?.tone}>{STATUSES.find((s) => s.value === status)?.label}</Badge>
+        </div>
+        <div className="testday-buttons" role="group" aria-label="Test status">
+          {STATUSES.map((s) => (
+            <button
+              key={s.value}
+              className={`testday-btn tone-${s.tone}${s.value === status ? ' on' : ''}`}
+              aria-pressed={s.value === status}
+              onClick={() => setStatus(s)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <p className="muted small">Changing status also posts an update (Hold, Live, Complete, Scrubbed) — delete it below if you don’t want it.</p>
+      </section>
+
+      <div className="testday-grid">
+        <section className="card testday-compose">
+          <h2 className="card-title">Post an update</h2>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              post(text, kind)
+            }}
+          >
+            <input
+              ref={inputRef}
+              className="testday-input"
+              placeholder="e.g. Igniter armed. Range is clear."
+              value={text}
+              maxLength={280}
+              onChange={(e) => setText(e.target.value)}
+              autoFocus
+            />
+            <div className="row between wrap gap-s">
+              <div className="chips" role="radiogroup" aria-label="Update type">
+                {KINDS.map((k) => (
+                  <button
+                    type="button"
+                    key={k.value}
+                    role="radio"
+                    aria-checked={kind === k.value}
+                    className={`chip${kind === k.value ? ' on' : ''}`}
+                    onClick={() => {
+                      setKind(k.value)
+                      inputRef.current?.focus() // keep typing / Enter to post
+                    }}
+                  >
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+              <Button variant="primary" type="submit" disabled={posting || !text.trim()}>
+                {posting ? 'Posting…' : 'Post'}
+              </Button>
+            </div>
+          </form>
+
+          <ul className="testday-log">
+            {log.length === 0 && <li className="muted small">No updates yet. They appear on .space newest first.</li>}
+            {log.map((u) => (
+              <li key={u.id} className={`kind-${u.data.kind}`}>
+                <span className="testday-time">
+                  {new Date(u.createdAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}
+                </span>
+                <span className="testday-kind">{KINDS.find((k) => k.value === u.data.kind)?.label}</span>
+                <span className="testday-text">{u.data.text}</span>
+                <Button
+                  small
+                  variant="ghost"
+                  icon="trash"
+                  aria-label="Delete update"
+                  onClick={async () => {
+                    if (!(await dialog.confirm({ title: 'Delete this update?', message: u.data.text, confirmLabel: 'Delete', danger: true }))) return
+                    remove(u as Rec).catch((e) => toast((e as Error).message, { tone: 'bad' }))
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="card testday-side">
+          <h2 className="card-title">Livestream</h2>
+          <form
+            className="row gap-s"
+            onSubmit={async (e) => {
+              e.preventDefault()
+              if (await save({ stream: stream.trim() || undefined })) toast('Stream link saved', { tone: 'good' })
+            }}
+          >
+            <input type="url" placeholder="https://youtube.com/live/…" value={stream} onChange={(e) => setStream(e.target.value)} />
+            <Button type="submit">Save</Button>
+          </form>
+          <p className="muted small">YouTube links play right on the page; other links show a “Watch” button.</p>
+
+          <h2 className="card-title an-gap">Result</h2>
+          <textarea rows={4} placeholder="What happened — shown on .space once the test is complete." value={result} onChange={(e) => setResult(e.target.value)} />
+          <div className="row gap-s">
+            <Button
+              onClick={async () => {
+                if (await save({ result: result.trim() || undefined })) toast('Result saved', { tone: 'good' })
+              }}
+            >
+              Save result
+            </Button>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}

@@ -90,6 +90,7 @@ export type IconName =
   | 'plus'
   | 'chart'
   | 'alert'
+  | 'play'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -415,7 +416,43 @@ export const COLLECTIONS: Collection[] = [
         { value: 'hidden', label: 'Team only', tone: 'neutral' },
         { value: 'shown', label: 'Shown publicly', tone: 'good' },
       ] },
-      { key: 'notes', label: 'Notes', type: 'textarea', rows: 2 },
+      { key: 'status', label: 'Test status', type: 'select', half: true, initial: 'scheduled',
+        hidden: (d) => d.category !== 'test' && d.category !== 'launch', options: [
+        { value: 'scheduled', label: 'Scheduled', tone: 'neutral' },
+        { value: 'hold', label: 'Hold', tone: 'warn' },
+        { value: 'live', label: 'Live', tone: 'bad' },
+        { value: 'done', label: 'Complete', tone: 'good' },
+        { value: 'scrubbed', label: 'Scrubbed', tone: 'neutral' },
+      ] },
+      { key: 'stream', label: 'Livestream link', type: 'url', half: true, placeholder: 'YouTube / X / Twitch link',
+        hidden: (d) => d.category !== 'test' && d.category !== 'launch' },
+      { key: 'result', label: 'Result (public)', type: 'textarea', rows: 2,
+        hidden: (d) => d.category !== 'test' && d.category !== 'launch',
+        help: 'Shown on beyondstagezero.space once the test is complete.' },
+      { key: 'notes', label: 'Notes (team only)', type: 'textarea', rows: 2 },
+    ],
+  },
+  {
+    key: 'live-updates',
+    type: 'liveupdate',
+    label: 'Live updates',
+    singular: 'Live update',
+    icon: 'clock',
+    group: 'site',
+    hiddenInNav: true,
+    blurb: 'Updates posted during a test, shown on beyondstagezero.space.',
+    title: (d) => String(d.text ?? '').slice(0, 80) || 'Update',
+    columns: ['test', 'kind'],
+    fields: [
+      { key: 'text', label: 'Update', type: 'text', required: true, placeholder: 'e.g. Igniter armed. Range is clear.' },
+      { key: 'test', label: 'Test', type: 'ref', ref: 'countdown', required: true, half: true },
+      { key: 'kind', label: 'Type', type: 'select', half: true, initial: 'update', options: [
+        { value: 'update', label: 'Update', tone: 'neutral' },
+        { value: 'milestone', label: 'Milestone', tone: 'accent' },
+        { value: 'hold', label: 'Hold', tone: 'warn' },
+        { value: 'go', label: 'Go', tone: 'good' },
+        { value: 'result', label: 'Result', tone: 'info' },
+      ] },
     ],
   },
   {
