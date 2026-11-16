@@ -74,6 +74,9 @@ interface KV {
 }
 
 interface SiteTraffic {
+  /** 'vercel' = Vercel's Web Analytics API (full history); 'drain' = only views received since the drain was set up */
+  source?: 'vercel' | 'drain'
+  visitorsApprox?: boolean
   connected: boolean
   lastEventAt: string | null
   firstEventAt: string | null
@@ -419,7 +422,7 @@ function WebsiteSection({ data, days }: { data: ServerAnalytics | null; days: nu
     <Section
       title="Website"
       icon="monitor"
-      sub={`beyondstagezero.com · from Vercel Web Analytics · last view ${w.lastEventAt ? fmtDateTime(w.lastEventAt) : '—'}`}
+      sub={`beyondstagezero.com · ${w.source === 'vercel' ? 'Vercel Web Analytics (full history)' : 'from the Vercel drain'}${w.lastEventAt ? ` · last live view ${fmtDateTime(w.lastEventAt)}` : ''}`}
       right={<LivePill n={w.live.visitors} label="on the site now" />}
     >
       <TrafficBody w={w} days={days} bucket={data.bucket} />
@@ -437,7 +440,8 @@ function LivePill({ n, label }: { n: number; label: string }) {
 }
 
 function TrafficBody({ w, days, bucket, starship }: { w: SiteTraffic; days: number; bucket: Bucket; starship?: boolean }) {
-  const series = fillSeries(w.series, days, bucket, { views: 0, visitors: 0 })
+  // Vercel's API returns every bucket (zeros included) on its own week boundaries — use it as-is.
+  const series = w.source === 'vercel' ? w.series : fillSeries(w.series, days, bucket, { views: 0, visitors: 0 })
   const rangeLabel = RANGES.find((r) => r.days === days)!.label
   const rangeStart = Date.now() - days * 86400000
   const startsLate = w.firstEventAt && new Date(w.firstEventAt).getTime() > rangeStart + 86400000
@@ -451,23 +455,23 @@ function TrafficBody({ w, days, bucket, starship }: { w: SiteTraffic; days: numb
       )}
       <div className="stats">
         <Stat label="Page views" value={nf(w.views)} sub={`last ${rangeLabel}`} />
-        <Stat label="Visitors" value={nf(w.visitors)} sub="unique devices" />
+        <Stat label="Visitors" value={`${w.visitorsApprox ? '≤ ' : ''}${nf(w.visitors)}`} sub={w.visitorsApprox ? 'added up hour by hour' : 'unique people'} />
         {starship ? (
           <>
             <Stat
               label="Peak viewers"
               value={w.peak ? nf(w.peak.viewers) : '—'}
-              sub={w.peak ? `at once · ${fmtDateTime(w.peak.at)}` : 'most watching at once'}
+              sub={w.peak ? `at once · ${fmtDateTime(w.peak.at)}` : 'needs live drain data'}
             />
             <Stat
-              label="Busiest day"
+              label={w.source === 'vercel' && bucket === 'week' ? 'Busiest week' : w.source === 'vercel' && bucket === 'hour' ? 'Busiest hour' : 'Busiest day'}
               value={w.busiestDay ? nf(w.busiestDay.views) : '—'}
-              sub={w.busiestDay ? `views on ${fmtDate(w.busiestDay.date)}` : 'views in one day'}
+              sub={w.busiestDay ? `views ${w.source === 'vercel' && bucket !== 'day' ? '' : 'on '}${w.source === 'vercel' ? bucketLabel(w.busiestDay.date, bucket).replace('Week of', 'week of') : fmtDate(w.busiestDay.date)}` : 'views in one day'}
             />
           </>
         ) : (
           <>
-            <Stat label="Views per visit" value={w.sessions ? (w.views / w.sessions).toFixed(1) : '—'} sub={`${nf(w.sessions)} visits`} />
+            <Stat label="Views per visitor" value={w.visitors ? (w.views / w.visitors).toFixed(1) : '—'} sub="pages each person looked at" />
             <Stat
               label="Top page"
               value={<span className="an-top-page">{w.pages[0]?.key ?? '—'}</span>}
@@ -530,8 +534,8 @@ function StarshipSection({ data, days }: { data: ServerAnalytics | null; days: n
       icon="chart"
       sub={
         <>
-          <a href={site} target="_blank" rel="noreferrer">{s.host}</a> · from Vercel Web Analytics
-          {s.lastEventAt ? ` · last view ${fmtDateTime(s.lastEventAt)}` : ''}
+          <a href={site} target="_blank" rel="noreferrer">{s.host}</a> · {s.source === 'vercel' ? 'Vercel Web Analytics (full history)' : 'from the Vercel drain'}
+          {s.lastEventAt ? ` · last live view ${fmtDateTime(s.lastEventAt)}` : ''}
         </>
       }
       right={s.connected ? <LivePill n={s.live.visitors} label="watching now" /> : undefined}

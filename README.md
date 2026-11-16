@@ -69,7 +69,12 @@ Include **both** the website's and the Starship Tracker's Vercel projects in the
 
 Octopus checks every delivery's signature and stores only page views: time, host, path, referrer site, country, device type and Vercel's anonymous session/device IDs. About 13 months are kept.
 
-**History:** a drain only sends views from the moment it's created — Vercel doesn't backfill. Analytics shows when its data starts; anything earlier is only in Vercel's own Web Analytics dashboard.
+**History:** a drain only sends views from the moment it's created. For history, Octopus reads Vercel's Web Analytics query API (up to 366 days on Pro) when these are set:
+
+- `VERCEL_API_TOKEN` — a Vercel access token scoped to the team (sensitive)
+- `VERCEL_TEAM_ID`, `WEBSITE_PROJECT_ID` (the beyondstagezero.com project), `STARSHIP_PROJECT_ID` (the tracker project)
+
+Totals, charts and breakdowns then come from Vercel for every range; the drain still supplies "on the site now" and peak viewers, and the exact 24-hour view once it has run for a day. Without the token, Analytics uses drain data only and says when it starts.
 
 `GET /api/health` reports whether the database is reachable.
 

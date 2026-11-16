@@ -1,6 +1,7 @@
 import { requireUser } from './_lib/auth.js'
 import { getDb, type Db } from './_lib/db.js'
 import { HttpError, q, route } from './_lib/http.js'
+import { vercelAnalyticsConfigured, vercelTraffic } from './_lib/vercelAnalytics.js'
 
 /**
  * GET /api/analytics?days=30 → website traffic (from the Vercel drain), Starship Tracker
@@ -173,13 +174,56 @@ export default route({
       ),
     ])
 
+    // Prefer Vercel's own Web Analytics history (up to a year) for totals, charts and breakdowns.
+    // The drain still supplies what that API can't: who's on the site right now and peak viewers.
+    const websiteProject = process.env.WEBSITE_PROJECT_ID
+    const starshipProject = (process.env.STARSHIP_PROJECT_ID || '').split(',')[0]?.trim()
+    const errors: string[] = []
+    const fromVercel = async (projectId: string | undefined) => {
+      if (!projectId || !vercelAnalyticsConfigured()) return null
+      try {
+        return await vercelTraffic(projectId, days)
+      } catch (err) {
+        errors.push((err as Error).message)
+        return null
+      }
+    }
+    const [vWeb, vStar] = await Promise.all([fromVercel(websiteProject), fromVercel(starshipProject)])
+    // For 24 hours the drain is exact (real visitors, live) once it has been running a full day.
+    const drainCoversRange = (drain: { firstEventAt?: unknown }) =>
+      typeof drain.firstEventAt === 'string' && new Date(drain.firstEventAt).getTime() <= Date.now() - days * 86_400_000
+    const merge = <T extends Record<string, unknown>>(drain: T, v: Awaited<ReturnType<typeof vercelTraffic>> | null) =>
+      v && !(days <= 1 && drainCoversRange(drain))
+        ? {
+            ...drain,
+            source: 'vercel' as const,
+            connected: true,
+            views: v.views,
+            visitors: v.visitors,
+            visitorsApprox: v.visitorsApprox,
+            sessions: v.visitors,
+            series: v.series,
+            pages: v.pages,
+            referrers: v.referrers,
+            countries: v.countries,
+            devices: v.devices,
+            // Busiest day (or week, for 6 months / 1 year) from Vercel's figures
+            busiestDay: v.series.reduce<{ date: string; views: number } | null>(
+              (b, p) => (p.views > (b?.views ?? 0) ? { date: p.date, views: p.views } : b),
+              null,
+            ),
+            firstEventAt: null,
+          }
+        : { ...drain, source: 'drain' as const }
+
     res.status(200).json({
+      vercelErrors: errors.length ? errors : undefined,
       days,
       bucket,
       generatedAt: new Date().toISOString(),
-      drainConnected: n(everAny!.events) > 0,
-      web,
-      starship: { host, flight, ...starship },
+      drainConnected: n(everAny!.events) > 0 || !!vWeb || !!vStar,
+      web: merge(web, vWeb),
+      starship: { host, flight, ...merge(starship, vStar) },
       hub: {
         changes: hubDaily.reduce((t, r) => t + n(r.changes), 0),
         series: hubDaily.map((r) => ({ date: String(r.date), changes: n(r.changes) })),
