@@ -49,8 +49,9 @@ export default route({
         }
       })
 
-    // What's "on": a test marked Live or Hold; otherwise the next scheduled one (or one that
-    // just passed T-0 in the last 6 hours); otherwise one completed or scrubbed in the last day.
+    // What's "on": a test marked Live or Hold; otherwise one that finished in the last 12 hours
+    // (so people see the result); otherwise the next scheduled one (or one that passed T-0 in the
+    // last 6 hours); otherwise one that finished in the last day.
     const active = tests.filter((t) => t.status === 'live' || t.status === 'hold').sort((a, b) => b.updatedMs - a.updatedMs)[0]
     const upcoming = tests
       .filter((t) => t.status === 'scheduled' && t.atMs > now - 6 * H)
@@ -58,7 +59,8 @@ export default route({
     const finished = tests
       .filter((t) => t.status === 'done' || t.status === 'scrubbed')
       .sort((a, b) => b.atMs - a.atMs)
-    const current = active ?? upcoming[0] ?? finished.find((t) => now - Math.max(t.atMs, t.updatedMs) < 24 * H) ?? null
+    const finishedWithin = (hours: number) => finished.find((t) => now - t.updatedMs < hours * H)
+    const current = active ?? finishedWithin(12) ?? upcoming[0] ?? finishedWithin(24) ?? null
 
     const updates = current
       ? rows
