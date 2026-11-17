@@ -205,7 +205,7 @@ function TestConsole({
 
       <section className={`card testday-status status-${status}`}>
         <div className="testday-clock">
-          <TClock target={at} now={now} held={heldOf(d)} />
+          <TClock target={at} now={now} held={heldOf(test)} />
           <Badge tone={STATUSES.find((s) => s.value === status)?.tone}>{STATUSES.find((s) => s.value === status)?.label}</Badge>
         </div>
         <div className="testday-buttons" role="group" aria-label="Test status">

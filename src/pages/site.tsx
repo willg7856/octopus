@@ -288,7 +288,7 @@ function CountdownsCard({ countdowns }: { countdowns: Rec<Countdown>[] }) {
                   {x.rec.data.time ? ` · ${fmtTime12(x.rec.data.time)}` : ''}
                 </span>
               </button>
-              <TClock target={x.at} now={now} size="s" held={heldOf(x.rec.data)} />
+              <TClock target={x.at} now={now} size="s" held={heldOf(x.rec)} />
             </li>
           ))}
         </ul>

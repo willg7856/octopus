@@ -33,9 +33,15 @@ export function targetOf(d: Countdown): number {
   return new Date(y!, m! - 1, day!, hh!, mm!).getTime()
 }
 
-/** Time left on a held clock (ms), or undefined if it isn't on Hold. */
-export function heldOf(d: { status?: unknown; holdLeft?: unknown }): number | undefined {
-  return d.status === 'hold' && typeof d.holdLeft === 'number' ? d.holdLeft : undefined
+/**
+ * Time left on a held clock (ms), or undefined if it isn't on Hold. Holds saved before the clock
+ * stopped have no `holdLeft`; for those, the record's last save stands in for when the hold began.
+ */
+export function heldOf(rec: { data: Countdown; updatedAt?: string }): number | undefined {
+  const d = rec.data
+  if (d.status !== 'hold') return undefined
+  if (typeof d.holdLeft === 'number') return d.holdLeft
+  return rec.updatedAt && d.date ? targetOf(d) - Date.parse(rec.updatedAt) : undefined
 }
 
 /** Re-renders every second while mounted. */
@@ -105,7 +111,7 @@ function CountdownCard({ rec, at, now }: { rec: Rec<Countdown>; at: number; now:
         <Button small variant="ghost" icon="edit" aria-label={`Edit ${d.name}`} onClick={() => openEditor({ type: 'countdown', record: rec as Rec })} />
       </header>
       <h3 className="countdown-name">{d.name}</h3>
-      <TClock target={at} now={now} held={heldOf(d)} />
+      <TClock target={at} now={now} held={heldOf(rec)} />
       <p className="muted small">
         {fmtDate(d.date)}
         {d.time ? ` · ${fmtTime12(d.time)}` : ''}
@@ -184,7 +190,7 @@ export function NextCountdowns() {
             <span className="strong next-cd-name">{x.rec.data.name}</span>
             <Badge tone={toneOf(CATEGORY, x.rec.data.category)}>{labelOf(CATEGORY, x.rec.data.category)}</Badge>
           </span>
-          <TClock target={x.at} now={now} size="s" held={heldOf(x.rec.data)} />
+          <TClock target={x.at} now={now} size="s" held={heldOf(x.rec)} />
           <span className="muted small">
             {fmtDate(x.rec.data.date)}
             {x.rec.data.time ? ` · ${fmtTime12(x.rec.data.time)}` : ''}
