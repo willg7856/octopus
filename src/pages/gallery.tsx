@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDialog } from '../components/Dialog'
-import { useEditor } from '../components/Editor'
 import { Icon } from '../components/Icon'
 import { Badge, Button, LinkButton, useToast } from '../components/ui'
 import { newId } from '../lib/api'
+import { fmtDate } from '../lib/derive'
 import { SITE_SEED } from '../lib/siteSeed'
 import { useRecords, useStore } from '../lib/store'
 import type { Op, Rec } from '../lib/types'
@@ -101,14 +101,23 @@ async function uploadOne(file: File, onState: (s: Job['state']) => void) {
 export function GalleryPage() {
   const photos = useRecords<Photo>('photo')
   const { commit, create, update, remove } = useStore()
-  const openEditor = useEditor()
   const toast = useToast()
   const dialog = useDialog()
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['id']>('all')
   const [jobs, setJobs] = useState<Job[]>([])
   const [dragging, setDragging] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [usage, setUsage] = useState<{ bytes: number; files: number } | null>(null)
   const input = useRef<HTMLInputElement>(null)
+
+  const loadUsage = useCallback(() => {
+    fetch('/api/gallery/usage', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((u) => u && setUsage(u))
+      .catch(() => undefined)
+  }, [])
+  useEffect(loadUsage, [loadUsage])
 
   const sorted = useMemo(
     () =>
@@ -145,6 +154,7 @@ export function GalleryPage() {
       }
     }
     if (ok) toast(`${ok} photo${ok === 1 ? '' : 's'} added to the gallery. Click one to add a caption.`, { tone: 'good' })
+    loadUsage()
     setTimeout(() => setJobs((j) => j.filter((x) => x.state !== 'done')), 4000)
   }
 
@@ -176,7 +186,9 @@ export function GalleryPage() {
       confirmLabel: 'Remove',
       danger: true,
     })
-    if (ok) remove(p as Rec).catch((e) => toast((e as Error).message, { tone: 'bad' }))
+    if (!ok) return false
+    remove(p as Rec).catch((e) => toast((e as Error).message, { tone: 'bad' }))
+    return true
   }
 
   const importSite = async () => {
@@ -217,6 +229,12 @@ export function GalleryPage() {
             {photos.length ? `${onSite} photo${onSite === 1 ? '' : 's'} on the website.` : ''} Drop photos anywhere on this page, or add them
             from your phone.
           </p>
+          {usage && (
+            <p className="gallery-usage small" title="Photos uploaded through Octopus, full size plus thumbnails. Built-in photos from the website aren’t counted.">
+              <Icon name="image" size={13} /> <strong>{fmtBytes(usage.bytes)}</strong> of storage used by{' '}
+              {Math.ceil(usage.files / 2)} uploaded photo{Math.ceil(usage.files / 2) === 1 ? '' : 's'}
+            </p>
+          )}
         </div>
         <div className="row gap-s wrap">
           <LinkButton href={`${SITE}/gallery`} external icon="external">Open the gallery</LinkButton>
@@ -278,7 +296,7 @@ export function GalleryPage() {
             const hidden = p.data.visible === 'hidden'
             return (
               <figure key={p.id} className={`gallery-tile${hidden ? ' hidden' : ''}`}>
-                <button className="gallery-img" onClick={() => openEditor({ type: 'photo', record: p as Rec })} title="Edit caption and type">
+                <button className="gallery-img" onClick={() => setOpenId(p.id)} title="Open full screen">
                   <img src={p.data.thumb || p.data.url} alt={p.data.caption || ''} loading="lazy" />
                   {hidden && <span className="gallery-badge"><Badge>Hidden</Badge></span>}
                   {p.data.kind && p.data.kind !== 'photo' && <span className="gallery-kind">{p.data.kind === 'render' ? 'Render' : 'Team'}</span>}
@@ -300,10 +318,198 @@ export function GalleryPage() {
         </div>
       )}
 
+      {openId && shown.some((p) => p.id === openId) && (
+        <Lightbox
+          list={shown}
+          id={openId}
+          onClose={() => setOpenId(null)}
+          onOpen={setOpenId}
+          onSave={(p, data) => update(p as Rec, { ...p.data, ...data })}
+          onMove={(p, dir) => move(sorted.indexOf(p), dir)}
+          canMove={(p, dir) => {
+            const i = sorted.indexOf(p)
+            return dir < 0 ? i > 0 : i < sorted.length - 1
+          }}
+          onRemove={async (p) => {
+            const next = shown[shown.indexOf(p) + 1] ?? shown[shown.indexOf(p) - 1]
+            if (await del(p)) setOpenId(next && next.id !== p.id ? next.id : null)
+          }}
+        />
+      )}
+
       <p className="muted small site-foot">
         <Icon name="shield" size={13} /> Photos are shrunk to about 2000 px before upload. Hidden photos stay in Octopus but aren’t on the
         website.
       </p>
+    </div>
+  )
+}
+
+const fmtBytes = (n: number) =>
+  n >= 1e9 ? `${(n / 1e9).toFixed(2)} GB` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : n >= 1e3 ? `${Math.round(n / 1e3)} KB` : `${n} B`
+
+/**
+ * Full-screen view of one photo, with its settings in a panel down the right. Changes save as
+ * you make them (the caption when you leave the box or press Enter). ← → move between photos.
+ */
+function Lightbox({
+  list,
+  id,
+  onClose,
+  onOpen,
+  onSave,
+  onMove,
+  canMove,
+  onRemove,
+}: {
+  list: Rec<Photo>[]
+  id: string
+  onClose: () => void
+  onOpen: (id: string) => void
+  onSave: (p: Rec<Photo>, data: Partial<Photo>) => Promise<unknown>
+  onMove: (p: Rec<Photo>, dir: -1 | 1) => Promise<unknown>
+  canMove: (p: Rec<Photo>, dir: -1 | 1) => boolean
+  onRemove: (p: Rec<Photo>) => void
+}) {
+  const toast = useToast()
+  const i = list.findIndex((p) => p.id === id)
+  const p = list[i]!
+  const [caption, setCaption] = useState(p.data.caption ?? '')
+  const [saved, setSaved] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [loaded, setLoaded] = useState(false)
+  const captionRef = useRef<HTMLTextAreaElement>(null)
+
+  // Switching photo: show its caption, and the small version until the full one arrives.
+  useEffect(() => {
+    setCaption(p.data.caption ?? '')
+    setSaved('idle')
+    setLoaded(false)
+  }, [p.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const save = async (data: Partial<Photo>) => {
+    setSaved('saving')
+    try {
+      await onSave(p, data)
+      setSaved('saved')
+    } catch (e) {
+      setSaved('idle')
+      toast((e as Error).message, { tone: 'bad' })
+    }
+  }
+  const saveCaption = () => {
+    if (caption.trim() !== (p.data.caption ?? '')) save({ caption: caption.trim() })
+  }
+  const go = (dir: -1 | 1) => {
+    saveCaption()
+    const next = list[i + dir]
+    if (next) onOpen(next.id)
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (document.activeElement === captionRef.current) {
+        if (e.key === 'Escape') captionRef.current?.blur()
+        return
+      }
+      if (e.key === 'Escape') onClose()
+      else if (e.key === 'ArrowLeft') go(-1)
+      else if (e.key === 'ArrowRight') go(1)
+    }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  })
+
+  const hidden = p.data.visible === 'hidden'
+  const kind = p.data.kind ?? 'photo'
+  const uploaded = p.data.url.includes('blob.vercel-storage.com') || p.data.url.includes('/api/gallery/file')
+
+  return (
+    <div className="lightbox" role="dialog" aria-modal="true" aria-label={p.data.caption || 'Photo'}>
+      <div className="lightbox-stage" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        {/* Thumbnail first (it's already loaded), then the full photo fades in over it */}
+        <img className={`lightbox-img thumb${loaded ? ' gone' : ''}`} src={p.data.thumb || p.data.url} alt="" aria-hidden="true" />
+        <img
+          key={p.id}
+          className={`lightbox-img${loaded ? ' loaded' : ''}`}
+          src={p.data.url}
+          alt={p.data.caption || ''}
+          onLoad={() => setLoaded(true)}
+        />
+        <button className="lightbox-nav prev" onClick={() => go(-1)} disabled={i === 0} aria-label="Previous photo">‹</button>
+        <button className="lightbox-nav next" onClick={() => go(1)} disabled={i === list.length - 1} aria-label="Next photo">›</button>
+        <span className="lightbox-count">{i + 1} / {list.length}</span>
+      </div>
+
+      <aside className="lightbox-panel">
+        <header className="lightbox-head">
+          <span className="muted small">
+            {saved === 'saving' ? 'Saving…' : saved === 'saved' ? 'Saved ✓' : 'Changes save as you go'}
+          </span>
+          <Button small variant="ghost" icon="x" onClick={() => { saveCaption(); onClose() }} aria-label="Close">Close</Button>
+        </header>
+
+        <label className="lightbox-field">
+          <span className="lightbox-label">Caption</span>
+          <textarea
+            ref={captionRef}
+            rows={3}
+            value={caption}
+            placeholder="e.g. SF-04 burning, 26 April 2026."
+            onChange={(e) => setCaption(e.target.value)}
+            onBlur={saveCaption}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                saveCaption()
+                captionRef.current?.blur()
+              }
+            }}
+          />
+        </label>
+
+        <div className="lightbox-field">
+          <span className="lightbox-label">Type</span>
+          <div className="chips" role="radiogroup" aria-label="Type">
+            {(['photo', 'render', 'team'] as const).map((k) => (
+              <button key={k} type="button" role="radio" aria-checked={kind === k} className={`chip${kind === k ? ' on' : ''}`} onClick={() => kind !== k && save({ kind: k })}>
+                {k === 'photo' ? 'Photo' : k === 'render' ? 'Render' : 'Team'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="lightbox-field">
+          <span className="lightbox-label">On the website</span>
+          <div className="chips" role="radiogroup" aria-label="On the website">
+            <button type="button" role="radio" aria-checked={!hidden} className={`chip${!hidden ? ' on' : ''}`} onClick={() => hidden && save({ visible: 'shown' })}>Shown</button>
+            <button type="button" role="radio" aria-checked={hidden} className={`chip${hidden ? ' on' : ''}`} onClick={() => !hidden && save({ visible: 'hidden' })}>Hidden</button>
+          </div>
+        </div>
+
+        <div className="lightbox-field">
+          <span className="lightbox-label">Position in the gallery</span>
+          <div className="row gap-s">
+            <Button small onClick={() => onMove(p, -1)} disabled={!canMove(p, -1)}>← Earlier</Button>
+            <Button small onClick={() => onMove(p, 1)} disabled={!canMove(p, 1)}>Later →</Button>
+          </div>
+        </div>
+
+        <dl className="lightbox-meta small">
+          {p.data.width && p.data.height ? (<><dt>Size</dt><dd>{p.data.width} × {p.data.height}</dd></>) : null}
+          <dt>{uploaded ? 'Uploaded' : 'Added'}</dt>
+          <dd>{fmtDate(p.createdAt.slice(0, 10))}{p.createdBy ? ` · ${p.createdBy.split('@')[0]}` : ''}</dd>
+          <dt>File</dt>
+          <dd><a href={p.data.url} target="_blank" rel="noreferrer">Open the full photo ↗</a></dd>
+        </dl>
+
+        <div className="lightbox-foot">
+          <Button small variant="ghost" icon="trash" onClick={() => onRemove(p)}>Remove from the gallery</Button>
+        </div>
+      </aside>
     </div>
   )
 }

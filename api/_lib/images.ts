@@ -45,3 +45,46 @@ export async function checkStorage(): Promise<'ok' | 'not-configured' | 'error'>
     return 'error'
   }
 }
+
+/** Total size and number of files in gallery storage (photos and thumbnails), cached for a minute. */
+let usageCache: { at: number; value: { bytes: number; files: number } } | null = null
+
+export async function storageUsage(): Promise<{ bytes: number; files: number }> {
+  if (usageCache && Date.now() - usageCache.at < 60_000) return usageCache.value
+  let bytes = 0
+  let files = 0
+  if (onVercel()) {
+    const { list } = await import('@vercel/blob')
+    let cursor: string | undefined
+    do {
+      const page = await list({ prefix: 'gallery/', limit: 1000, cursor })
+      for (const b of page.blobs) {
+        bytes += b.size
+        files++
+      }
+      cursor = page.hasMore ? page.cursor : undefined
+    } while (cursor)
+  } else {
+    const fs = await import('node:fs')
+    const path = await import('node:path')
+    const walk = (dir: string) => {
+      if (!fs.existsSync(dir)) return
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name)
+        if (e.isDirectory()) walk(p)
+        else {
+          bytes += fs.statSync(p).size
+          files++
+        }
+      }
+    }
+    walk(path.join('.data', 'uploads', 'gallery'))
+  }
+  usageCache = { at: Date.now(), value: { bytes, files } }
+  return usageCache.value
+}
+
+/** Forget the cached usage after an upload, so the number updates straight away. */
+export function storageChanged() {
+  usageCache = null
+}

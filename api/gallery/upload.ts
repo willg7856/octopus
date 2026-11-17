@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { requireUser } from '../_lib/auth.js'
 import { body, HttpError, route } from '../_lib/http.js'
-import { saveImage } from '../_lib/images.js'
+import { saveImage, storageChanged } from '../_lib/images.js'
 
 /**
  * POST /api/gallery/upload — saves one photo (already shrunk in the browser) to file storage.
@@ -48,6 +48,7 @@ export default route({
       saveImage(`gallery/${month}/${id}.${full.ext}`, full.buf, full.type),
       saveImage(`gallery/${month}/${id}-thumb.${thumb.ext}`, thumb.buf, thumb.type),
     ])
+    storageChanged()
     console.log(`[gallery] ${user.email} uploaded ${id} (${Math.round(full.buf.length / 1024)} KB)`)
     // Local development saves under /api/…; make that a full address so other sites can show it too.
     const abs = (u: string) => (u.startsWith('/') ? `http://${req.headers.host}${u}` : u)
