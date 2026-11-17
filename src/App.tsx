@@ -13,6 +13,7 @@ import type { User } from './lib/types'
 import { ActivityPage, TeamPage } from './pages/admin'
 import { SitePage } from './pages/site'
 import { TestDayPage } from './pages/testday'
+import { GalleryPage } from './pages/gallery'
 import { CountdownsPage } from './pages/countdowns'
 import { AnalyticsPage, IncomeList } from './pages/analytics'
 import { Home } from './pages/home'
@@ -105,6 +106,9 @@ function Routes() {
     case 'news':
     case 'site-notice':
     case 'upcoming-tests':
+      return <SitePage />
+    case 'gallery':
+      return <GalleryPage />
       return <SitePage />
     case 'activity':
       return <ActivityPage />

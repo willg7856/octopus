@@ -75,6 +75,7 @@ export interface Collection {
 
 export type IconName =
   | 'home'
+  | 'image'
   | 'box'
   | 'wrench'
   | 'cart'
@@ -485,6 +486,31 @@ export const COLLECTIONS: Collection[] = [
         { value: 'hidden', label: 'Hidden', tone: 'neutral' },
       ] },
       { key: 'order', label: 'Position', type: 'number', half: true, help: 'Lower numbers show first.' },
+    ],
+  },
+  {
+    key: 'gallery',
+    type: 'photo',
+    label: 'Gallery',
+    singular: 'Photo',
+    icon: 'image',
+    group: 'site',
+    hiddenInNav: true,
+    blurb: 'Photos on the Gallery page of beyondstagezero.com.',
+    title: (d) => String(d.caption || 'Untitled photo'),
+    subtitle: (d) => [d.kind === 'render' ? 'Render' : d.kind === 'team' ? 'Team' : 'Photo', d.visible === 'hidden' ? 'Hidden' : ''].filter(Boolean).join(' · '),
+    columns: ['kind', 'visible'],
+    fields: [
+      { key: 'caption', label: 'Caption', type: 'text', placeholder: 'e.g. SF-04 burning, 26 April 2026.' },
+      { key: 'kind', label: 'Type', type: 'select', required: true, half: true, initial: 'photo', options: [
+        { value: 'photo', label: 'Photo', tone: 'neutral' },
+        { value: 'render', label: 'Render', tone: 'info' },
+        { value: 'team', label: 'Team', tone: 'accent' },
+      ] },
+      { key: 'visible', label: 'On the website', type: 'select', required: true, half: true, initial: 'shown', options: [
+        { value: 'shown', label: 'Shown', tone: 'good' },
+        { value: 'hidden', label: 'Hidden', tone: 'neutral' },
+      ] },
     ],
   },
   {

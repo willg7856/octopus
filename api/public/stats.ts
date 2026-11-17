@@ -10,7 +10,7 @@ import { HttpError, route } from '../_lib/http.js'
  *  - "Public numbers" the team marks as Shown, and
  *  - a few build counts calculated from the log, and
  *  - countdowns marked "Shown publicly" (name, date, time, type only — never notes),
- *  - published news posts, the active site notice and the upcoming-test cards (BSZ site page in Octopus).
+ *  - published news posts, the active site notice, the upcoming-test cards and gallery photos (Octopus).
  * Nothing about money, suppliers, contacts, people, machines or orders is ever included.
  * Set PUBLIC_STATS=off on the server to switch it off.
  */
@@ -42,7 +42,7 @@ export default route({
     await autoStartDueTests(db) // a GO test that just hit T-0 becomes In progress
     const rows = await db.query<Row>(
       `select type, data, created_at, updated_at from records
-       where deleted_at is null and type in ('stat', 'movement', 'process', 'countdown', 'post', 'notice', 'upnext')`,
+       where deleted_at is null and type in ('stat', 'movement', 'process', 'countdown', 'post', 'notice', 'upnext', 'photo')`,
     )
 
     const now = new Date()
@@ -127,6 +127,20 @@ export default route({
         linkText: r.data.linkText ? String(r.data.linkText) : null,
       }))
 
+    // Gallery photos: the full image and a small thumbnail, in the order set in Octopus.
+    const photoRows = rows.filter((r) => r.type === 'photo')
+    const gallery = photoRows
+      .filter((r) => r.data.visible !== 'hidden' && r.data.url)
+      .sort((a, b) => (Number(a.data.order) || 0) - (Number(b.data.order) || 0) || String(b.created_at).localeCompare(String(a.created_at)))
+      .map((r) => ({
+        src: String(r.data.url),
+        thumb: r.data.thumb ? String(r.data.thumb) : String(r.data.url),
+        caption: r.data.caption ? String(r.data.caption) : '',
+        kind: r.data.kind ? String(r.data.kind) : 'photo',
+        width: Number(r.data.width) || null,
+        height: Number(r.data.height) || null,
+      }))
+
     const notices = rows.filter((r) => r.type === 'notice')
     const active = notices
       .filter((r) => r.data.active !== 'off' && r.data.title)
@@ -149,8 +163,10 @@ export default route({
         news: posts.length > 0,
         notice: notices.length > 0,
         upnext: upnextRows.length > 0,
+        gallery: photoRows.length > 0,
       },
       upnext,
+      gallery,
       notice,
       numbers,
       news,

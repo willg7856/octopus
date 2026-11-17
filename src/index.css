@@ -828,3 +828,24 @@ textarea { resize: vertical; line-height: 1.5; }
 .addtime-quick { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 4px; }
 .addtime.compact { padding-top: 10px; border-top: 1px solid var(--line); margin-top: 4px; }
 .addtime.compact .addtime-field input { width: 54px; }
+
+/* ============ Gallery ============ */
+.gallery-page { position: relative; }
+.gallery-page.dragging::after { content: 'Drop photos to add them'; position: fixed; inset: 12px; z-index: 50; display: grid; place-items: center; border: 2px dashed var(--accent); border-radius: var(--r); background: color-mix(in srgb, var(--bg) 85%, transparent); font-weight: 700; font-size: 18px; pointer-events: none; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; align-items: start; }
+.gallery-tile { margin: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); overflow: hidden; }
+.gallery-tile.hidden .gallery-img img { opacity: 0.35; }
+.gallery-img { position: relative; display: block; width: 100%; height: auto; padding: 0; border: 0; border-radius: 0; background: var(--bg); cursor: pointer; aspect-ratio: 4 / 3; overflow: hidden; }
+.gallery-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.gallery-img:hover img { filter: brightness(0.92); }
+.gallery-badge { position: absolute; top: 8px; left: 8px; }
+.gallery-kind { position: absolute; top: 8px; right: 8px; padding: 2px 7px; border-radius: 4px; background: rgba(11, 13, 15, 0.75); color: #fff; font: 600 10.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
+.gallery-tile figcaption { display: flex; flex-direction: column; gap: 6px; padding: 9px 10px 8px; font-size: 13px; line-height: 1.4; }
+.gallery-actions { display: flex; gap: 2px; justify-content: flex-end; }
+.gallery-jobs { list-style: none; margin: 0; padding: 8px 14px; display: flex; flex-direction: column; }
+.gallery-jobs li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-top: 1px solid var(--line); }
+.gallery-jobs li:first-child { border-top: 0; }
+.gallery-job-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gallery-jobs li.job-failed .muted { color: var(--bad); }
+.gallery-jobs li.job-done .muted { color: var(--good); }
+@media (max-width: 520px) { .gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }

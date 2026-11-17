@@ -3,6 +3,216 @@
  * and B1mStaticFireNotice). The BSZ site page offers to import this once, so nobody retypes it.
  */
 export const SITE_SEED = {
+  "gallery": [
+    {
+      "url": "https://www.beyondstagezero.com/sf01-burn.jpg",
+      "thumb": "https://www.beyondstagezero.com/sf01-burn.jpg",
+      "caption": "SF-01 burning, 18 February 2026.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 1
+    },
+    {
+      "url": "https://www.beyondstagezero.com/sf02-burn.jpg",
+      "thumb": "https://www.beyondstagezero.com/sf02-burn.jpg",
+      "caption": "SF-02 burning, 18 February 2026.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 2
+    },
+    {
+      "url": "https://www.beyondstagezero.com/sf04-burn.jpg",
+      "thumb": "https://www.beyondstagezero.com/sf04-burn.jpg",
+      "caption": "The start of the SF-04 burn, 26 April 2026.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 3
+    },
+    {
+      "url": "https://www.beyondstagezero.com/sf-c02-dawn-range.jpg",
+      "thumb": "https://www.beyondstagezero.com/sf-c02-dawn-range.jpg",
+      "caption": "Setting up the range before sunrise for SF-03 and SF-04.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 4
+    },
+    {
+      "url": "https://www.beyondstagezero.com/sf-c02-dawn-pad.jpg",
+      "thumb": "https://www.beyondstagezero.com/sf-c02-dawn-pad.jpg",
+      "caption": "The test stand on the pad, the morning of SF-03 and SF-04.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 5
+    },
+    {
+      "url": "https://www.beyondstagezero.com/sf-c02-dawn-sky.jpg",
+      "thumb": "https://www.beyondstagezero.com/sf-c02-dawn-sky.jpg",
+      "caption": "Sunrise over the range, 26 April 2026.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 6
+    },
+    {
+      "url": "https://www.beyondstagezero.com/sf-c02-dawn-tall.jpg",
+      "thumb": "https://www.beyondstagezero.com/sf-c02-dawn-tall.jpg",
+      "caption": "The range from behind the cameras, 26 April 2026.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 7
+    },
+    {
+      "url": "https://www.beyondstagezero.com/b1m-engine-photo.jpg",
+      "thumb": "https://www.beyondstagezero.com/b1m-engine-photo.jpg",
+      "caption": "B1M engine casing.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 8
+    },
+    {
+      "url": "https://www.beyondstagezero.com/b1m-engine-disassembled.jpg",
+      "thumb": "https://www.beyondstagezero.com/b1m-engine-disassembled.jpg",
+      "caption": "B1M engine, disassembled.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 9
+    },
+    {
+      "url": "https://www.beyondstagezero.com/b1m-sealant-apply.jpg",
+      "thumb": "https://www.beyondstagezero.com/b1m-sealant-apply.jpg",
+      "caption": "Applying sealant during B1M engine assembly.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 10
+    },
+    {
+      "url": "https://www.beyondstagezero.com/b1m-sealant-spread.jpg",
+      "thumb": "https://www.beyondstagezero.com/b1m-sealant-spread.jpg",
+      "caption": "Sealant spread on a B1M engine part.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 11
+    },
+    {
+      "url": "https://www.beyondstagezero.com/nozzle-duracast-1.jpg",
+      "thumb": "https://www.beyondstagezero.com/nozzle-duracast-1.jpg",
+      "caption": "The first ceramic nozzle, in the current Duracast material.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 12
+    },
+    {
+      "url": "https://www.beyondstagezero.com/nozzle-duracast-2.jpg",
+      "thumb": "https://www.beyondstagezero.com/nozzle-duracast-2.jpg",
+      "caption": "Another view of the same nozzle.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 13
+    },
+    {
+      "url": "https://www.beyondstagezero.com/nozzle-graphite.jpg",
+      "thumb": "https://www.beyondstagezero.com/nozzle-graphite.jpg",
+      "caption": "A graphite nozzle being machined.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 14
+    },
+    {
+      "url": "https://www.beyondstagezero.com/mould-top.jpg",
+      "thumb": "https://www.beyondstagezero.com/mould-top.jpg",
+      "caption": "Top-down view of the ceramic in the v14 mould.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 15
+    },
+    {
+      "url": "https://www.beyondstagezero.com/mould-side.jpg",
+      "thumb": "https://www.beyondstagezero.com/mould-side.jpg",
+      "caption": "Side view of the ceramic in the v14 mould.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 16
+    },
+    {
+      "url": "https://www.beyondstagezero.com/doherty-nozzles.jpg",
+      "thumb": "https://www.beyondstagezero.com/doherty-nozzles.jpg",
+      "caption": "Five ceramic nozzles in their moulds.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 17
+    },
+    {
+      "url": "https://www.beyondstagezero.com/crwa-station.jpg",
+      "thumb": "https://www.beyondstagezero.com/crwa-station.jpg",
+      "caption": "The CRWA's railway station.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 18
+    },
+    {
+      "url": "https://www.beyondstagezero.com/crwa-station-yard.jpg",
+      "thumb": "https://www.beyondstagezero.com/crwa-station-yard.jpg",
+      "caption": "Another view of the CRWA's railway station.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 19
+    },
+    {
+      "url": "https://www.beyondstagezero.com/crwa-night.jpg",
+      "thumb": "https://www.beyondstagezero.com/crwa-night.jpg",
+      "caption": "The CRWA's railway station at night.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 20
+    },
+    {
+      "url": "https://www.beyondstagezero.com/goods-shed.jpg",
+      "thumb": "https://www.beyondstagezero.com/goods-shed.jpg",
+      "caption": "The goods shed.",
+      "kind": "photo",
+      "visible": "shown",
+      "order": 21
+    },
+    {
+      "url": "https://www.beyondstagezero.com/b1m-cad.png",
+      "thumb": "https://www.beyondstagezero.com/b1m-cad.png",
+      "caption": "B1M engine cutaway.",
+      "kind": "render",
+      "visible": "shown",
+      "order": 22
+    },
+    {
+      "url": "https://www.beyondstagezero.com/b1m-external1.png",
+      "thumb": "https://www.beyondstagezero.com/b1m-external1.png",
+      "caption": "B1M engine.",
+      "kind": "render",
+      "visible": "shown",
+      "order": 23
+    },
+    {
+      "url": "https://www.beyondstagezero.com/b1m-engine-angle.png",
+      "thumb": "https://www.beyondstagezero.com/b1m-engine-angle.png",
+      "caption": "B1M engine, angled.",
+      "kind": "render",
+      "visible": "shown",
+      "order": 24
+    },
+    {
+      "url": "https://www.beyondstagezero.com/b1m-external2.png",
+      "thumb": "https://www.beyondstagezero.com/b1m-external2.png",
+      "caption": "B1M engine, side.",
+      "kind": "render",
+      "visible": "shown",
+      "order": 25
+    },
+    {
+      "url": "https://www.beyondstagezero.com/b1m-external3.png",
+      "thumb": "https://www.beyondstagezero.com/b1m-external3.png",
+      "caption": "B1M engine, external.",
+      "kind": "render",
+      "visible": "shown",
+      "order": 26
+    }
+  ],
   "upnext": [
     {
       "code": "Next",
