@@ -35,10 +35,18 @@ const KINDS: { value: Kind; label: string }[] = [
 
 const H = 3_600_000
 
-/** Pick what the public page would show: a Live/Hold test, else the next scheduled one. */
+/**
+ * Open on the test beyondstagezero.space is showing (same order as /api/public/live): a Live/Hold
+ * test, else one finished in the last 12 hours, else the next scheduled one.
+ */
 function defaultTest(tests: { rec: Rec<TestCountdown>; at: number }[], now: number) {
-  const active = tests.filter((t) => t.rec.data.status === 'live' || t.rec.data.status === 'hold')
-  if (active.length) return active.sort((a, b) => b.rec.updatedAt.localeCompare(a.rec.updatedAt))[0]
+  const byTouched = (a: { rec: Rec<TestCountdown> }, b: { rec: Rec<TestCountdown> }) => b.rec.updatedAt.localeCompare(a.rec.updatedAt)
+  const active = tests.filter((t) => t.rec.data.status === 'live' || t.rec.data.status === 'hold').sort(byTouched)
+  if (active[0]) return active[0]
+  const justFinished = tests
+    .filter((t) => (t.rec.data.status === 'done' || t.rec.data.status === 'scrubbed') && now - Date.parse(t.rec.updatedAt) < 12 * H)
+    .sort(byTouched)
+  if (justFinished[0]) return justFinished[0]
   const next = tests.filter((t) => (t.rec.data.status ?? 'scheduled') === 'scheduled' && t.at > now - 6 * H).sort((a, b) => a.at - b.at)
   return next[0] ?? tests.sort((a, b) => b.at - a.at)[0]
 }
