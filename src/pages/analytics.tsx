@@ -634,7 +634,7 @@ function StarshipSection({ data, days }: { data: ServerAnalytics | null; days: n
 /* ---------------- beyondstagezero.space ---------------- */
 
 type LiveFeed = { current: { name: string; status: string; at: string; held?: number | null } | null; next: { name: string; at: string }[] }
-const SPACE_STATUS: Record<string, string> = { scheduled: 'GO', hold: 'Hold', live: 'Live', done: 'Complete', scrubbed: 'Scrubbed' }
+const SPACE_STATUS: Record<string, string> = { scheduled: 'GO', hold: 'Hold', live: 'In progress', done: 'Complete', scrubbed: 'Scrubbed' }
 
 function SpaceSection({ data, days }: { data: ServerAnalytics | null; days: number }) {
   const now = useNow()

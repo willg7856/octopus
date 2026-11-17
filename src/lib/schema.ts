@@ -420,7 +420,7 @@ export const COLLECTIONS: Collection[] = [
         hidden: (d) => d.category !== 'test' && d.category !== 'launch', options: [
         { value: 'scheduled', label: 'GO', tone: 'good' },
         { value: 'hold', label: 'Hold', tone: 'warn' },
-        { value: 'live', label: 'Live', tone: 'bad' },
+        { value: 'live', label: 'In progress', tone: 'bad' },
         { value: 'done', label: 'Complete', tone: 'good' },
         { value: 'scrubbed', label: 'Scrubbed', tone: 'neutral' },
       ] },

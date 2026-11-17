@@ -263,7 +263,7 @@ export function RangePanel({ test, now }: { test: Rec; now: number }) {
                 ? `Receiving from the range · ${(Math.max(0, age) / 1000).toFixed(1)} s behind`
                 : latest
                   ? `Last reading ${Math.round(age / 60_000) < 1 ? `${Math.round(age / 1000)} s` : `${Math.round(age / 60_000)} min`} ago`
-                  : 'No readings yet. Start the sender on the range laptop and set the test to Live or Hold.'}
+                  : 'No readings yet. Start the sender on the range laptop and set the test to In progress or Hold.'}
           </p>
         </div>
         <div className="row gap-s wrap">
@@ -321,7 +321,7 @@ export function RangePanel({ test, now }: { test: Rec; now: number }) {
           <pre>python3 range_sender.py --port COM3 --key bszr_…</pre>
           <p className="muted small">
             On a Mac/Linux the port looks like <code>/dev/ttyACM0</code> or <code>/dev/cu.usbmodem…</code>. Every reading is also saved to a CSV on the
-            laptop, even if the internet drops. Readings go to whichever test is Live or on Hold here. To try it without hardware:{' '}
+            laptop, even if the internet drops. Readings go to whichever test is In progress or on Hold here. To try it without hardware:{' '}
             <code>python3 range_sender.py --simulate --key bszr_…</code>
           </p>
           {isAdmin && samples.length > 0 && (

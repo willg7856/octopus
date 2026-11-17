@@ -8,7 +8,7 @@ import { activeTest, checkRangeKey, cleanSamples, cleanUnits, testRows } from '.
  *   Authorization: Bearer <range key from Octopus → .space → Range laptop>
  *   { "samples": [{ "t": 1763350000123, "chamber": 98.4 }, …], "units": { "chamber": "psi" }, "test": "<optional id>" }
  *
- * Without "test", readings go to the test that's Live or on Hold in Octopus (or one that finished in
+ * Without "test", readings go to the test that's In progress or on Hold in Octopus (or one that finished in
  * the last 15 minutes, so the tail-off isn't lost). If there's none, it answers 409 and the sender
  * keeps the readings on the laptop.
  */
@@ -33,7 +33,7 @@ export default route({
       testCache = null
       throw new HttpError(
         409,
-        wanted ? 'That test isn’t in Octopus.' : 'No test is Live or on Hold in Octopus. Set the test to Live (or Hold) and data will start flowing.',
+        wanted ? 'That test isn’t in Octopus.' : 'No test is In progress or on Hold in Octopus. Set the test to In progress (or Hold) and data will start flowing.',
         { code: 'no_active_test' },
       )
     }

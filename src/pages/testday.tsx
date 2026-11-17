@@ -21,7 +21,7 @@ const SPACE = 'https://beyondstagezero.space'
 const STATUSES: { value: Status; label: string; tone: 'neutral' | 'warn' | 'bad' | 'good'; post?: { text: string; kind: Kind } }[] = [
   { value: 'scheduled', label: 'GO', tone: 'good' },
   { value: 'hold', label: 'Hold', tone: 'warn', post: { text: 'We are holding.', kind: 'hold' } },
-  { value: 'live', label: 'Live', tone: 'bad', post: { text: 'We are live.', kind: 'go' } },
+  { value: 'live', label: 'In progress', tone: 'bad', post: { text: 'Test in progress.', kind: 'go' } },
   { value: 'done', label: 'Complete', tone: 'good', post: { text: 'Test complete.', kind: 'result' } },
   { value: 'scrubbed', label: 'Scrubbed', tone: 'neutral', post: { text: 'Today’s test has been scrubbed.', kind: 'hold' } },
 ]
@@ -37,7 +37,7 @@ const KINDS: { value: Kind; label: string }[] = [
 const H = 3_600_000
 
 /**
- * Open on the test beyondstagezero.space is showing (same order as /api/public/live): a Live/Hold
+ * Open on the test beyondstagezero.space is showing (same order as /api/public/live): an In progress/Hold
  * test, else one finished in the last 12 hours, else the next scheduled one.
  */
 function defaultTest(tests: { rec: Rec<TestCountdown>; at: number }[], now: number) {
@@ -222,7 +222,7 @@ function TestConsole({
           ))}
         </div>
         <AddTime rec={test as Rec} />
-        <p className="muted small">Changing status also posts an update (Hold, Live, Complete, Scrubbed) — delete it below if you don’t want it.</p>
+        <p className="muted small">In progress starts the test: the clock switches to T+. GO resumes the countdown after a hold. Hold, In progress, Complete and Scrubbed also post an update; delete it below if you don’t want it.</p>
       </section>
 
       <RangePanel test={test as Rec} now={now} />
@@ -327,7 +327,7 @@ function TestConsole({
 }
 
 type Feed = { current: { id: string; name: string; status: string; updates: unknown[] } | null }
-const FEED_LABEL: Record<string, string> = { scheduled: 'GO', hold: 'Hold', live: 'Live', done: 'Complete', scrubbed: 'Scrubbed' }
+const FEED_LABEL: Record<string, string> = { scheduled: 'GO', hold: 'Hold', live: 'In progress', done: 'Complete', scrubbed: 'Scrubbed' }
 
 /** What beyondstagezero.space is showing right now, straight from its public feed. */
 function OnSpace({ testId, isPublic }: { testId: string; isPublic: boolean }) {
@@ -358,7 +358,7 @@ function OnSpace({ testId, isPublic }: { testId: string; isPublic: boolean }) {
           {feed === null ? 'Can’t reach the public feed' : c ? `${c.name} · ${FEED_LABEL[c.status] ?? c.status}` : 'Standby: no test showing'}
         </p>
         {c && !thisOne && isPublic && (
-          <p className="muted small">This test isn’t the one showing. Set it to Live or Hold to put it on .space.</p>
+          <p className="muted small">This test isn’t the one showing. Set it to In progress or Hold to put it on .space.</p>
         )}
       </div>
     </section>

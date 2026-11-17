@@ -53,8 +53,9 @@ export function melbourneParts(utcMs: number): { date: string; time: string } {
 
 /**
  * Holds. Putting a test on Hold saves how long was left (`holdLeft`, ms) and every site shows the
- * clock frozen there. Going back to Live or Scheduled moves T-0 to now + that time, saved to the
- * second as `t0`, with date/time updated to match. `t0For` records which date/time `t0` belongs to,
+ * clock frozen there. GO (status "scheduled") resumes it: T-0 moves to now + that time, saved to the
+ * second as `t0`, with date/time updated to match. In progress (status "live") means the test has
+ * started, so T-0 becomes now and the clock counts up (T+). `t0For` records which date/time `t0` belongs to,
  * so if someone later edits the date or time by hand, that wins.
  */
 type CountdownData = Record<string, unknown>
@@ -92,18 +93,29 @@ export function applyHold(before: CountdownData, after: CountdownData, now = Dat
   } else if (was === 'hold') {
     const left = typeof before.holdLeft === 'number' ? before.holdLeft : null
     delete next.holdLeft
-    if ((is === 'live' || is === 'scheduled') && left !== null && signature(after) === signature(before)) {
-      const t0 = now + left
-      const { date, time } = melbourneParts(t0)
-      next.date = date
-      next.time = time
-      next.t0 = t0
-      next.t0For = signature(next)
+    if (left !== null && signature(after) === signature(before)) {
+      // GO resumes the count from where it stopped. In progress means the test has started:
+      // T-0 is now (T+), unless the hold was already past T-0, in which case T+ carries on.
+      if (is === 'scheduled') setT0(next, now + left)
+      else if (is === 'live') setT0(next, left < 0 ? now + left : now)
     }
   } else {
     delete next.holdLeft
+    // In progress = the test has started: if the clock was still counting down, T-0 becomes now.
+    if (is === 'live' && was !== 'live' && after.date && signature(after) === signature(before) && countdownInstant(after) > now) {
+      setT0(next, now)
+    }
   }
   return addTime(before, next)
+}
+
+/** Moves T-0 to an exact moment, updating the date/time shown to match. */
+function setT0(next: CountdownData, t0: number) {
+  const { date, time } = melbourneParts(t0)
+  next.date = date
+  next.time = time
+  next.t0 = t0
+  next.t0For = signature(next)
 }
 
 /** Most time that can be added (or taken off) in one go: 7 days. */
@@ -123,11 +135,6 @@ function addTime(before: CountdownData, next: CountdownData): CountdownData {
   }
   // Start from the T-0 as saved before (so an edit in the same save can't double-count).
   const base = signature(next) === signature(before) && before.date ? countdownInstant(before) : countdownInstant(next)
-  const t0 = base + add
-  const { date, time } = melbourneParts(t0)
-  next.date = date
-  next.time = time
-  next.t0 = t0
-  next.t0For = signature(next)
+  setT0(next, base + add)
   return next
 }

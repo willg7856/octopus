@@ -20,7 +20,7 @@ What the Arduino should print, one reading per line (115200 baud by default):
   98.4,150.2                    -> unnamed; named by --channels (default: chamber,tank,...)
 Lines that aren't numbers (e.g. "ARMED") are written to the CSV but not sent.
 
-Readings go to whichever test is Live or on Hold in Octopus. The full-rate CSV is the real
+Readings go to whichever test is In progress or on Hold in Octopus. The full-rate CSV is the real
 record: the internet copy is thinned to --rate readings a second per channel and can drop out.
 """
 
@@ -125,7 +125,7 @@ class Sender(threading.Thread):
                 if e.code == 401:
                     self.status = "WRONG KEY: " + (msg or "check --key")
                 elif e.code == 409:
-                    self.status = "waiting: " + (msg or "no test is Live or on Hold")
+                    self.status = "waiting: " + (msg or "no test is In progress or on Hold")
                     # Hold readings taken before the test went Live for up to 2 minutes, then let them go.
                     cutoff = now_ms() - 120000
                     self.backlog = [s for s in self.backlog if s["t"] >= cutoff]
@@ -213,7 +213,7 @@ def main():
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--key", default=os.environ.get("OCTOPUS_RANGE_KEY"), help="Range key from Octopus")
     ap.add_argument("--url", default=DEFAULT_URL, help="Octopus address (default %(default)s)")
-    ap.add_argument("--test", help="Send to this test id instead of whichever is Live/Hold")
+    ap.add_argument("--test", help="Send to this test id instead of whichever is In progress/Hold")
     ap.add_argument("--channels", default="chamber,tank", help="Names for unnamed columns (default %(default)s)")
     ap.add_argument("--units", default="chamber=psi,tank=psi", help="Units shown on the sites (default %(default)s)")
     ap.add_argument("--rate", type=float, default=20, help="Readings per second sent online (default 20; 0 = all)")
