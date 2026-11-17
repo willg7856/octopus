@@ -18,6 +18,7 @@ interface Row {
   type: string
   data: Record<string, unknown>
   created_at: string
+  updated_at?: string
 }
 
 const DAY = 86_400_000
@@ -38,7 +39,7 @@ export default route({
 
     const db = await getDb()
     const rows = await db.query<Row>(
-      `select type, data, created_at from records
+      `select type, data, created_at, updated_at from records
        where deleted_at is null and type in ('stat', 'movement', 'process', 'countdown', 'post', 'notice')`,
     )
 
@@ -83,7 +84,7 @@ export default route({
         status: r.data.status ? String(r.data.status) : null,
         // Exact T-0 (moves when a hold ends) and, while on Hold, the frozen time left in ms
         at: new Date(countdownInstant(r.data)).toISOString(),
-        held: holdLeft(r.data),
+        held: holdLeft(r.data, r.updated_at ? new Date(String(r.updated_at)).getTime() : undefined),
       }))
       .sort((a, b) => `${a.date} ${a.time ?? ''}`.localeCompare(`${b.date} ${b.time ?? ''}`))
 

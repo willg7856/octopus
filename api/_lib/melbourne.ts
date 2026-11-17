@@ -66,9 +66,16 @@ export function countdownInstant(d: CountdownData): number {
   return melbourneInstant(String(d.date), d.time)
 }
 
-/** Time left on the clock while on Hold (ms; negative if the hold started after T-0), else null. */
-export function holdLeft(d: CountdownData): number | null {
-  return d.status === 'hold' && typeof d.holdLeft === 'number' ? d.holdLeft : null
+/**
+ * Time left on the clock while on Hold (ms; negative if the hold started after T-0), else null.
+ * A hold saved before holds stopped the clock has no `holdLeft`; for those, the last time the
+ * record was saved (`updatedMs`, normally when Hold was pressed) stands in for when the hold began.
+ */
+export function holdLeft(d: CountdownData, updatedMs?: number): number | null {
+  if (d.status !== 'hold') return null
+  if (typeof d.holdLeft === 'number') return d.holdLeft
+  if (updatedMs !== undefined && Number.isFinite(updatedMs) && d.date) return countdownInstant(d) - updatedMs
+  return null
 }
 
 /** Applies hold/resume to a countdown being saved, given what was saved before. */

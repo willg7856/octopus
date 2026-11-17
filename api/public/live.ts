@@ -45,7 +45,7 @@ export default route({
           atMs: at,
           status: String(r.data.status || 'scheduled'),
           // While on Hold: time left on the frozen clock (ms), so every site shows the same stopped T−.
-          held: holdLeft(r.data),
+          held: holdLeft(r.data, new Date(r.updated_at).getTime()),
           stream: r.data.stream ? String(r.data.stream) : null,
           telemetryMode: publicMode(r.data.telemetry),
           result: r.data.result ? String(r.data.result) : null,

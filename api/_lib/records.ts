@@ -1,6 +1,6 @@
 import { getDb, type Row, type Stmt } from './db.js'
 import { HttpError } from './http.js'
-import { applyHold } from './melbourne.js'
+import { applyHold, holdLeft } from './melbourne.js'
 
 export interface RecordOut {
   id: string
@@ -145,11 +145,18 @@ export async function applyOps(ops: Op[], by: string): Promise<RecordOut[]> {
   // Countdowns: freeze the clock on Hold and push T-0 back by the hold when it resumes.
   const updates = ops.filter((o) => o.op === 'update' && o.data && typeof o.data === 'object')
   if (updates.some((o) => (o as { data: Record<string, unknown> }).data.status !== undefined)) {
-    const before = await db.query<{ id: string; data: Record<string, unknown> | string }>(
-      `select id, data from records where type = 'countdown' and id = any($1)`,
+    const before = await db.query<{ id: string; data: Record<string, unknown> | string; updated_at: string }>(
+      `select id, data, updated_at from records where type = 'countdown' and id = any($1)`,
       [updates.map((o) => o.id)],
     )
-    const byId = new Map(before.map((r) => [r.id, typeof r.data === 'string' ? JSON.parse(r.data) : r.data]))
+    const byId = new Map(
+      before.map((r) => {
+        const data = typeof r.data === 'string' ? JSON.parse(r.data) : r.data
+        // A hold from before holds stopped the clock: treat its last save as when the hold began.
+        const left = holdLeft(data, new Date(r.updated_at).getTime())
+        return [r.id, left !== null && typeof data.holdLeft !== 'number' ? { ...data, holdLeft: left } : data]
+      }),
+    )
     const now = Date.now()
     ops = ops.map((o) => (o.op === 'update' && byId.has(o.id) ? { ...o, data: applyHold(byId.get(o.id)!, o.data, now) } : o))
   }
