@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { AddTime } from '../components/AddTime'
 import { useEditor } from '../components/Editor'
 import { Badge, Button, Empty } from '../components/ui'
 import { fmtDate, fmtTime12, parseTime } from '../lib/derive'
@@ -117,6 +118,7 @@ function CountdownCard({ rec, at, now }: { rec: Rec<Countdown>; at: number; now:
         {d.time ? ` · ${fmtTime12(d.time)}` : ''}
       </p>
       {d.notes && <p className="small prewrap">{d.notes}</p>}
+      {at > now - 3600000 && <AddTime rec={rec as Rec} compact />}
     </article>
   )
 }

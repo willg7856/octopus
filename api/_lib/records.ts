@@ -144,7 +144,7 @@ export async function applyOps(ops: Op[], by: string): Promise<RecordOut[]> {
   const db = await getDb()
   // Countdowns: freeze the clock on Hold and push T-0 back by the hold when it resumes.
   const updates = ops.filter((o) => o.op === 'update' && o.data && typeof o.data === 'object')
-  if (updates.some((o) => (o as { data: Record<string, unknown> }).data.status !== undefined)) {
+  if (updates.some((o) => { const d = (o as { data: Record<string, unknown> }).data; return d.status !== undefined || d.addMs !== undefined })) {
     const before = await db.query<{ id: string; data: Record<string, unknown> | string; updated_at: string }>(
       `select id, data, updated_at from records where type = 'countdown' and id = any($1)`,
       [updates.map((o) => o.id)],

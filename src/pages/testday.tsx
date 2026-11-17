@@ -3,6 +3,7 @@ import { useDialog } from '../components/Dialog'
 import { useEditor } from '../components/Editor'
 import { Icon } from '../components/Icon'
 import { RangePanel } from '../components/RangePanel'
+import { AddTime } from '../components/AddTime'
 import { Badge, Button, Empty, LinkButton, useToast } from '../components/ui'
 import { fmtDate, fmtTime12 } from '../lib/derive'
 import { setParam, useRoute } from '../lib/router'
@@ -220,6 +221,7 @@ function TestConsole({
             </button>
           ))}
         </div>
+        <AddTime rec={test as Rec} />
         <p className="muted small">Changing status also posts an update (Hold, Live, Complete, Scrubbed) — delete it below if you don’t want it.</p>
       </section>
 

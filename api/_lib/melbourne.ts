@@ -103,5 +103,31 @@ export function applyHold(before: CountdownData, after: CountdownData, now = Dat
   } else {
     delete next.holdLeft
   }
+  return addTime(before, next)
+}
+
+/** Most time that can be added (or taken off) in one go: 7 days. */
+const MAX_ADD_MS = 7 * 24 * 3600_000
+
+/**
+ * "Add time": Octopus sends `addMs` with the save. On Hold it goes on the stopped clock;
+ * otherwise T-0 moves later by that much (to the second). `addMs` itself is never stored.
+ */
+function addTime(before: CountdownData, next: CountdownData): CountdownData {
+  const add = Number(next.addMs)
+  delete next.addMs
+  if (!Number.isFinite(add) || add === 0 || Math.abs(add) > MAX_ADD_MS || !next.date) return next
+  if (next.status === 'hold' && typeof next.holdLeft === 'number') {
+    next.holdLeft = next.holdLeft + add
+    return next
+  }
+  // Start from the T-0 as saved before (so an edit in the same save can't double-count).
+  const base = signature(next) === signature(before) && before.date ? countdownInstant(before) : countdownInstant(next)
+  const t0 = base + add
+  const { date, time } = melbourneParts(t0)
+  next.date = date
+  next.time = time
+  next.t0 = t0
+  next.t0For = signature(next)
   return next
 }

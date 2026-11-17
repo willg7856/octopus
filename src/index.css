@@ -817,3 +817,13 @@ textarea { resize: vertical; line-height: 1.5; }
   main { padding: 0; }
   .card { border: 0; box-shadow: none; padding: 0; }
 }
+
+/* ============ Add time (countdowns) ============ */
+.addtime { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.addtime-label { margin-right: 2px; white-space: nowrap; }
+.addtime-field { display: inline-flex; align-items: center; gap: 4px; }
+.addtime .addtime-field input { width: 64px; min-width: 0; flex: none; height: 32px; padding: 0 8px; font: 14px var(--mono); }
+.addtime-field span { font-size: 13px; color: var(--muted); }
+.addtime-quick { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 4px; }
+.addtime.compact { padding-top: 10px; border-top: 1px solid var(--line); margin-top: 4px; }
+.addtime.compact .addtime-field input { width: 54px; }
