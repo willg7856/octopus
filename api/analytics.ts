@@ -5,7 +5,7 @@ import { vercelAnalyticsConfigured, vercelTraffic } from './_lib/vercelAnalytics
 
 /**
  * GET /api/analytics?days=30 → website traffic (from the Vercel drain), Starship Tracker
- * traffic + its current flight, and hub usage. Money is worked out in the browser.
+ * traffic + its current flight, beyondstagezero.space traffic, and hub usage. Money is worked out in the browser.
  *
  * Both sites feed the same drain; they are told apart by host. STARSHIP_HOST overrides
  * the tracker's host (default starship.beyondstagezero.com).
@@ -15,6 +15,19 @@ const RANGES = new Set([1, 7, 30, 90, 182, 365])
 const n = (v: unknown) => Number(v) || 0
 
 const starshipHost = () => (process.env.STARSHIP_HOST || 'starship.beyondstagezero.com').toLowerCase()
+
+/** beyondstagezero.space, the live test page: its host (and www.), or its own Vercel project. */
+const spaceHost = () => {
+  const h = (process.env.SPACE_HOST || 'beyondstagezero.space').toLowerCase()
+  return /^[a-z0-9.-]+$/.test(h) ? h : 'beyondstagezero.space'
+}
+const spaceProject = () => {
+  const id = process.env.SPACE_PROJECT_ID || 'prj_oTxxGr463qRoNBuHdp7HEPEAHnkP'
+  return /^prj_[A-Za-z0-9]+$/.test(id) ? id : ''
+}
+// Inlined (both values are checked above) so it works alongside either site's $1/$2 parameters.
+const spaceWhere = () =>
+  `(lower(coalesce(host, '')) in ('${spaceHost()}', 'www.${spaceHost()}')${spaceProject() ? ` or coalesce(project_id, '') = '${spaceProject()}'` : ''})`
 
 type Row = Record<string, unknown>
 
@@ -31,10 +44,8 @@ const STARSHIP_WHERE = `(lower(coalesce(host, '')) = $1 or (project_id is not nu
   array(select distinct project_id from web_events where lower(host) = $1 and project_id is not null) || $2::text[])))`
 
 /** Traffic stats for the events matching `where` (a SQL condition using $1 / $2 as above). */
-async function siteStats(db: Db, days: number, bucket: string, where: string, host: string) {
+async function siteStats(db: Db, days: number, bucket: string, where: string, p: unknown[]) {
   const since = `now() - interval '${days} days'`
-  const extraIds = (process.env.STARSHIP_PROJECT_ID || '').split(',').map((x) => x.trim()).filter(Boolean)
-  const p: unknown[] = [host, extraIds]
   const [[totals], [live], series, pages, referrers, countries, devices, [ever], [peak], [busiest]] = await Promise.all([
     db.query(
       `select count(*) as views, count(distinct coalesce(visitor, session)) as visitors, count(distinct session) as sessions
@@ -153,9 +164,12 @@ export default route({
     const bucket = days <= 1 ? 'hour' : days > 90 ? 'week' : 'day'
     const host = starshipHost()
 
-    const [web, starship, flight, [everAny], hubDaily, hubPeople, hubTypes, [team]] = await Promise.all([
-      siteStats(db, days, bucket, `not ${STARSHIP_WHERE}`, host),
-      siteStats(db, days, bucket, STARSHIP_WHERE, host),
+    const extraIds = (process.env.STARSHIP_PROJECT_ID || '').split(',').map((x) => x.trim()).filter(Boolean)
+    const sp = [host, extraIds]
+    const [web, starship, space, flight, [everAny], hubDaily, hubPeople, hubTypes, [team]] = await Promise.all([
+      siteStats(db, days, bucket, `not ${STARSHIP_WHERE} and not ${spaceWhere()}`, sp),
+      siteStats(db, days, bucket, `${STARSHIP_WHERE} and not ${spaceWhere()}`, sp),
+      siteStats(db, days, bucket, spaceWhere(), []),
       currentFlight(),
       db.query(`select count(*) as events from web_events`),
       db.query(
@@ -188,7 +202,7 @@ export default route({
         return null
       }
     }
-    const [vWeb, vStar] = await Promise.all([fromVercel(websiteProject), fromVercel(starshipProject)])
+    const [vWeb, vStar, vSpace] = await Promise.all([fromVercel(websiteProject), fromVercel(starshipProject), fromVercel(spaceProject() || undefined)])
     // For 24 hours the drain is exact (real visitors, live) once it has been running a full day.
     const drainCoversRange = (drain: { firstEventAt?: unknown }) =>
       typeof drain.firstEventAt === 'string' && new Date(drain.firstEventAt).getTime() <= Date.now() - days * 86_400_000
@@ -222,9 +236,10 @@ export default route({
       days,
       bucket,
       generatedAt: new Date().toISOString(),
-      drainConnected: n(everAny!.events) > 0 || !!vWeb || !!vStar,
+      drainConnected: n(everAny!.events) > 0 || !!vWeb || !!vStar || !!vSpace,
       web: merge(web, vWeb),
       starship: { host, flight, ...merge(starship, vStar) },
+      space: { host: spaceHost(), ...merge(space, vSpace) },
       hub: {
         changes: hubDaily.reduce((t, r) => t + n(r.changes), 0),
         series: hubDaily.map((r) => ({ date: String(r.date), changes: n(r.changes) })),

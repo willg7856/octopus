@@ -111,6 +111,7 @@ interface ServerAnalytics {
   drainConnected: boolean
   web: SiteTraffic
   starship: SiteTraffic & { host: string; flight: Flight | null }
+  space?: SiteTraffic & { host: string }
   hub: {
     changes: number
     series: { date: string; changes: number }[]
@@ -241,6 +242,7 @@ export function AnalyticsPage() {
       {error && <p className="form-error">{error}</p>}
       <WebsiteSection data={data} days={days} />
       <StarshipSection data={data} days={days} />
+      <SpaceSection data={data} days={days} />
       <HubSection data={data} days={days} />
       <GitHubPanel days={days} />
     </div>
@@ -622,6 +624,92 @@ function StarshipSection({ data, days }: { data: ServerAnalytics | null; days: n
             The tracker already loads Vercel Web Analytics. Add its Vercel project to the Web Analytics drain
             {data.drainConnected ? ' (the drain is working for the main site)' : ' when you set the drain up (see Website above)'} — Vercel
             → Team Settings → Drains → edit the drain → include the <strong>starship tracker</strong> project.
+          </p>
+        </div>
+      )}
+    </Section>
+  )
+}
+
+/* ---------------- beyondstagezero.space ---------------- */
+
+type LiveFeed = { current: { name: string; status: string; at: string } | null; next: { name: string; at: string }[] }
+const SPACE_STATUS: Record<string, string> = { scheduled: 'Scheduled', hold: 'Hold', live: 'Live', done: 'Complete', scrubbed: 'Scrubbed' }
+
+function SpaceSection({ data, days }: { data: ServerAnalytics | null; days: number }) {
+  const now = useNow()
+  const [feed, setFeed] = useState<LiveFeed | null>(null)
+  useEffect(() => {
+    let stop = false
+    const load = () =>
+      fetch('/api/public/live', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((f) => !stop && setFeed(f))
+        .catch(() => undefined)
+    load()
+    const t = setInterval(load, 15_000)
+    return () => {
+      stop = true
+      clearInterval(t)
+    }
+  }, [])
+  if (!data?.space) return null
+  const s = data.space
+  const site = `https://${s.host}`
+  const c = feed?.current
+  const at = c ? new Date(c.at).getTime() : null
+  const counting = c && (c.status === 'scheduled' || c.status === 'hold' || c.status === 'live') && at
+  return (
+    <Section
+      title=".space"
+      icon="chart"
+      sub={
+        <>
+          <a href={site} target="_blank" rel="noreferrer">{s.host}</a> · live test page · {s.source === 'vercel' ? 'Vercel Web Analytics (full history)' : 'from the Vercel drain'}
+          {s.lastEventAt ? ` · last live view ${fmtDateTime(s.lastEventAt)}` : ''}
+        </>
+      }
+      right={s.connected ? <LivePill n={s.live.visitors} label="watching now" /> : undefined}
+    >
+      <div className="card an-flight">
+        {c ? (
+          <>
+            <div className="an-flight-main">
+              <span className="an-card-title">On .space now</span>
+              <span className="an-flight-title">
+                {c.name}
+                <span className="muted"> · {SPACE_STATUS[c.status] ?? c.status}</span>
+              </span>
+              <span className="muted small">T-0 {fmtDateTime(c.at)}</span>
+            </div>
+            {counting && <TClock target={at} now={now} />}
+          </>
+        ) : (
+          <div className="an-flight-main">
+            <span className="an-card-title">On .space now</span>
+            <span className="muted small">{feed ? 'Standby: no test showing.' : 'Checking…'}</span>
+          </div>
+        )}
+        <div className="row gap-s wrap">
+          <a className="btn btn-sm" href={site} target="_blank" rel="noreferrer">
+            <Icon name="external" size={14} /> Open .space
+          </a>
+          <a className="btn btn-sm" href="#/space">
+            <Icon name="play" size={14} /> Run a test
+          </a>
+        </div>
+      </div>
+      {s.connected ? (
+        <>
+          <HistoryNote data={data} />
+          <TrafficBody w={s} days={days} bucket={data.bucket} starship />
+        </>
+      ) : (
+        <div className="card an-setup">
+          <p className="strong">No .space views yet.</p>
+          <p className="muted small">
+            .space is connected to the Web Analytics drain, so views will appear here as people visit. Who’s watching right now and peak viewers
+            during a test come from the drain; longer history comes from Vercel.
           </p>
         </div>
       )}
