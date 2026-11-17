@@ -633,7 +633,7 @@ function StarshipSection({ data, days }: { data: ServerAnalytics | null; days: n
 
 /* ---------------- beyondstagezero.space ---------------- */
 
-type LiveFeed = { current: { name: string; status: string; at: string } | null; next: { name: string; at: string }[] }
+type LiveFeed = { current: { name: string; status: string; at: string; held?: number | null } | null; next: { name: string; at: string }[] }
 const SPACE_STATUS: Record<string, string> = { scheduled: 'Scheduled', hold: 'Hold', live: 'Live', done: 'Complete', scrubbed: 'Scrubbed' }
 
 function SpaceSection({ data, days }: { data: ServerAnalytics | null; days: number }) {
@@ -682,7 +682,7 @@ function SpaceSection({ data, days }: { data: ServerAnalytics | null; days: numb
               </span>
               <span className="muted small">T-0 {fmtDateTime(c.at)}</span>
             </div>
-            {counting && <TClock target={at} now={now} />}
+            {counting && <TClock target={at} now={now} held={c.status === 'hold' ? c.held : undefined} />}
           </>
         ) : (
           <div className="an-flight-main">

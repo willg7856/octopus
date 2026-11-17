@@ -41,3 +41,60 @@ export function melbourneInstant(date: string, time?: unknown): number {
   t = wall - offset(t) // settle daylight-saving edges
   return t
 }
+
+/** Melbourne wall-clock date ("YYYY-MM-DD") and time ("HH:MM") of an instant. */
+export function melbourneParts(utcMs: number): { date: string; time: string } {
+  const p = new Intl.DateTimeFormat('en-AU', {
+    timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(new Date(utcMs))
+  const get = (t: string) => p.find((x) => x.type === t)?.value ?? '00'
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` }
+}
+
+/**
+ * Holds. Putting a test on Hold saves how long was left (`holdLeft`, ms) and every site shows the
+ * clock frozen there. Going back to Live or Scheduled moves T-0 to now + that time, saved to the
+ * second as `t0`, with date/time updated to match. `t0For` records which date/time `t0` belongs to,
+ * so if someone later edits the date or time by hand, that wins.
+ */
+type CountdownData = Record<string, unknown>
+const signature = (d: CountdownData) => `${String(d.date ?? '')}|${String(d.time ?? '')}`
+
+/** The countdown's T-0 as a UTC timestamp (ms), exact to the second after a hold. */
+export function countdownInstant(d: CountdownData): number {
+  if (typeof d.t0 === 'number' && d.t0For === signature(d)) return d.t0
+  return melbourneInstant(String(d.date), d.time)
+}
+
+/** Time left on the clock while on Hold (ms; negative if the hold started after T-0), else null. */
+export function holdLeft(d: CountdownData): number | null {
+  return d.status === 'hold' && typeof d.holdLeft === 'number' ? d.holdLeft : null
+}
+
+/** Applies hold/resume to a countdown being saved, given what was saved before. */
+export function applyHold(before: CountdownData, after: CountdownData, now = Date.now()): CountdownData {
+  const was = before.status
+  const is = after.status
+  const next = { ...after }
+  if (is === 'hold' && was !== 'hold' && after.date) {
+    next.holdLeft = countdownInstant(before.date ? before : after) - now
+  } else if (is === 'hold') {
+    // Still holding: keep the frozen time, unless someone just changed the date/time.
+    if (signature(after) !== signature(before) && after.date) next.holdLeft = countdownInstant(after) - now
+    else if (typeof before.holdLeft === 'number') next.holdLeft = before.holdLeft
+  } else if (was === 'hold') {
+    const left = typeof before.holdLeft === 'number' ? before.holdLeft : null
+    delete next.holdLeft
+    if ((is === 'live' || is === 'scheduled') && left !== null && signature(after) === signature(before)) {
+      const t0 = now + left
+      const { date, time } = melbourneParts(t0)
+      next.date = date
+      next.time = time
+      next.t0 = t0
+      next.t0For = signature(next)
+    }
+  } else {
+    delete next.holdLeft
+  }
+  return next
+}

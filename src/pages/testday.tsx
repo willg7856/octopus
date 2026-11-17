@@ -8,7 +8,7 @@ import { fmtDate, fmtTime12 } from '../lib/derive'
 import { setParam, useRoute } from '../lib/router'
 import { useRecords, useStore } from '../lib/store'
 import type { Rec } from '../lib/types'
-import { targetOf, TClock, useNow, type Countdown } from './countdowns'
+import { heldOf, targetOf, TClock, useNow, type Countdown } from './countdowns'
 
 type TestCountdown = Countdown & { status?: Status; stream?: string; result?: string }
 type Status = 'scheduled' | 'hold' | 'live' | 'done' | 'scrubbed'
@@ -205,7 +205,7 @@ function TestConsole({
 
       <section className={`card testday-status status-${status}`}>
         <div className="testday-clock">
-          <TClock target={at} now={now} />
+          <TClock target={at} now={now} held={heldOf(d)} />
           <Badge tone={STATUSES.find((s) => s.value === status)?.tone}>{STATUSES.find((s) => s.value === status)?.label}</Badge>
         </div>
         <div className="testday-buttons" role="group" aria-label="Test status">

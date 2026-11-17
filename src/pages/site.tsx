@@ -9,7 +9,7 @@ import { href } from '../lib/router'
 import { SITE_SEED } from '../lib/siteSeed'
 import { useRecords, useStore } from '../lib/store'
 import type { Op, Rec } from '../lib/types'
-import { targetOf, TClock, useNow, type Countdown } from './countdowns'
+import { targetOf, heldOf, TClock, useNow, type Countdown } from './countdowns'
 
 type Stat = { label: string; value: string | number; suffix?: string; description?: string; visible?: 'shown' | 'hidden'; order?: number }
 type Post = { title: string; body: string; tag?: string; date: string; dateLabel?: string; status: 'published' | 'draft'; link?: string }
@@ -288,7 +288,7 @@ function CountdownsCard({ countdowns }: { countdowns: Rec<Countdown>[] }) {
                   {x.rec.data.time ? ` · ${fmtTime12(x.rec.data.time)}` : ''}
                 </span>
               </button>
-              <TClock target={x.at} now={now} size="s" />
+              <TClock target={x.at} now={now} size="s" held={heldOf(x.rec.data)} />
             </li>
           ))}
         </ul>

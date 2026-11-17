@@ -1,6 +1,6 @@
 import { getDb } from '../_lib/db.js'
 import { HttpError, route } from '../_lib/http.js'
-import { melbourneInstant } from '../_lib/melbourne.js'
+import { countdownInstant, holdLeft } from '../_lib/melbourne.js'
 import { publicMode, thin, type Sample, type Units } from '../_lib/telemetry.js'
 
 /**
@@ -34,7 +34,7 @@ export default route({
     const tests = rows
       .filter((r) => r.type === 'countdown' && r.data.name && r.data.date)
       .map((r) => {
-        const at = melbourneInstant(String(r.data.date), r.data.time)
+        const at = countdownInstant(r.data)
         return {
           id: r.id,
           name: String(r.data.name),
@@ -44,6 +44,8 @@ export default route({
           at: new Date(at).toISOString(),
           atMs: at,
           status: String(r.data.status || 'scheduled'),
+          // While on Hold: time left on the frozen clock (ms), so every site shows the same stopped T−.
+          held: holdLeft(r.data),
           stream: r.data.stream ? String(r.data.stream) : null,
           telemetryMode: publicMode(r.data.telemetry),
           result: r.data.result ? String(r.data.result) : null,

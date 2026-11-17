@@ -1,4 +1,5 @@
 import { getDb } from '../_lib/db.js'
+import { countdownInstant, holdLeft } from '../_lib/melbourne.js'
 import { HttpError, route } from '../_lib/http.js'
 
 /**
@@ -80,6 +81,9 @@ export default route({
         category: r.data.category ? String(r.data.category) : null,
         // Test-day status, so beyondstagezero.com can point people to the live page
         status: r.data.status ? String(r.data.status) : null,
+        // Exact T-0 (moves when a hold ends) and, while on Hold, the frozen time left in ms
+        at: new Date(countdownInstant(r.data)).toISOString(),
+        held: holdLeft(r.data),
       }))
       .sort((a, b) => `${a.date} ${a.time ?? ''}`.localeCompare(`${b.date} ${b.time ?? ''}`))
 
@@ -137,7 +141,8 @@ export default route({
     // Public, cacheable for a minute at the edge so the website stays fast.
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET')
-    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
+    // Short edge cache so test-day changes (Hold, Live) reach beyondstagezero.com within seconds.
+    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=5')
     res.status(200).json(body)
   },
 })

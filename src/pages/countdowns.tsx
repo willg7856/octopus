@@ -14,6 +14,12 @@ export type Countdown = {
   category?: string
   public?: 'shown' | 'hidden'
   notes?: string
+  status?: string
+  /** Exact T-0 (ms) after a hold, valid while date/time still match `t0For`. */
+  t0?: number
+  t0For?: string
+  /** Time left on the clock while on Hold (ms). */
+  holdLeft?: number
 }
 
 const C = byType.get('countdown')!
@@ -21,9 +27,15 @@ const CATEGORY = C.fields.find((f) => f.key === 'category')!.options
 
 /** Target moment in the viewer's local time. Time is optional and may be 12- or 24-hour. */
 export function targetOf(d: Countdown): number {
+  if (typeof d.t0 === 'number' && d.t0For === `${d.date ?? ''}|${d.time ?? ''}`) return d.t0
   const [y, m, day] = d.date.split('-').map(Number)
   const [hh, mm] = (parseTime(d.time ?? '') ?? '00:00').split(':').map(Number)
   return new Date(y!, m! - 1, day!, hh!, mm!).getTime()
+}
+
+/** Time left on a held clock (ms), or undefined if it isn't on Hold. */
+export function heldOf(d: { status?: unknown; holdLeft?: unknown }): number | undefined {
+  return d.status === 'hold' && typeof d.holdLeft === 'number' ? d.holdLeft : undefined
 }
 
 /** Re-renders every second while mounted. */
@@ -49,10 +61,16 @@ export function tClock(diff: number): { sign: '−' | '+'; days: number; hms: st
   return { sign, days, hms: `${pad(h)}:${pad(m)}:${pad(s % 60)}` }
 }
 
-export function TClock({ target, now, size = 'l' }: { target: number; now: number; size?: 'l' | 's' }) {
-  const t = tClock(target - now)
+/** A T− clock. Pass `held` (ms left) to show it stopped, as when a test is on Hold. */
+export function TClock({ target, now, size = 'l', held }: { target: number; now: number; size?: 'l' | 's'; held?: number | null }) {
+  const isHeld = held != null
+  const t = tClock(isHeld ? held : target - now)
   return (
-    <span className={`tclock tclock-${size}${t.sign === '+' ? ' past' : ''}`} aria-label={`T ${t.sign === '−' ? 'minus' : 'plus'} ${t.days} days ${t.hms}`}>
+    <span
+      className={`tclock tclock-${size}${t.sign === '+' ? ' past' : ''}${isHeld ? ' held' : ''}`}
+      aria-label={`${isHeld ? 'Holding at ' : ''}T ${t.sign === '−' ? 'minus' : 'plus'} ${t.days} days ${t.hms}`}
+    >
+      {isHeld && <span className="tclock-hold">Hold</span>}
       <span className="tclock-t">T{t.sign}</span>
       {t.days > 0 && (
         <>
@@ -87,7 +105,7 @@ function CountdownCard({ rec, at, now }: { rec: Rec<Countdown>; at: number; now:
         <Button small variant="ghost" icon="edit" aria-label={`Edit ${d.name}`} onClick={() => openEditor({ type: 'countdown', record: rec as Rec })} />
       </header>
       <h3 className="countdown-name">{d.name}</h3>
-      <TClock target={at} now={now} />
+      <TClock target={at} now={now} held={heldOf(d)} />
       <p className="muted small">
         {fmtDate(d.date)}
         {d.time ? ` · ${fmtTime12(d.time)}` : ''}
@@ -166,7 +184,7 @@ export function NextCountdowns() {
             <span className="strong next-cd-name">{x.rec.data.name}</span>
             <Badge tone={toneOf(CATEGORY, x.rec.data.category)}>{labelOf(CATEGORY, x.rec.data.category)}</Badge>
           </span>
-          <TClock target={x.at} now={now} size="s" />
+          <TClock target={x.at} now={now} size="s" held={heldOf(x.rec.data)} />
           <span className="muted small">
             {fmtDate(x.rec.data.date)}
             {x.rec.data.time ? ` · ${fmtTime12(x.rec.data.time)}` : ''}

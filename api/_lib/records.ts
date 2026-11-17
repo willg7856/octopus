@@ -1,5 +1,6 @@
 import { getDb, type Row, type Stmt } from './db.js'
 import { HttpError } from './http.js'
+import { applyHold } from './melbourne.js'
 
 export interface RecordOut {
   id: string
@@ -140,8 +141,19 @@ function isDuplicate(err: unknown): boolean {
 export async function applyOps(ops: Op[], by: string): Promise<RecordOut[]> {
   if (!Array.isArray(ops) || ops.length === 0) throw new HttpError(400, 'No changes sent')
   if (ops.length > 200) throw new HttpError(400, 'Too many changes in one request')
-  const stmts = ops.map((op) => toStmt(op, by))
   const db = await getDb()
+  // Countdowns: freeze the clock on Hold and push T-0 back by the hold when it resumes.
+  const updates = ops.filter((o) => o.op === 'update' && o.data && typeof o.data === 'object')
+  if (updates.some((o) => (o as { data: Record<string, unknown> }).data.status !== undefined)) {
+    const before = await db.query<{ id: string; data: Record<string, unknown> | string }>(
+      `select id, data from records where type = 'countdown' and id = any($1)`,
+      [updates.map((o) => o.id)],
+    )
+    const byId = new Map(before.map((r) => [r.id, typeof r.data === 'string' ? JSON.parse(r.data) : r.data]))
+    const now = Date.now()
+    ops = ops.map((o) => (o.op === 'update' && byId.has(o.id) ? { ...o, data: applyHold(byId.get(o.id)!, o.data, now) } : o))
+  }
+  const stmts = ops.map((op) => toStmt(op, by))
   try {
     const results = await db.transaction(stmts)
     return results.map((rows) => toRecord(rows[0]!))
