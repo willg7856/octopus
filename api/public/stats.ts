@@ -1,4 +1,5 @@
 import { getDb } from '../_lib/db.js'
+import { autoStartDueTests } from '../_lib/autostart.js'
 import { countdownInstant, holdLeft } from '../_lib/melbourne.js'
 import { HttpError, route } from '../_lib/http.js'
 
@@ -38,6 +39,7 @@ export default route({
     if ((process.env.PUBLIC_STATS || '').toLowerCase() === 'off') throw new HttpError(404, 'Not found')
 
     const db = await getDb()
+    await autoStartDueTests(db) // a GO test that just hit T-0 becomes In progress
     const rows = await db.query<Row>(
       `select type, data, created_at, updated_at from records
        where deleted_at is null and type in ('stat', 'movement', 'process', 'countdown', 'post', 'notice')`,

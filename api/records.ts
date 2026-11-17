@@ -1,5 +1,7 @@
 import { requireUser } from './_lib/auth.js'
 import { body, q, route } from './_lib/http.js'
+import { autoStartDueTests } from './_lib/autostart.js'
+import { getDb } from './_lib/db.js'
 import { applyOps, listRecords, type Op } from './_lib/records.js'
 
 /**
@@ -10,6 +12,7 @@ import { applyOps, listRecords, type Op } from './_lib/records.js'
 export default route({
   async GET(req, res) {
     await requireUser(req)
+    await autoStartDueTests(await getDb()) // a GO test that just hit T-0 becomes In progress
     const since = q(req, 'since')
     const sinceRev = since != null && /^\d+$/.test(since) ? Number(since) : undefined
     res.status(200).json(await listRecords(sinceRev))

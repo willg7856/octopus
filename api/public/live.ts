@@ -1,5 +1,6 @@
 import { getDb } from '../_lib/db.js'
 import { HttpError, route } from '../_lib/http.js'
+import { autoStartDueTests } from '../_lib/autostart.js'
 import { countdownInstant, holdLeft } from '../_lib/melbourne.js'
 import { publicMode, thin, type Sample, type Units } from '../_lib/telemetry.js'
 
@@ -25,6 +26,7 @@ export default route({
   async GET(_req, res) {
     if ((process.env.PUBLIC_STATS || '').toLowerCase() === 'off') throw new HttpError(404, 'Not found')
     const db = await getDb()
+    await autoStartDueTests(db) // a GO test that just hit T-0 becomes In progress
     const rows = await db.query<Row>(
       `select id, type, data, created_at, updated_at from records
        where deleted_at is null and (type = 'liveupdate' or (type = 'countdown'
