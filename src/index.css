@@ -484,6 +484,7 @@ a.stat:hover { border-color: var(--line-strong); color: inherit; }
 .site-list li.draft .strong { color: var(--muted); }
 .site-list-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; text-align: left; background: none; border: 0; padding: 2px 4px; margin: -2px -4px; border-radius: 4px; cursor: pointer; color: inherit; }
 .site-list-main:hover { background: var(--hover); }
+.site-move { display: inline-flex; gap: 2px; flex: none; }
 .clamp-1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .site-numbers { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .site-number {

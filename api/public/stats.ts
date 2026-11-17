@@ -10,7 +10,7 @@ import { HttpError, route } from '../_lib/http.js'
  *  - "Public numbers" the team marks as Shown, and
  *  - a few build counts calculated from the log, and
  *  - countdowns marked "Shown publicly" (name, date, time, type only — never notes),
- *  - published news posts and the active site notice (BSZ site page in Octopus).
+ *  - published news posts, the active site notice and the upcoming-test cards (BSZ site page in Octopus).
  * Nothing about money, suppliers, contacts, people, machines or orders is ever included.
  * Set PUBLIC_STATS=off on the server to switch it off.
  */
@@ -42,7 +42,7 @@ export default route({
     await autoStartDueTests(db) // a GO test that just hit T-0 becomes In progress
     const rows = await db.query<Row>(
       `select type, data, created_at, updated_at from records
-       where deleted_at is null and type in ('stat', 'movement', 'process', 'countdown', 'post', 'notice')`,
+       where deleted_at is null and type in ('stat', 'movement', 'process', 'countdown', 'post', 'notice', 'upnext')`,
     )
 
     const now = new Date()
@@ -104,6 +104,29 @@ export default route({
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 100)
 
+    // "Next tests" cards on the Tests page. Steps are typed one per line as "label | when".
+    const upnextRows = rows.filter((r) => r.type === 'upnext')
+    const upnext = upnextRows
+      .filter((r) => r.data.visible !== 'hidden' && r.data.title)
+      .sort((a, b) => (Number(a.data.order) || 999) - (Number(b.data.order) || 999))
+      .map((r) => ({
+        code: r.data.code ? String(r.data.code) : null,
+        title: String(r.data.title),
+        engine: r.data.engine ? String(r.data.engine) : null,
+        status: r.data.status ? String(r.data.status) : null,
+        note: r.data.note ? String(r.data.note) : '',
+        steps: String(r.data.steps ?? '')
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .map((l) => {
+            const [label, ...when] = l.split('|')
+            return { label: label.trim(), when: when.join('|').trim() || null }
+          }),
+        link: r.data.link ? String(r.data.link) : null,
+        linkText: r.data.linkText ? String(r.data.linkText) : null,
+      }))
+
     const notices = rows.filter((r) => r.type === 'notice')
     const active = notices
       .filter((r) => r.data.active !== 'off' && r.data.title)
@@ -125,7 +148,9 @@ export default route({
         numbers: rows.some((r) => r.type === 'stat'),
         news: posts.length > 0,
         notice: notices.length > 0,
+        upnext: upnextRows.length > 0,
       },
+      upnext,
       notice,
       numbers,
       news,

@@ -14,6 +14,7 @@ import { targetOf, heldOf, TClock, useNow, type Countdown } from './countdowns'
 type Stat = { label: string; value: string | number; suffix?: string; description?: string; visible?: 'shown' | 'hidden'; order?: number }
 type Post = { title: string; body: string; tag?: string; date: string; dateLabel?: string; status: 'published' | 'draft'; link?: string }
 type Notice = { label?: string; title: string; active: 'on' | 'off'; link?: string; linkText?: string }
+type UpNext = { title: string; code?: string; status?: string; engine?: string; note?: string; steps?: string; link?: string; linkText?: string; visible?: 'shown' | 'hidden'; order?: number }
 
 const SITE = 'https://beyondstagezero.com'
 
@@ -26,6 +27,7 @@ export function SitePage() {
   const posts = useRecords<Post>('post')
   const notices = useRecords<Notice>('notice')
   const countdowns = useRecords<Countdown>('countdown')
+  const upnext = useRecords<UpNext>('upnext')
   const { commit } = useStore()
   const openEditor = useEditor()
   const toast = useToast()
@@ -37,6 +39,7 @@ export function SitePage() {
     notices.length === 0 && 'notice',
     stats.length === 0 && `${SITE_SEED.numbers.length} track-record numbers`,
     posts.length === 0 && `${SITE_SEED.news.length} news posts`,
+    upnext.length === 0 && `${SITE_SEED.upnext.length} upcoming tests`,
   ].filter(Boolean) as string[]
   const missingText = missing.length > 1 ? `${missing.slice(0, -1).join(', ')} and ${missing.at(-1)}` : missing[0]
 
@@ -52,6 +55,7 @@ export function SitePage() {
       ...(notices.length ? [] : [{ op: 'create' as const, id: newId(), type: 'notice', data: { ...SITE_SEED.notice } }]),
       ...(stats.length ? [] : SITE_SEED.numbers.map((n) => ({ op: 'create' as const, id: newId(), type: 'stat', data: { ...n } }))),
       ...(posts.length ? [] : SITE_SEED.news.map((n) => ({ op: 'create' as const, id: newId(), type: 'post', data: { ...n } }))),
+      ...(upnext.length ? [] : SITE_SEED.upnext.map((n) => ({ op: 'create' as const, id: newId(), type: 'upnext', data: { ...n } }))),
     ]
     try {
       await commit(ops)
@@ -96,6 +100,7 @@ export function SitePage() {
 
       <NoticeCard notices={notices} />
       <NumbersCard stats={stats} />
+      <UpNextCard items={upnext} />
       <NewsCard posts={posts} />
       <CountdownsCard countdowns={countdowns} />
 
@@ -199,6 +204,78 @@ function NumbersCard({ stats }: { stats: Rec<Stat>[] }) {
             </button>
           ))}
         </div>
+      )}
+    </section>
+  )
+}
+
+/* ---------------- upcoming tests ---------------- */
+
+function UpNextCard({ items }: { items: Rec<UpNext>[] }) {
+  const openEditor = useEditor()
+  const { commit } = useStore()
+  const toast = useToast()
+  const sorted = useMemo(
+    () => [...items].sort((a, b) => (Number(a.data.order) || 999) - (Number(b.data.order) || 999) || a.data.title.localeCompare(b.data.title)),
+    [items],
+  )
+  const nextOrder = Math.max(0, ...items.map((s) => Number(s.data.order) || 0)) + 1
+
+  // Up/down swaps positions; positions are renumbered 1..n so they stay tidy.
+  const move = async (i: number, dir: -1 | 1) => {
+    const list = [...sorted]
+    const j = i + dir
+    if (j < 0 || j >= list.length) return
+    ;[list[i], list[j]] = [list[j]!, list[i]!]
+    const ops: Op[] = list
+      .map((r, k) => ({ r, order: k + 1 }))
+      .filter(({ r, order }) => Number(r.data.order) !== order)
+      .map(({ r, order }) => ({ op: 'update' as const, id: r.id, version: r.version, data: { ...r.data, order } }))
+    try {
+      await commit(ops)
+    } catch (e) {
+      toast((e as Error).message, { tone: 'bad' })
+    }
+  }
+
+  return (
+    <section className="card site-card">
+      <header className="site-card-head">
+        <div>
+          <h2 className="card-title">Upcoming tests</h2>
+          <p className="muted small">
+            The “Next tests” cards on the <a href={`${SITE}/tests#next-tests`} target="_blank" rel="noreferrer">Tests page</a>. Click one to edit
+            it, or use the arrows to change the order.
+          </p>
+        </div>
+        <Button small icon="plus" onClick={() => openEditor({ type: 'upnext', initial: { order: nextOrder, visible: 'shown' } })}>Add test</Button>
+      </header>
+      {sorted.length === 0 ? (
+        <p className="muted small">No upcoming tests. The Tests page shows its built-in list until you add one (or bring them in above).</p>
+      ) : (
+        <ul className="site-list">
+          {sorted.map((u, i) => {
+            const steps = String(u.data.steps ?? '').split(/\r?\n/).filter((l) => l.trim())
+            return (
+              <li key={u.id} className={u.data.visible === 'hidden' ? 'draft' : ''}>
+                <button className="site-list-main" onClick={() => openEditor({ type: 'upnext', record: u as Rec })}>
+                  <span className="strong">
+                    {u.data.code && <span className="muted">{u.data.code} · </span>}
+                    {u.data.title}
+                  </span>
+                  <span className="muted small">
+                    {[u.data.status, u.data.engine, steps.length ? `${steps.length} step${steps.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ')}
+                  </span>
+                </button>
+                {u.data.visible === 'hidden' && <Badge>Hidden</Badge>}
+                <span className="site-move">
+                  <Button small variant="ghost" aria-label={`Move ${u.data.title} up`} disabled={i === 0} onClick={() => move(i, -1)}>↑</Button>
+                  <Button small variant="ghost" aria-label={`Move ${u.data.title} down`} disabled={i === sorted.length - 1} onClick={() => move(i, 1)}>↓</Button>
+                </span>
+              </li>
+            )
+          })}
+        </ul>
       )}
     </section>
   )

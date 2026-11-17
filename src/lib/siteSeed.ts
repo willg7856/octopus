@@ -3,6 +3,29 @@
  * and B1mStaticFireNotice). The BSZ site page offers to import this once, so nobody retypes it.
  */
 export const SITE_SEED = {
+  "upnext": [
+    {
+      "code": "Next",
+      "title": "B1M pressure test campaign",
+      "engine": "B1M — 550 mm × 80 mm",
+      "note": "We are pressure testing the first B1M engine, stepping the pressure up in stages. The first test was at 50 psi on 2 November. The final 1200 psi test is run like a real firing: we light the igniter as if it were lighting the propellant grain, then straight away pressurise the engine to 1200 psi, so it is tested the way it will fly. It needs to pass before its first static fire. Pressure testing was one of the main lessons from SF-04, where the Mk II case ruptured.",
+      "steps": "50 psi | 2 Nov\n100 psi | NET 14 Nov\n150 psi | NET 21 Nov\n500 psi\n1000 psi\n1200 psi + igniter",
+      "status": "In progress",
+      "visible": "shown",
+      "order": 1
+    },
+    {
+      "code": "C-03",
+      "title": "Campaign 3 — B1M engine static fires",
+      "engine": "B1M — 550 mm × 80 mm",
+      "note": "First firing of the B1M engine series, once the pressure test is done. The first static fire is pending regulatory approval; two more engines are still in production with Federation University. Targeting 200 kgf for a 3 s burn, with each casing aimed at ≥2 firings before flight.",
+      "status": "Pending approval",
+      "linkText": "Engine development updates",
+      "link": "/b1m-engine",
+      "visible": "shown",
+      "order": 2
+    }
+  ],
   "notice": {
     "label": "Static fire",
     "title": "Our first B1M static fire is pending regulatory approval.",

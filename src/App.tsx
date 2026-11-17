@@ -104,6 +104,7 @@ function Routes() {
     case 'public-stats':
     case 'news':
     case 'site-notice':
+    case 'upcoming-tests':
       return <SitePage />
     case 'activity':
       return <ActivityPage />
