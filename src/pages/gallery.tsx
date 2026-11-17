@@ -185,33 +185,62 @@ export function GalleryPage() {
   }
 
   const addVideo = async () => {
-    const link = await dialog.prompt({
-      title: 'Add a video',
-      message: 'Paste a YouTube link. Unlisted videos work too, so they don’t have to be on your channel.',
+    const links = (text: string) => text.split(/[\s,]+/).filter(Boolean)
+    const input = await dialog.prompt({
+      title: 'Add videos',
+      message: 'Paste a YouTube link, or several separated by spaces. Unlisted videos work too, so they don’t have to be on your channel. Each one starts with its YouTube title as the caption.',
       label: 'YouTube link',
-      placeholder: 'https://youtu.be/… or https://youtube.com/shorts/…',
-      confirmLabel: 'Add video',
-      validate: (v) => (youtubeVideo(v) ? null : 'That isn’t a YouTube video link'),
+      placeholder: 'https://youtu.be/… https://youtube.com/shorts/…',
+      confirmLabel: 'Add',
+      validate: (v) => {
+        const all = links(v)
+        if (!all.length) return 'Paste a YouTube link'
+        const bad = all.filter((l) => !youtubeVideo(l))
+        return bad.length ? `Not a YouTube video link: ${bad[0]}` : null
+      },
     })
-    const v = link ? youtubeVideo(link) : null
-    if (!v) return
-    const front = Math.min(0, ...photos.map((p) => Number(p.data.order) || 0)) - 1
-    try {
-      await create('photo', {
-        url: `https://www.youtube.com/watch?v=${v.id}`,
-        thumb: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
-        videoId: v.id,
-        vertical: v.vertical,
-        width: v.vertical ? 720 : 1280,
-        height: v.vertical ? 1280 : 720,
-        caption: '',
-        kind: 'video',
-        visible: 'shown',
-        order: front,
-      })
-      toast('Video added to the gallery. Click it to add a caption.', { tone: 'good' })
-    } catch (e) {
-      toast((e as Error).message, { tone: 'bad' })
+    if (!input) return
+    const have = new Set(photos.map((p) => p.data.videoId).filter(Boolean))
+    const seen = new Set<string>()
+    const videos = links(input)
+      .map((l) => youtubeVideo(l)!)
+      .filter((v) => !have.has(v.id) && !seen.has(v.id) && seen.add(v.id))
+    const skipped = links(input).length - videos.length
+    if (!videos.length) {
+      toast('Already in the gallery.', { tone: 'neutral' })
+      return
+    }
+    let front = Math.min(0, ...photos.map((p) => Number(p.data.order) || 0))
+    let added = 0
+    // Oldest link first, so the first one you pasted ends up first in the gallery.
+    for (const v of [...videos].reverse()) {
+      const info = await fetch(`/api/gallery/video?id=${v.id}`, { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null) as { title?: string } | null
+      front -= 1
+      try {
+        await create('photo', {
+          url: `https://www.youtube.com/watch?v=${v.id}`,
+          thumb: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+          videoId: v.id,
+          vertical: v.vertical,
+          width: v.vertical ? 720 : 1280,
+          height: v.vertical ? 1280 : 720,
+          caption: info?.title ?? '',
+          kind: 'video',
+          visible: 'shown',
+          order: front,
+        })
+        added++
+      } catch (e) {
+        toast((e as Error).message, { tone: 'bad' })
+      }
+    }
+    if (added) {
+      toast(
+        `${added} video${added === 1 ? '' : 's'} added to the gallery${skipped ? ` (${skipped} already there)` : ''}. Click one to change its caption.`,
+        { tone: 'good' },
+      )
     }
   }
 
@@ -295,7 +324,7 @@ export function GalleryPage() {
         </div>
         <div className="row gap-s wrap">
           <LinkButton href={`${SITE}/gallery`} external icon="external">Open the gallery</LinkButton>
-          <Button icon="play" onClick={addVideo}>Add video</Button>
+          <Button icon="play" onClick={addVideo}>Add videos</Button>
           <Button variant="primary" icon="upload" onClick={() => input.current?.click()}>Add photos</Button>
           <input
             ref={input}
