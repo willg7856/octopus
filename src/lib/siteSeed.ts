@@ -3,6 +3,96 @@
  * and B1mStaticFireNotice). The BSZ site page offers to import this once, so nobody retypes it.
  */
 export const SITE_SEED = {
+  "testLog": {
+    "campaigns": [
+      {
+        "code": "C-02",
+        "engine": "Mk II",
+        "dateLabel": "26 Apr 2026",
+        "order": 2,
+        "objective": "Comparative KNO₃ grade test — technical vs fertiliser grade in redesigned Mk II casing.",
+        "photos": "https://www.beyondstagezero.com/sf-c02-dawn-range.jpg | Setting up the range before sunrise, 26 April.\nhttps://www.beyondstagezero.com/sf-c02-dawn-pad.jpg | The test stand on the pad.\nhttps://www.beyondstagezero.com/sf-c02-dawn-sky.jpg | Sunrise over the range, the morning of SF-03 and SF-04."
+      },
+      {
+        "code": "C-01",
+        "engine": "Mk I",
+        "dateLabel": "18 Feb 2026",
+        "order": 3,
+        "objective": "Comparative KNO₃ grade test — technical vs fertiliser grade at Mk I scale."
+      }
+    ],
+    "fires": [
+      {
+        "code": "SF-01",
+        "campaign": "C-01",
+        "date": "2026-02-18",
+        "engine": "Mk I — 250 mm × 32 mm",
+        "grade": "Technical grade",
+        "propellant": "KNO₃ / Sucrose — 70:30",
+        "mass": "~300 g",
+        "burnTime": "28 s",
+        "peakThrust": "—",
+        "result": "failure",
+        "photo": "https://www.beyondstagezero.com/sf01-burn.jpg",
+        "photoCaption": "SF-01 burning, 18 February 2026.",
+        "photoShape": "portrait",
+        "observations": "All thrust data lost — load cell issue.\nNozzle ejected during burn.\nEngine casing began melting toward end of burn.\nGround test infrastructure destroyed.",
+        "learned": "Nozzle retention design inadequate for chamber pressure. Casing material insufficient for burn temperature. Technical grade produced a longer, slower burn (28 s) vs fertiliser grade (SF-02: 14 s).",
+        "status": "published"
+      },
+      {
+        "code": "SF-02",
+        "campaign": "C-01",
+        "date": "2026-02-18",
+        "engine": "Mk I — 250 mm × 32 mm",
+        "grade": "Fertiliser grade",
+        "propellant": "KNO₃ / Sucrose — 70:30",
+        "mass": "~300 g",
+        "burnTime": "14 s",
+        "peakThrust": "4.6 kgf (10 kgf on nozzle ejection)",
+        "result": "failure",
+        "photo": "https://www.beyondstagezero.com/sf02-burn.jpg",
+        "photoCaption": "SF-02 burning, 18 February 2026.",
+        "photoShape": "portrait",
+        "observations": "Fertiliser grade produced a significantly faster burn rate than technical grade SF-01 (14 s vs 28 s).\nNozzle ejected again at pressure spike.\nPeak thrust of 4.6 kgf measured before nozzle loss; spike to 10 kgf on ejection.\nAccidental sonic boom generated on nozzle ejection.",
+        "learned": "Fertiliser grade burns approximately twice as fast as technical grade in this configuration — likely due to impurities acting as burn rate accelerants. Nozzle ejection confirmed as a systematic Mk I design failure, not grade-dependent.",
+        "status": "published"
+      },
+      {
+        "code": "SF-03",
+        "campaign": "C-02",
+        "date": "2026-04-26",
+        "engine": "Mk II — 300 mm × 30 mm",
+        "grade": "Fertiliser grade",
+        "propellant": "KNO₃ / Sucrose — 70:30",
+        "mass": "400 g",
+        "burnTime": "—",
+        "peakThrust": "6.8 kgf",
+        "result": "partial",
+        "observations": "New Mk II engine design — 300 mm long, 30 mm diameter.\nSignificantly uneven burn rate throughout the firing.\nPeak thrust of 6.8 kgf recorded.\nSmall burn-throughs observed on nozzle and forward closure post-fire.\nCase integrity maintained — no ejection or rupture.",
+        "learned": "Fertiliser grade propellant shows uneven burn behaviour in the Mk II geometry. Burn-throughs on both ends indicate hot-gas channeling. First firing to return meaningful thrust data — forward closure redesign required.",
+        "status": "published"
+      },
+      {
+        "code": "SF-04",
+        "campaign": "C-02",
+        "date": "2026-04-26",
+        "engine": "Mk II — 300 mm × 30 mm",
+        "grade": "Technical grade",
+        "propellant": "KNO₃ / Sucrose — 70:30",
+        "mass": "400 g",
+        "burnTime": "—",
+        "peakThrust": "—",
+        "result": "failure",
+        "photo": "https://www.beyondstagezero.com/sf04-burn.jpg",
+        "photoCaption": "The start of the SF-04 burn.",
+        "photoShape": "landscape",
+        "observations": "Case rupture — catastrophic failure.\nAll ground test infrastructure destroyed.\nLikely cause: burn-through progression from SF-03 failure mode at higher pressure or grain defect.",
+        "learned": "Forward closure burn-through identified in SF-03 is a critical failure path — not cosmetic. Mk II design requires closure redesign and pressure testing before further static fire. Infrastructure rebuild required before next campaign.",
+        "status": "published"
+      }
+    ]
+  },
   "gallery": [
     {
       "url": "https://www.beyondstagezero.com/sf01-burn.jpg",

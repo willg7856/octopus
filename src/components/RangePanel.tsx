@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, type Sample } from '../lib/api'
-import { useStore } from '../lib/store'
+import { useRecords, useStore } from '../lib/store'
 import type { Rec } from '../lib/types'
 import { useDialog } from './Dialog'
+import { useEditor } from './Editor'
+import { SensorSummary } from './SensorSummary'
 import { Badge, Button, copyText, useToast } from './ui'
 
 /**
@@ -179,6 +181,11 @@ export function RangePanel({ test, now }: { test: Rec; now: number }) {
   const { samples, units, ok, reload } = useRangeData(test.id)
   const [win, setWin] = useState<(typeof WINDOWS)[number]['key']>('30')
   const [showSetup, setShowSetup] = useState(false)
+  const over = (test.data as Record<string, unknown>).status === 'done' || (test.data as Record<string, unknown>).status === 'scrubbed'
+  const [showSummary, setShowSummary] = useState(over)
+  const openEditor = useEditor()
+  const firings = useRecords<{ code?: string; test?: string }>('firing')
+  const entry = firings.find((f) => f.data.test === test.id)
   const [keyInfo, setKeyInfo] = useState<{ set: boolean; updatedAt?: string } | null>(null)
   const d = test.data as Record<string, unknown>
   const mode = String(d.telemetry ?? '30')
@@ -301,6 +308,34 @@ export function RangePanel({ test, now }: { test: Rec; now: number }) {
             <span className="muted small">{samples.length.toLocaleString()} readings</span>
           </div>
           <PressureChart samples={samples} channels={channels} windowMs={WINDOWS.find((w) => w.key === win)!.ms} now={now} />
+          <div className="row between wrap gap-s">
+            <Button small variant={showSummary ? 'default' : 'ghost'} onClick={() => setShowSummary(!showSummary)}>
+              {showSummary ? 'Hide test summary' : 'Test summary: burn time, thrust, impulse'}
+            </Button>
+            {entry ? (
+              <a className="btn btn-sm" href="#/test-log">Test log: {entry.data.code || 'entry'} →</a>
+            ) : (
+              <span className="muted small">Done? Turn this into a test log entry from the summary.</span>
+            )}
+          </div>
+          {showSummary && (
+            <SensorSummary
+              key={samples.length > 0 ? 'data' : 'none'}
+              testId={test.id}
+              name={String(d.name ?? 'test')}
+              fillLabel={entry ? 'Update the test log entry' : 'Create test log entry'}
+              onFill={(fields) => {
+                if (entry) {
+                  openEditor({ type: 'firing', record: { ...entry, data: { ...entry.data, ...fields } } as Rec })
+                } else {
+                  openEditor({
+                    type: 'firing',
+                    initial: { ...fields, test: test.id, date: String(d.date ?? ''), status: 'draft', result: 'success' },
+                  })
+                }
+              }}
+            />
+          )}
         </>
       )}
 

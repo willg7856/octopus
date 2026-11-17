@@ -145,3 +145,107 @@ export function thin(samples: Sample[], channels: string[], max = 600): (number 
   }
   return buckets.filter(Boolean)
 }
+
+// ——— Test summary from the readings ———
+
+const G0 = 9.80665 // m/s² — kgf to newtons
+
+export interface TestSummary {
+  samples: number
+  channels: string[]
+  units: Units
+  from: number
+  to: number
+  burn: { start: number; end: number; seconds: number; basis: 'thrust' | 'chamber' } | null
+  thrust: { peakKg: number; peakN: number; peakAt: number; avgKg: number; avgN: number; impulseNs: number; motorClass: string } | null
+  chamber: { peak: number; peakAt: number; avg: number; unit: string } | null
+}
+
+/** Motor class from total impulse (N·s): A is up to 2.5 N·s and each letter doubles. */
+export function motorClass(ns: number): string {
+  if (!(ns > 0)) return '—'
+  if (ns <= 2.5) return 'A'
+  const i = Math.ceil(Math.log2(ns / 2.5))
+  return i < 26 ? String.fromCharCode(65 + i) : '—'
+}
+
+/**
+ * Works out the burn from the readings: the burn runs from the first to the last reading above
+ * 5% of peak thrust (at least 0.5 kg), or of peak chamber pressure if there's no load cell.
+ * Impulse is the area under the thrust curve over that window (trapezoids), in N·s.
+ */
+export function summarize(samples: Sample[], units: Units = {}): TestSummary | null {
+  if (!samples.length) return null
+  const s = [...samples].sort((a, b) => a.t - b.t)
+  const channels = [...new Set(s.flatMap((x) => Object.keys(x).filter((k) => k !== 't')))]
+  const peakOf = (ch: string) => {
+    let peak = -Infinity
+    let at = 0
+    for (const x of s) if (ch in x && x[ch] > peak) [peak, at] = [x[ch], x.t]
+    return peak === -Infinity ? null : { peak, at }
+  }
+  const window = (ch: string, floor: number) => {
+    const p = peakOf(ch)
+    if (!p || p.peak <= floor) return null
+    const th = Math.max(floor, p.peak * 0.05)
+    const above = s.filter((x) => ch in x && x[ch] >= th)
+    if (above.length < 2) return null
+    return { start: above[0].t, end: above[above.length - 1].t }
+  }
+  const tw = channels.includes('thrust') ? window('thrust', 0.5) : null
+  const cw = !tw && channels.includes('chamber') ? window('chamber', 5) : null
+  const w = tw ?? cw
+  const burn = w ? { ...w, seconds: Math.round((w.end - w.start) / 10) / 100, basis: (tw ? 'thrust' : 'chamber') as 'thrust' | 'chamber' } : null
+
+  let thrust: TestSummary['thrust'] = null
+  const tp = peakOf('thrust')
+  if (tp) {
+    let impulseKgS = 0
+    if (burn) {
+      const inBurn = s.filter((x) => 'thrust' in x && x.t >= burn.start && x.t <= burn.end)
+      for (let i = 1; i < inBurn.length; i++) {
+        const dt = (inBurn[i].t - inBurn[i - 1].t) / 1000
+        if (dt > 0 && dt < 2) impulseKgS += ((Math.max(0, inBurn[i].thrust) + Math.max(0, inBurn[i - 1].thrust)) / 2) * dt
+      }
+    }
+    const impulseNs = impulseKgS * G0
+    const avgKg = burn && burn.seconds > 0 ? impulseKgS / burn.seconds : 0
+    const r = (v: number, d = 2) => Math.round(v * 10 ** d) / 10 ** d
+    thrust = {
+      peakKg: r(tp.peak),
+      peakN: r(tp.peak * G0, 1),
+      peakAt: tp.at,
+      avgKg: r(avgKg),
+      avgN: r(avgKg * G0, 1),
+      impulseNs: r(impulseNs, 1),
+      motorClass: motorClass(impulseNs),
+    }
+  }
+
+  let chamber: TestSummary['chamber'] = null
+  const cp = peakOf('chamber')
+  if (cp) {
+    const inBurn = burn ? s.filter((x) => 'chamber' in x && x.t >= burn.start && x.t <= burn.end) : []
+    const avg = inBurn.length ? inBurn.reduce((t, x) => t + x.chamber, 0) / inBurn.length : 0
+    chamber = { peak: Math.round(cp.peak * 10) / 10, peakAt: cp.at, avg: Math.round(avg * 10) / 10, unit: units.chamber ?? 'psi' }
+  }
+
+  return { samples: s.length, channels, units, from: s[0].t, to: s[s.length - 1].t, burn, thrust, chamber }
+}
+
+/** All of a test's readings, oldest first, with the channels' units. */
+export async function testSamples(db: Db, testId: string): Promise<{ samples: Sample[]; units: Units }> {
+  const rows = await db.query<{ samples: Sample[] | string; units: Units | string | null }>(
+    'select samples, units from telemetry where test_id = $1 order by id',
+    [testId],
+  )
+  const parse = <T,>(v: T | string): T => (typeof v === 'string' ? (JSON.parse(v) as T) : v)
+  const samples: Sample[] = []
+  let units: Units = {}
+  for (const r of rows) {
+    samples.push(...parse(r.samples))
+    if (r.units) units = { ...units, ...parse(r.units) }
+  }
+  samples.sort((a, b) => a.t - b.t)
+  return { samples, units }
+}

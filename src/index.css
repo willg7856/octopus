@@ -885,3 +885,26 @@ textarea { resize: vertical; line-height: 1.5; }
   .lightbox-nav.next { right: 6px; }
   .lightbox-panel { border-left: 0; border-top: 1px solid var(--line); }
 }
+
+/* ============ Test log ============ */
+.testlog-campaign { display: flex; flex-direction: column; gap: 10px; }
+.testlog-campaign-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; padding-top: 6px; border-top: 2px solid var(--fg); }
+.testlog-campaign-head h2 { margin: 6px 0 4px; font-size: 18px; }
+.testlog-campaign-head p { margin: 0; max-width: 60ch; }
+.testlog-list { display: flex; flex-direction: column; gap: 10px; }
+.testlog-fire { display: flex; flex-direction: column; gap: 10px; }
+.testlog-fire.draft { border-style: dashed; }
+.testlog-fire-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.testlog-fire-title { display: flex; flex-direction: column; gap: 2px; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; color: inherit; }
+.testlog-fire-title:hover .testlog-code { color: var(--accent-text); }
+.testlog-code { font: 700 18px var(--mono); letter-spacing: -0.01em; }
+.testlog-specs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 16px; margin: 0; }
+.testlog-specs dt { font: 600 10.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.testlog-specs dd { margin: 2px 0 0; font-size: 14px; }
+.testlog-learned { margin: 0; line-height: 1.5; }
+.testlog-links { align-items: center; }
+.sensor-summary { display: flex; flex-direction: column; gap: 12px; padding: 12px; border-radius: var(--r); background: var(--bg); border: 1px solid var(--line); }
+.sensor-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 16px; margin: 0; }
+.sensor-stats div { display: flex; flex-direction: column; gap: 2px; }
+.sensor-stats dt { font: 600 10.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.sensor-stats dd { margin: 0; font: 600 22px/1.15 var(--mono); font-variant-numeric: tabular-nums; }

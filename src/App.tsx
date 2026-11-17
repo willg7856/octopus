@@ -14,6 +14,7 @@ import { ActivityPage, TeamPage } from './pages/admin'
 import { SitePage } from './pages/site'
 import { TestDayPage } from './pages/testday'
 import { GalleryPage } from './pages/gallery'
+import { TestLogPage } from './pages/testlog'
 import { CountdownsPage } from './pages/countdowns'
 import { AnalyticsPage, IncomeList } from './pages/analytics'
 import { Home } from './pages/home'
@@ -109,6 +110,9 @@ function Routes() {
       return <SitePage />
     case 'gallery':
       return <GalleryPage />
+    case 'test-log':
+    case 'campaigns':
+      return <TestLogPage />
       return <SitePage />
     case 'activity':
       return <ActivityPage />

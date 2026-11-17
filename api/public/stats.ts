@@ -16,6 +16,7 @@ import { HttpError, route } from '../_lib/http.js'
  */
 
 interface Row {
+  id: string
   type: string
   data: Record<string, unknown>
   created_at: string
@@ -41,8 +42,8 @@ export default route({
     const db = await getDb()
     await autoStartDueTests(db) // a GO test that just hit T-0 becomes In progress
     const rows = await db.query<Row>(
-      `select type, data, created_at, updated_at from records
-       where deleted_at is null and type in ('stat', 'movement', 'process', 'countdown', 'post', 'notice', 'upnext', 'photo')`,
+      `select id, type, data, created_at, updated_at from records
+       where deleted_at is null and type in ('stat', 'movement', 'process', 'countdown', 'post', 'notice', 'upnext', 'photo', 'campaign', 'firing')`,
     )
 
     const now = new Date()
@@ -144,6 +145,61 @@ export default route({
         vertical: r.data.vertical === true,
       }))
 
+    // Test log on the Tests page: campaigns and their published firings. Drive links and team
+    // notes stay in Octopus.
+    const campaignRows = rows.filter((r) => r.type === 'campaign')
+    const firingRows = rows.filter((r) => r.type === 'firing')
+    const str = (v: unknown) => (v == null || v === '' ? null : String(v))
+    const shortDate = (iso: string) => {
+      const [y, m, d] = iso.split('-').map(Number)
+      return y && m && d ? `${d} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${y}` : iso
+    }
+    const ytId = (u: unknown) => {
+      const m = /(?:youtu\.be\/|[?&]v=|\/(?:shorts|live|embed)\/)([\w-]{6,20})/.exec(String(u ?? ''))
+      return m ? m[1] : null
+    }
+    const campaignCode = new Map(campaignRows.map((r) => [r.id, String(r.data.code ?? '')]))
+    const testLog = {
+      campaigns: campaignRows
+        .filter((r) => r.data.code)
+        .sort((a, b) => (Number(a.data.order) || 999) - (Number(b.data.order) || 999))
+        .map((r) => ({
+          id: String(r.data.code),
+          date: str(r.data.dateLabel),
+          engine: str(r.data.engine),
+          objective: str(r.data.objective),
+          photos: String(r.data.photos ?? '')
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter((l) => /^https?:\/\//.test(l))
+            .map((l) => {
+              const [src, ...cap] = l.split('|')
+              return { src: src!.trim(), caption: cap.join('|').trim() }
+            }),
+        })),
+      fires: firingRows
+        .filter((r) => r.data.status === 'published' && r.data.code)
+        .sort((a, b) => String(a.data.date ?? '').localeCompare(String(b.data.date ?? '')) || String(a.data.code).localeCompare(String(b.data.code)))
+        .map((r) => ({
+          id: String(r.data.code),
+          campaign: campaignCode.get(String(r.data.campaign ?? '')) || null,
+          date: r.data.date ? shortDate(String(r.data.date)) : null,
+          engine: str(r.data.engine),
+          kno3Grade: str(r.data.grade),
+          propellant: str(r.data.propellant),
+          mass: str(r.data.mass),
+          burnTime: str(r.data.burnTime),
+          peakThrust: str(r.data.peakThrust),
+          impulse: str(r.data.impulse),
+          peakPressure: str(r.data.peakPressure),
+          result: ['success', 'partial', 'failure'].includes(String(r.data.result)) ? String(r.data.result) : 'partial',
+          photo: r.data.photo ? { src: String(r.data.photo), caption: String(r.data.photoCaption ?? ''), portrait: r.data.photoShape === 'portrait' } : null,
+          videoId: ytId(r.data.video),
+          observations: String(r.data.observations ?? '').split(/\r?\n/).map((l) => l.replace(/^[-•*]\s*/, '').trim()).filter(Boolean),
+          learned: str(r.data.learned),
+        })),
+    }
+
     const notices = rows.filter((r) => r.type === 'notice')
     const active = notices
       .filter((r) => r.data.active !== 'off' && r.data.title)
@@ -167,7 +223,9 @@ export default route({
         notice: notices.length > 0,
         upnext: upnextRows.length > 0,
         gallery: photoRows.length > 0,
+        testLog: campaignRows.length + firingRows.length > 0,
       },
+      testLog,
       upnext,
       gallery,
       notice,

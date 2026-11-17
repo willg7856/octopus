@@ -30,6 +30,7 @@ const GROUPS: { label?: string; items: NavItem[] }[] = [
       { key: 'site', label: 'BSZ site', icon: 'monitor' },
       { key: 'gallery', label: 'Gallery', icon: 'image' },
       { key: 'space', label: '.space', icon: 'play' },
+      { key: 'test-log', label: 'Test log', icon: 'list' },
     ],
   },
   {
