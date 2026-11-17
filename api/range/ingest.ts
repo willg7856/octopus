@@ -1,5 +1,5 @@
 import { getDb } from '../_lib/db.js'
-import { body, HttpError, route } from '../_lib/http.js'
+import { body, HttpError, route, type Res } from '../_lib/http.js'
 import { activeTest, checkRangeKey, cleanSamples, cleanUnits, testRows } from '../_lib/telemetry.js'
 
 /**
@@ -15,8 +15,22 @@ import { activeTest, checkRangeKey, cleanSamples, cleanUnits, testRows } from '.
 
 let testCache: { at: number; rows: Awaited<ReturnType<typeof testRows>> } | null = null
 
+// The thrust logger page runs from a file on the range laptop (or a local relay), so the browser
+// needs CORS to send here. Safe to allow any origin: the range key is the only credential, never cookies.
+const cors = (res: Res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  res.setHeader('Access-Control-Max-Age', '86400')
+}
+
 export default route({
+  async OPTIONS(_req, res) {
+    cors(res)
+    res.status(204).end()
+  },
   async POST(req, res) {
+    cors(res)
     const db = await getDb()
     const auth = String(req.headers.authorization ?? '')
     const key = auth.startsWith('Bearer ') ? auth.slice(7).trim() : undefined

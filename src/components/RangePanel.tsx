@@ -25,7 +25,9 @@ const PUBLIC = [
   { value: 'after', label: 'After the test' },
 ]
 
-const LABELS: Record<string, string> = { chamber: 'Chamber pressure', tank: 'Tank pressure', feed: 'Feed pressure', thrust: 'Thrust' }
+const LABELS: Record<string, string> = {
+  chamber: 'Chamber pressure', tank: 'Tank pressure', feed: 'Feed pressure', thrust: 'Thrust', temp: 'Temperature', propellant: 'Propellant',
+}
 export const channelLabel = (c: string) => LABELS[c] ?? c.replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase())
 const fmt = (v: number | undefined) => (v == null ? '—' : Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1))
 
