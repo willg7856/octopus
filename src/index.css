@@ -839,6 +839,9 @@ textarea { resize: vertical; line-height: 1.5; }
 .gallery-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .gallery-img:hover img { filter: brightness(0.92); }
 .gallery-badge { position: absolute; top: 8px; left: 8px; }
+.gallery-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: rgba(11, 13, 15, 0.7); color: #fff; font-size: 18px; padding-left: 3px; pointer-events: none; }
+.lightbox-video { grid-area: 1 / 1; place-self: center; width: min(calc(100% - 112px), calc((100vh - 56px) * 16 / 9)); aspect-ratio: 16 / 9; border: 0; background: #000; }
+.lightbox-video.vertical { width: min(calc(100% - 112px), calc((100vh - 56px) * 9 / 16)); aspect-ratio: 9 / 16; }
 .gallery-kind { position: absolute; top: 8px; right: 8px; padding: 2px 7px; border-radius: 4px; background: rgba(11, 13, 15, 0.75); color: #fff; font: 600 10.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
 .gallery-tile figcaption { display: flex; flex-direction: column; gap: 6px; padding: 9px 10px 8px; font-size: 13px; line-height: 1.4; }
 .gallery-actions { display: flex; gap: 2px; justify-content: flex-end; }

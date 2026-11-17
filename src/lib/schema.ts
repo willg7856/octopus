@@ -506,6 +506,7 @@ export const COLLECTIONS: Collection[] = [
         { value: 'photo', label: 'Photo', tone: 'neutral' },
         { value: 'render', label: 'Render', tone: 'info' },
         { value: 'team', label: 'Team', tone: 'accent' },
+        { value: 'video', label: 'Video', tone: 'warn' },
       ] },
       { key: 'visible', label: 'On the website', type: 'select', required: true, half: true, initial: 'shown', options: [
         { value: 'shown', label: 'Shown', tone: 'good' },

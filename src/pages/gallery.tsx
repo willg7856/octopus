@@ -18,7 +18,10 @@ type Photo = {
   url: string
   thumb?: string
   caption?: string
-  kind?: 'photo' | 'render' | 'team'
+  kind?: 'photo' | 'render' | 'team' | 'video'
+  /** Videos: the YouTube video id, and whether it's upright (a Short). */
+  videoId?: string
+  vertical?: boolean
   visible?: 'shown' | 'hidden'
   order?: number
   width?: number
@@ -33,6 +36,7 @@ const FILTERS = [
   { id: 'photo', label: 'Photos' },
   { id: 'render', label: 'Renders' },
   { id: 'team', label: 'Team' },
+  { id: 'video', label: 'Videos' },
   { id: 'hidden', label: 'Hidden' },
 ] as const
 
@@ -67,6 +71,28 @@ async function shrink(file: File, maxPx: number, quality: number): Promise<{ blo
   bitmap.close()
   if (!blob) throw new Error('Couldn’t shrink this image')
   return { blob, width, height }
+}
+
+/** Reads a YouTube link (watch, youtu.be, Shorts, live, embed) into its video id. */
+export function youtubeVideo(link: string): { id: string; vertical: boolean } | null {
+  try {
+    const u = new URL(link.trim())
+    const host = u.hostname.replace(/^(www|m|music)\./, '')
+    let id: string | null = null
+    let vertical = false
+    if (host === 'youtu.be') id = u.pathname.slice(1).split('/')[0] ?? null
+    else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+      id = u.searchParams.get('v')
+      const m = u.pathname.match(/^\/(shorts|live|embed)\/([\w-]{6,})/)
+      if (!id && m) {
+        id = m[2]!
+        vertical = m[1] === 'shorts'
+      }
+    }
+    return id && /^[\w-]{6,20}$/.test(id) ? { id, vertical } : null
+  } catch {
+    return null
+  }
 }
 
 const toBase64 = (blob: Blob) =>
@@ -158,6 +184,37 @@ export function GalleryPage() {
     setTimeout(() => setJobs((j) => j.filter((x) => x.state !== 'done')), 4000)
   }
 
+  const addVideo = async () => {
+    const link = await dialog.prompt({
+      title: 'Add a video',
+      message: 'Paste a YouTube link. Unlisted videos work too, so they don’t have to be on your channel.',
+      label: 'YouTube link',
+      placeholder: 'https://youtu.be/… or https://youtube.com/shorts/…',
+      confirmLabel: 'Add video',
+      validate: (v) => (youtubeVideo(v) ? null : 'That isn’t a YouTube video link'),
+    })
+    const v = link ? youtubeVideo(link) : null
+    if (!v) return
+    const front = Math.min(0, ...photos.map((p) => Number(p.data.order) || 0)) - 1
+    try {
+      await create('photo', {
+        url: `https://www.youtube.com/watch?v=${v.id}`,
+        thumb: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+        videoId: v.id,
+        vertical: v.vertical,
+        width: v.vertical ? 720 : 1280,
+        height: v.vertical ? 1280 : 720,
+        caption: '',
+        kind: 'video',
+        visible: 'shown',
+        order: front,
+      })
+      toast('Video added to the gallery. Click it to add a caption.', { tone: 'good' })
+    } catch (e) {
+      toast((e as Error).message, { tone: 'bad' })
+    }
+  }
+
   const move = async (i: number, dir: -1 | 1) => {
     const list = [...sorted]
     const j = i + dir
@@ -238,6 +295,7 @@ export function GalleryPage() {
         </div>
         <div className="row gap-s wrap">
           <LinkButton href={`${SITE}/gallery`} external icon="external">Open the gallery</LinkButton>
+          <Button icon="play" onClick={addVideo}>Add video</Button>
           <Button variant="primary" icon="upload" onClick={() => input.current?.click()}>Add photos</Button>
           <input
             ref={input}
@@ -299,7 +357,10 @@ export function GalleryPage() {
                 <button className="gallery-img" onClick={() => setOpenId(p.id)} title="Open full screen">
                   <img src={p.data.thumb || p.data.url} alt={p.data.caption || ''} loading="lazy" />
                   {hidden && <span className="gallery-badge"><Badge>Hidden</Badge></span>}
-                  {p.data.kind && p.data.kind !== 'photo' && <span className="gallery-kind">{p.data.kind === 'render' ? 'Render' : 'Team'}</span>}
+                  {p.data.kind === 'video' && <span className="gallery-play" aria-hidden="true">▶</span>}
+                  {p.data.kind && p.data.kind !== 'photo' && (
+                    <span className="gallery-kind">{p.data.kind === 'render' ? 'Render' : p.data.kind === 'video' ? 'Video' : 'Team'}</span>
+                  )}
                 </button>
                 <figcaption>
                   <span className={p.data.caption ? '' : 'muted'}>{p.data.caption || 'Add a caption'}</span>
@@ -430,15 +491,28 @@ function Lightbox({
   return (
     <div className="lightbox" role="dialog" aria-modal="true" aria-label={p.data.caption || 'Photo'}>
       <div className="lightbox-stage" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        {/* Thumbnail first (it's already loaded), then the full photo fades in over it */}
-        <img className={`lightbox-img thumb${loaded ? ' gone' : ''}`} src={p.data.thumb || p.data.url} alt="" aria-hidden="true" />
-        <img
-          key={p.id}
-          className={`lightbox-img${loaded ? ' loaded' : ''}`}
-          src={p.data.url}
-          alt={p.data.caption || ''}
-          onLoad={() => setLoaded(true)}
-        />
+        {p.data.videoId ? (
+          <iframe
+            key={p.id}
+            className={`lightbox-video${p.data.vertical ? ' vertical' : ''}`}
+            src={`https://www.youtube-nocookie.com/embed/${p.data.videoId}?rel=0&playsinline=1`}
+            title={p.data.caption || 'Video'}
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen
+          />
+        ) : (
+          <>
+            {/* Thumbnail first (it's already loaded), then the full photo fades in over it */}
+            <img className={`lightbox-img thumb${loaded ? ' gone' : ''}`} src={p.data.thumb || p.data.url} alt="" aria-hidden="true" />
+            <img
+              key={p.id}
+              className={`lightbox-img${loaded ? ' loaded' : ''}`}
+              src={p.data.url}
+              alt={p.data.caption || ''}
+              onLoad={() => setLoaded(true)}
+            />
+          </>
+        )}
         <button className="lightbox-nav prev" onClick={() => go(-1)} disabled={i === 0} aria-label="Previous photo">‹</button>
         <button className="lightbox-nav next" onClick={() => go(1)} disabled={i === list.length - 1} aria-label="Next photo">›</button>
         <span className="lightbox-count">{i + 1} / {list.length}</span>
@@ -471,6 +545,7 @@ function Lightbox({
           />
         </label>
 
+        {kind !== 'video' && (
         <div className="lightbox-field">
           <span className="lightbox-label">Type</span>
           <div className="chips" role="radiogroup" aria-label="Type">
@@ -481,6 +556,7 @@ function Lightbox({
             ))}
           </div>
         </div>
+        )}
 
         <div className="lightbox-field">
           <span className="lightbox-label">On the website</span>
@@ -499,11 +575,12 @@ function Lightbox({
         </div>
 
         <dl className="lightbox-meta small">
-          {p.data.width && p.data.height ? (<><dt>Size</dt><dd>{p.data.width} × {p.data.height}</dd></>) : null}
+          {p.data.width && p.data.height && !p.data.videoId ? (<><dt>Size</dt><dd>{p.data.width} × {p.data.height}</dd></>) : null}
+          {p.data.videoId && (<><dt>Video</dt><dd>YouTube{p.data.vertical ? ' Short' : ''}</dd></>)}
           <dt>{uploaded ? 'Uploaded' : 'Added'}</dt>
           <dd>{fmtDate(p.createdAt.slice(0, 10))}{p.createdBy ? ` · ${p.createdBy.split('@')[0]}` : ''}</dd>
           <dt>File</dt>
-          <dd><a href={p.data.url} target="_blank" rel="noreferrer">Open the full photo ↗</a></dd>
+          <dd><a href={p.data.url} target="_blank" rel="noreferrer">{p.data.videoId ? 'Open on YouTube ↗' : 'Open the full photo ↗'}</a></dd>
         </dl>
 
         <div className="lightbox-foot">

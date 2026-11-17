@@ -139,6 +139,9 @@ export default route({
         kind: r.data.kind ? String(r.data.kind) : 'photo',
         width: Number(r.data.width) || null,
         height: Number(r.data.height) || null,
+        // Videos are YouTube links: the id to embed, and whether it's an upright Short.
+        videoId: typeof r.data.videoId === 'string' && /^[\w-]{6,20}$/.test(r.data.videoId) ? r.data.videoId : null,
+        vertical: r.data.vertical === true,
       }))
 
     const notices = rows.filter((r) => r.type === 'notice')
