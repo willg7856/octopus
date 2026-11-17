@@ -418,7 +418,7 @@ export const COLLECTIONS: Collection[] = [
       ] },
       { key: 'status', label: 'Test status', type: 'select', half: true, initial: 'scheduled',
         hidden: (d) => d.category !== 'test' && d.category !== 'launch', options: [
-        { value: 'scheduled', label: 'Scheduled', tone: 'neutral' },
+        { value: 'scheduled', label: 'GO', tone: 'good' },
         { value: 'hold', label: 'Hold', tone: 'warn' },
         { value: 'live', label: 'Live', tone: 'bad' },
         { value: 'done', label: 'Complete', tone: 'good' },

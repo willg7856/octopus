@@ -19,7 +19,7 @@ type Kind = 'update' | 'milestone' | 'hold' | 'go' | 'result'
 const SPACE = 'https://beyondstagezero.space'
 
 const STATUSES: { value: Status; label: string; tone: 'neutral' | 'warn' | 'bad' | 'good'; post?: { text: string; kind: Kind } }[] = [
-  { value: 'scheduled', label: 'Scheduled', tone: 'neutral' },
+  { value: 'scheduled', label: 'GO', tone: 'good' },
   { value: 'hold', label: 'Hold', tone: 'warn', post: { text: 'We are holding.', kind: 'hold' } },
   { value: 'live', label: 'Live', tone: 'bad', post: { text: 'We are live.', kind: 'go' } },
   { value: 'done', label: 'Complete', tone: 'good', post: { text: 'Test complete.', kind: 'result' } },
@@ -327,7 +327,7 @@ function TestConsole({
 }
 
 type Feed = { current: { id: string; name: string; status: string; updates: unknown[] } | null }
-const FEED_LABEL: Record<string, string> = { scheduled: 'Scheduled', hold: 'Hold', live: 'Live', done: 'Complete', scrubbed: 'Scrubbed' }
+const FEED_LABEL: Record<string, string> = { scheduled: 'GO', hold: 'Hold', live: 'Live', done: 'Complete', scrubbed: 'Scrubbed' }
 
 /** What beyondstagezero.space is showing right now, straight from its public feed. */
 function OnSpace({ testId, isPublic }: { testId: string; isPublic: boolean }) {
