@@ -10,7 +10,9 @@ export const SITE_SEED = {
       "caption": "SF-01 burning, 18 February 2026.",
       "kind": "photo",
       "visible": "shown",
-      "order": 1
+      "order": 1,
+      "width": 872,
+      "height": 1121
     },
     {
       "url": "https://www.beyondstagezero.com/sf02-burn.jpg",
@@ -18,7 +20,9 @@ export const SITE_SEED = {
       "caption": "SF-02 burning, 18 February 2026.",
       "kind": "photo",
       "visible": "shown",
-      "order": 2
+      "order": 2,
+      "width": 700,
+      "height": 900
     },
     {
       "url": "https://www.beyondstagezero.com/sf04-burn.jpg",
@@ -26,7 +30,9 @@ export const SITE_SEED = {
       "caption": "The start of the SF-04 burn, 26 April 2026.",
       "kind": "photo",
       "visible": "shown",
-      "order": 3
+      "order": 3,
+      "width": 1278,
+      "height": 720
     },
     {
       "url": "https://www.beyondstagezero.com/sf-c02-dawn-range.jpg",
@@ -34,7 +40,9 @@ export const SITE_SEED = {
       "caption": "Setting up the range before sunrise for SF-03 and SF-04.",
       "kind": "photo",
       "visible": "shown",
-      "order": 4
+      "order": 4,
+      "width": 1600,
+      "height": 900
     },
     {
       "url": "https://www.beyondstagezero.com/sf-c02-dawn-pad.jpg",
@@ -42,7 +50,9 @@ export const SITE_SEED = {
       "caption": "The test stand on the pad, the morning of SF-03 and SF-04.",
       "kind": "photo",
       "visible": "shown",
-      "order": 5
+      "order": 5,
+      "width": 1600,
+      "height": 900
     },
     {
       "url": "https://www.beyondstagezero.com/sf-c02-dawn-sky.jpg",
@@ -50,7 +60,9 @@ export const SITE_SEED = {
       "caption": "Sunrise over the range, 26 April 2026.",
       "kind": "photo",
       "visible": "shown",
-      "order": 6
+      "order": 6,
+      "width": 1600,
+      "height": 900
     },
     {
       "url": "https://www.beyondstagezero.com/sf-c02-dawn-tall.jpg",
@@ -58,7 +70,9 @@ export const SITE_SEED = {
       "caption": "The range from behind the cameras, 26 April 2026.",
       "kind": "photo",
       "visible": "shown",
-      "order": 7
+      "order": 7,
+      "width": 900,
+      "height": 1600
     },
     {
       "url": "https://www.beyondstagezero.com/b1m-engine-photo.jpg",
@@ -66,7 +80,9 @@ export const SITE_SEED = {
       "caption": "B1M engine casing.",
       "kind": "photo",
       "visible": "shown",
-      "order": 8
+      "order": 8,
+      "width": 625,
+      "height": 2000
     },
     {
       "url": "https://www.beyondstagezero.com/b1m-engine-disassembled.jpg",
@@ -74,7 +90,9 @@ export const SITE_SEED = {
       "caption": "B1M engine, disassembled.",
       "kind": "photo",
       "visible": "shown",
-      "order": 9
+      "order": 9,
+      "width": 742,
+      "height": 382
     },
     {
       "url": "https://www.beyondstagezero.com/b1m-sealant-apply.jpg",
@@ -82,7 +100,9 @@ export const SITE_SEED = {
       "caption": "Applying sealant during B1M engine assembly.",
       "kind": "photo",
       "visible": "shown",
-      "order": 10
+      "order": 10,
+      "width": 576,
+      "height": 1024
     },
     {
       "url": "https://www.beyondstagezero.com/b1m-sealant-spread.jpg",
@@ -90,7 +110,9 @@ export const SITE_SEED = {
       "caption": "Sealant spread on a B1M engine part.",
       "kind": "photo",
       "visible": "shown",
-      "order": 11
+      "order": 11,
+      "width": 576,
+      "height": 1024
     },
     {
       "url": "https://www.beyondstagezero.com/nozzle-duracast-1.jpg",
@@ -98,7 +120,9 @@ export const SITE_SEED = {
       "caption": "The first ceramic nozzle, in the current Duracast material.",
       "kind": "photo",
       "visible": "shown",
-      "order": 12
+      "order": 12,
+      "width": 1800,
+      "height": 1200
     },
     {
       "url": "https://www.beyondstagezero.com/nozzle-duracast-2.jpg",
@@ -106,7 +130,9 @@ export const SITE_SEED = {
       "caption": "Another view of the same nozzle.",
       "kind": "photo",
       "visible": "shown",
-      "order": 13
+      "order": 13,
+      "width": 1800,
+      "height": 1200
     },
     {
       "url": "https://www.beyondstagezero.com/nozzle-graphite.jpg",
@@ -114,7 +140,9 @@ export const SITE_SEED = {
       "caption": "A graphite nozzle being machined.",
       "kind": "photo",
       "visible": "shown",
-      "order": 14
+      "order": 14,
+      "width": 1400,
+      "height": 1580
     },
     {
       "url": "https://www.beyondstagezero.com/mould-top.jpg",
@@ -122,7 +150,9 @@ export const SITE_SEED = {
       "caption": "Top-down view of the ceramic in the v14 mould.",
       "kind": "photo",
       "visible": "shown",
-      "order": 15
+      "order": 15,
+      "width": 1800,
+      "height": 1012
     },
     {
       "url": "https://www.beyondstagezero.com/mould-side.jpg",
@@ -130,7 +160,9 @@ export const SITE_SEED = {
       "caption": "Side view of the ceramic in the v14 mould.",
       "kind": "photo",
       "visible": "shown",
-      "order": 16
+      "order": 16,
+      "width": 1600,
+      "height": 1200
     },
     {
       "url": "https://www.beyondstagezero.com/doherty-nozzles.jpg",
@@ -138,7 +170,9 @@ export const SITE_SEED = {
       "caption": "Five ceramic nozzles in their moulds.",
       "kind": "photo",
       "visible": "shown",
-      "order": 17
+      "order": 17,
+      "width": 2000,
+      "height": 1125
     },
     {
       "url": "https://www.beyondstagezero.com/crwa-station.jpg",
@@ -146,7 +180,9 @@ export const SITE_SEED = {
       "caption": "The CRWA's railway station.",
       "kind": "photo",
       "visible": "shown",
-      "order": 18
+      "order": 18,
+      "width": 2000,
+      "height": 1333
     },
     {
       "url": "https://www.beyondstagezero.com/crwa-station-yard.jpg",
@@ -154,7 +190,9 @@ export const SITE_SEED = {
       "caption": "Another view of the CRWA's railway station.",
       "kind": "photo",
       "visible": "shown",
-      "order": 19
+      "order": 19,
+      "width": 2000,
+      "height": 1333
     },
     {
       "url": "https://www.beyondstagezero.com/crwa-night.jpg",
@@ -162,7 +200,9 @@ export const SITE_SEED = {
       "caption": "The CRWA's railway station at night.",
       "kind": "photo",
       "visible": "shown",
-      "order": 20
+      "order": 20,
+      "width": 1944,
+      "height": 1296
     },
     {
       "url": "https://www.beyondstagezero.com/goods-shed.jpg",
@@ -170,7 +210,9 @@ export const SITE_SEED = {
       "caption": "The goods shed.",
       "kind": "photo",
       "visible": "shown",
-      "order": 21
+      "order": 21,
+      "width": 2000,
+      "height": 1333
     },
     {
       "url": "https://www.beyondstagezero.com/b1m-cad.png",
@@ -178,7 +220,9 @@ export const SITE_SEED = {
       "caption": "B1M engine cutaway.",
       "kind": "render",
       "visible": "shown",
-      "order": 22
+      "order": 22,
+      "width": 1095,
+      "height": 959
     },
     {
       "url": "https://www.beyondstagezero.com/b1m-external1.png",
@@ -186,7 +230,9 @@ export const SITE_SEED = {
       "caption": "B1M engine.",
       "kind": "render",
       "visible": "shown",
-      "order": 23
+      "order": 23,
+      "width": 1024,
+      "height": 576
     },
     {
       "url": "https://www.beyondstagezero.com/b1m-engine-angle.png",
@@ -194,7 +240,9 @@ export const SITE_SEED = {
       "caption": "B1M engine, angled.",
       "kind": "render",
       "visible": "shown",
-      "order": 24
+      "order": 24,
+      "width": 1036,
+      "height": 601
     },
     {
       "url": "https://www.beyondstagezero.com/b1m-external2.png",
@@ -202,7 +250,9 @@ export const SITE_SEED = {
       "caption": "B1M engine, side.",
       "kind": "render",
       "visible": "shown",
-      "order": 25
+      "order": 25,
+      "width": 189,
+      "height": 1026
     },
     {
       "url": "https://www.beyondstagezero.com/b1m-external3.png",
@@ -210,7 +260,9 @@ export const SITE_SEED = {
       "caption": "B1M engine, external.",
       "kind": "render",
       "visible": "shown",
-      "order": 26
+      "order": 26,
+      "width": 795,
+      "height": 622
     }
   ],
   "upnext": [
